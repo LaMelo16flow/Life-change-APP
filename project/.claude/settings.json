@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm ls *)",
+      "Bash(npx --no-install --package=playwright -- node check.mjs)",
+      "Bash(node check.mjs)",
+      "Bash(netstat -ano)"
+    ]
+  }
+}
