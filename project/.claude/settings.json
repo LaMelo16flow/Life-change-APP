@@ -4,7 +4,9 @@
       "Bash(npm ls *)",
       "Bash(npx --no-install --package=playwright -- node check.mjs)",
       "Bash(node check.mjs)",
-      "Bash(netstat -ano)"
+      "Bash(netstat -ano)",
+      "Bash(git fetch *)",
+      "Bash(git rev-list *)"
     ]
   }
 }
