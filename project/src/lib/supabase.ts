@@ -29,7 +29,6 @@ export interface Profile {
   email: string;
   full_name: string;
   country_code: string;
-  current_rank_id: string | null;
   total_pv: number;
   is_active: boolean;
   referred_by: string | null;
@@ -42,11 +41,8 @@ export interface Profile {
   city: string | null;
   state_province: string | null;
   postal_code: string | null;
-  balance: number;
-  currency: string;
   account_status?: 'pending' | 'approved' | 'rejected';
   rejection_reason?: string | null;
-  rank_name?: string | null;
   profile_image_url?: string | null;
   created_at: string;
   updated_at: string;
@@ -54,19 +50,6 @@ export interface Profile {
     currency_code: string;
     currency_symbol: string;
   } | null;
-}
-
-export interface Rank {
-  id: string;
-  name: string;
-  display_order: number;
-  required_pv: number;
-  required_branches: number;
-  requires_approval: boolean;
-  approved_by_min_rank_id: string | null;
-  color: string;
-  icon: string;
-  is_active: boolean;
 }
 
 export interface Branch {
@@ -100,18 +83,6 @@ export interface Notification {
   created_at: string;
 }
 
-export interface PromotionRequest {
-  id: string;
-  user_id: string;
-  from_rank_id: string | null;
-  to_rank_id: string;
-  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
-  requested_at: string;
-  reviewed_by: string | null;
-  reviewed_at: string | null;
-  review_notes: string | null;
-}
-
 export interface Product {
   id: string;
   name: string;
@@ -129,8 +100,7 @@ export type PermissionType =
   | 'manage_users'
   | 'manage_accounts'
   | 'manage_products'
-  | 'manage_promotions'
-  | 'manage_codes';
+  | 'manage_promotions';
 
 export interface ManagerPermission {
   id: string;

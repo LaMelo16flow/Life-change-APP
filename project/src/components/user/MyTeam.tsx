@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase, Profile, Rank } from '../../lib/supabase';
-import { Users, Award, TrendingUp, UserPlus } from 'lucide-react';
+import { supabase, Profile } from '../../lib/supabase';
+import { Users, TrendingUp, UserPlus } from 'lucide-react';
 
-interface TeamMember extends Profile {
-  rank: Rank | null;
-}
+type TeamMember = Profile;
 
 export function MyTeam() {
   const { profile } = useAuth();
@@ -39,21 +37,7 @@ export function MyTeam() {
         return;
       }
 
-      const rankIds = profiles
-        .map((p) => p.current_rank_id)
-        .filter((id): id is string => id !== null);
-
-      const { data: ranks } = await supabase
-        .from('ranks')
-        .select('*')
-        .in('id', rankIds);
-
-      const teamWithRanks = profiles.map((profile) => ({
-        ...profile,
-        rank: ranks?.find((r) => r.id === profile.current_rank_id) || null,
-      }));
-
-      setTeam(teamWithRanks);
+      setTeam(profiles);
       setLoading(false);
     };
 
@@ -138,19 +122,6 @@ export function MyTeam() {
               </div>
 
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-600">Rank</span>
-                  <div className="flex items-center gap-2">
-                    <Award
-                      className="w-4 h-4"
-                      style={{ color: member.rank?.color || '#6B7280' }}
-                    />
-                    <span className="text-sm font-semibold text-slate-900">
-                      {member.rank?.name || 'N/A'}
-                    </span>
-                  </div>
-                </div>
-
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-600">Total PV</span>
                   <div className="flex items-center gap-2">

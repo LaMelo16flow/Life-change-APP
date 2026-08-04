@@ -10,7 +10,7 @@ interface EmailRequest {
   to: string;
   subject: string;
   html: string;
-  type: 'order_placed' | 'order_approved' | 'payment_submitted' | 'payment_verified' | 'order_rejected' | 'rank_promotion_approved' | 'rank_promotion_rejected' | 'account_approval_request';
+  type: 'order_placed' | 'order_approved' | 'payment_submitted' | 'payment_verified' | 'order_rejected' | 'account_approval_request';
   orderData?: {
     orderNumber: string;
     productName: string;

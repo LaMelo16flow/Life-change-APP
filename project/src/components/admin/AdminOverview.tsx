@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Users, Award, TrendingUp, DollarSign, CheckCircle, ShoppingBag } from 'lucide-react';
+import { Users, TrendingUp, DollarSign, CheckCircle, ShoppingBag } from 'lucide-react';
 import { AnimatedCounter } from '../AnimatedCounter';
 
 const REFRESH_INTERVAL = 30_000;
@@ -11,7 +11,6 @@ export function AdminOverview() {
     activeUsers: 0,
     totalPV: 0,
     pendingOrders: 0,
-    pendingPromotions: 0,
     recentPayments: 0,
   });
   const [loading, setLoading] = useState(true);
@@ -22,7 +21,6 @@ export function AdminOverview() {
       activeUsersRes,
       pvRes,
       ordersRes,
-      promotionsRes,
       paymentsRes,
     ] = await Promise.all([
       supabase.from('profiles').select('id', { count: 'exact', head: true }),
@@ -30,10 +28,6 @@ export function AdminOverview() {
       supabase.from('profiles').select('total_pv'),
       supabase
         .from('orders')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'pending'),
-      supabase
-        .from('promotion_requests')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'pending'),
       supabase
@@ -50,7 +44,6 @@ export function AdminOverview() {
       activeUsers: activeUsersRes.count || 0,
       totalPV,
       pendingOrders: ordersRes.count || 0,
-      pendingPromotions: promotionsRes.count || 0,
       recentPayments: paymentsRes.count || 0,
     });
 
@@ -131,20 +124,6 @@ export function AdminOverview() {
 
         <div className="card p-4 sm:p-6">
           <div className="flex items-center gap-3 sm:gap-4">
-            <div className="p-2 sm:p-3 rounded-xl bg-yellow-100 flex-shrink-0">
-              <Award className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-600" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-gray-500 text-xs sm:text-sm">Pending Promotions</p>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900">
-                <AnimatedCounter value={stats.pendingPromotions} />
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card p-4 sm:p-6">
-          <div className="flex items-center gap-3 sm:gap-4">
             <div className="p-2 sm:p-3 rounded-xl bg-green-100 flex-shrink-0">
               <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
             </div>
@@ -173,21 +152,19 @@ export function AdminOverview() {
       <div className="bg-gradient-to-r from-brand-800 to-brand-900 rounded-2xl p-6 sm:p-8 text-white">
         <h3 className="text-xl sm:text-2xl font-bold mb-2">Welcome to the Admin Dashboard</h3>
         <p className="text-sm sm:text-base text-brand-200 mb-6">
-          Manage your community platform, configure ranks, approve promotions, and oversee all operations from this central hub.
+          Manage your community platform, approve orders, and oversee all operations from this central hub.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs sm:text-sm">
           <div>
             <p className="text-brand-300 mb-1">Quick Actions</p>
             <ul className="space-y-1 text-brand-100">
               <li>- Manage user accounts</li>
-              <li>- Configure rank requirements</li>
               <li>- Upload products via Excel</li>
             </ul>
           </div>
           <div>
             <p className="text-brand-300 mb-1">Approvals</p>
             <ul className="space-y-1 text-brand-100">
-              <li>- Review promotion requests</li>
               <li>- Approve pending orders</li>
               <li>- Verify payment proofs</li>
             </ul>

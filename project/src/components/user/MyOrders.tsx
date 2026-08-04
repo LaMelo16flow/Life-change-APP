@@ -42,7 +42,6 @@ interface Order {
   currency_code: string;
   region: string;
   status: 'pending' | 'approved' | 'awaiting_payment' | 'rejected' | 'completed' | 'cancelled';
-  life_changer_code: string | null;
   approved_at: string | null;
   rejection_reason: string | null;
   admin_notes: string | null;
@@ -432,13 +431,6 @@ export default function MyOrders() {
                         </div>
                       </div>
                     </div>
-
-                    {order.life_changer_code && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="text-gray-600">Life Changer Code:</span>
-                        <span className="font-mono font-bold text-brand-600">{order.life_changer_code}</span>
-                      </div>
-                    )}
 
                     {order.rejection_reason && (
                       <div className="bg-red-50 border border-red-200 rounded-lg p-3 mt-2">

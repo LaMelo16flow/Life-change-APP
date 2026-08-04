@@ -307,14 +307,6 @@ export function UserProfile() {
 
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
-                  <MapPin className="w-4 h-4" />
-                  Current Rank
-                </div>
-                <p className="font-semibold text-gray-900">{profile?.rank_name || 'No rank'}</p>
-              </div>
-
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
                   <User className="w-4 h-4" />
                   Total PV
                 </div>
@@ -541,7 +533,7 @@ export function UserProfile() {
                 <div className="text-sm text-red-800">
                   <p className="font-semibold mb-2">Are you absolutely sure?</p>
                   <ul className="list-disc list-inside space-y-1 text-red-700">
-                    <li>Your profile, PV history, and wallet balance will be permanently deleted</li>
+                    <li>Your profile and PV history will be permanently deleted</li>
                     <li>Your team members will be unlinked from your account</li>
                     <li>Any pending orders will be affected</li>
                     <li>This action is irreversible</li>

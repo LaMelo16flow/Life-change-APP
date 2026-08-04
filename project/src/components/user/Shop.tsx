@@ -57,8 +57,6 @@ export default function Shop() {
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [orderQuantity, setOrderQuantity] = useState(1);
-  const [lifeChangerCode, setLifeChangerCode] = useState('');
-  const [codeValidation, setCodeValidation] = useState<{ valid: boolean; message: string } | null>(null);
   const [addingToCart, setAddingToCart] = useState<string | null>(null);
   const [cardQuantities, setCardQuantities] = useState<Record<string, number>>({});
 
@@ -145,8 +143,6 @@ export default function Shop() {
   const openOrderModal = (product: Product) => {
     setSelectedProduct(product);
     setOrderQuantity(getCardQty(product.id));
-    setLifeChangerCode('');
-    setCodeValidation(null);
     setShowOrderModal(true);
   };
 
@@ -196,45 +192,6 @@ export default function Shop() {
       setAddingToCart(null);
     }
   }
-
-  const validateLifeChangerCode = async (code: string) => {
-    if (!code.trim()) {
-      setCodeValidation(null);
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('life_changer_codes')
-        .select('*')
-        .eq('code', code.toUpperCase())
-        .eq('is_active', true)
-        .single();
-
-      if (error || !data) {
-        setCodeValidation({ valid: false, message: 'Invalid code' });
-        return;
-      }
-
-      if (data.expires_at && new Date(data.expires_at) < new Date()) {
-        setCodeValidation({ valid: false, message: 'Code has expired' });
-        return;
-      }
-
-      if (data.usage_limit && data.times_used >= data.usage_limit) {
-        setCodeValidation({ valid: false, message: 'Code usage limit reached' });
-        return;
-      }
-
-      setCodeValidation({
-        valid: true,
-        message: `Valid! You'll receive ${data.bonus_pv} bonus PV`
-      });
-    } catch (error) {
-      console.error('Error validating code:', error);
-      setCodeValidation({ valid: false, message: 'Error validating code' });
-    }
-  };
 
   async function handlePlaceOrder() {
     if (!profile || !selectedProduct) return;
@@ -288,7 +245,6 @@ export default function Shop() {
           currency_code: profile.countries?.currency_code || 'USD',
           region,
           status: 'pending',
-          life_changer_code: lifeChangerCode.trim().toUpperCase() || null,
           items_count: 1,
         })
         .select()
@@ -307,25 +263,16 @@ export default function Shop() {
         promotion_id: promo?.id || null,
       });
 
-      await supabase
-        .from('product_inventory')
-        .update({
-          reserved_quantity: inventoryData.reserved_quantity + totalQuantity,
-        })
-        .eq('product_id', selectedProduct.id)
-        .eq('region', region);
+      const { error: reserveError } = await supabase.rpc('reserve_inventory', {
+        p_product_id: selectedProduct.id,
+        p_region: region,
+        p_quantity: totalQuantity,
+        p_notes: `Order ${orderNumber} - pending approval${freeItems > 0 ? ` (includes ${freeItems} free)` : ''}`,
+      });
 
-      await supabase
-        .from('inventory_logs')
-        .insert({
-          product_id: selectedProduct.id,
-          region,
-          action: 'reservation',
-          quantity_change: -totalQuantity,
-          quantity_after: inventoryData.quantity,
-          performed_by: user?.id,
-          notes: `Order ${orderNumber} - pending approval${freeItems > 0 ? ` (includes ${freeItems} free)` : ''}`,
-        });
+      if (reserveError) {
+        throw new Error(`Failed to reserve stock: ${reserveError.message}`);
+      }
 
       await sendOrderPlacedNotification({
         orderNumber,
@@ -382,14 +329,6 @@ export default function Shop() {
           </h2>
           <p className="text-sm sm:text-base text-gray-600 mt-1">Purchase products and earn PV points</p>
         </div>
-        {profile && (
-          <div className="text-left sm:text-right bg-green-50 sm:bg-transparent p-3 sm:p-0 rounded-lg sm:rounded-none">
-            <div className="text-xs sm:text-sm text-gray-600">Wallet Balance</div>
-            <div className="text-xl sm:text-2xl font-bold text-green-600">
-              {formatCurrency(profile.balance, currencyCode)}
-            </div>
-          </div>
-        )}
       </div>
 
       {message && (
@@ -451,9 +390,6 @@ export default function Shop() {
                   <div className="absolute top-2 right-2 bg-orange-600 text-white px-2 py-1 rounded-lg text-xs font-bold">
                     {product.pv_value} PV
                   </div>
-                  <div className={`absolute bottom-2 right-2 ${stock.bg} ${stock.color} px-2 py-1 rounded-lg text-xs font-semibold`}>
-                    {stock.text}
-                  </div>
                 </div>
               )}
 
@@ -465,11 +401,6 @@ export default function Shop() {
                       {product.product_type}
                     </span>
                   </div>
-                  {!product.image_url && (
-                    <span className={`text-xs font-semibold ${stock.bg} ${stock.color} px-2 py-1 rounded`}>
-                      {stock.text}
-                    </span>
-                  )}
                 </div>
 
                 <h3 className="font-bold text-base sm:text-lg text-gray-900 mb-2">{product.name}</h3>
@@ -586,16 +517,6 @@ export default function Shop() {
           currencyCode={currencyCode}
           quantity={orderQuantity}
           onQuantityChange={setOrderQuantity}
-          lifeChangerCode={lifeChangerCode}
-          onCodeChange={(code) => {
-            setLifeChangerCode(code);
-            if (code.trim()) {
-              validateLifeChangerCode(code);
-            } else {
-              setCodeValidation(null);
-            }
-          }}
-          codeValidation={codeValidation}
           purchasing={purchasing === selectedProduct.id}
           onPlaceOrder={handlePlaceOrder}
           onClose={() => setShowOrderModal(false)}
@@ -612,9 +533,6 @@ function OrderModal({
   currencyCode,
   quantity,
   onQuantityChange,
-  lifeChangerCode,
-  onCodeChange,
-  codeValidation,
   purchasing,
   onPlaceOrder,
   onClose,
@@ -625,9 +543,6 @@ function OrderModal({
   currencyCode: string;
   quantity: number;
   onQuantityChange: (q: number) => void;
-  lifeChangerCode: string;
-  onCodeChange: (code: string) => void;
-  codeValidation: { valid: boolean; message: string } | null;
   purchasing: boolean;
   onPlaceOrder: () => void;
   onClose: () => void;
@@ -707,27 +622,6 @@ function OrderModal({
               </p>
             </div>
           )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Life Changer Code (Optional)
-            </label>
-            <input
-              type="text"
-              value={lifeChangerCode}
-              onChange={(e) => onCodeChange(e.target.value)}
-              placeholder="Enter code for bonus PV"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 uppercase"
-            />
-            {codeValidation && (
-              <div className={`mt-2 text-sm flex items-center gap-1 ${
-                codeValidation.valid ? 'text-green-600' : 'text-red-600'
-              }`}>
-                {codeValidation.valid ? <Check size={16} /> : <AlertCircle size={16} />}
-                {codeValidation.message}
-              </div>
-            )}
-          </div>
 
           <div className="border-t pt-4">
             <div className="flex justify-between mb-2">

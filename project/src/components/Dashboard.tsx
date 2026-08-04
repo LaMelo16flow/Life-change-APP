@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { LayoutDashboard, Users, Award, TrendingUp, Bell, LogOut, Menu, Wallet, ShoppingCart, Shield, CircleUser as UserCircle, Package, ShoppingBag, Gift, UsersRound, Tag, Globe, Settings, CreditCard } from 'lucide-react';
+import { LayoutDashboard, Users, Award, TrendingUp, Bell, LogOut, Menu, ShoppingCart, Shield, CircleUser as UserCircle, Package, ShoppingBag, UsersRound, Tag, Globe, Settings, CreditCard } from 'lucide-react';
 import { UserDashboard } from './user/UserDashboard';
 import { AdminDashboard } from './admin/AdminDashboard';
 import { supabase } from '../lib/supabase';
@@ -66,12 +66,10 @@ export function Dashboard() {
 
   const userTabs = [
     { id: 'overview', label: t('nav.overview'), icon: LayoutDashboard },
-    { id: 'wallet', label: t('nav.wallet'), icon: Wallet },
     { id: 'shop', label: t('nav.shop'), icon: ShoppingCart },
     { id: 'cart', label: t('nav.cart'), icon: ShoppingBag },
     { id: 'orders', label: t('nav.orders'), icon: Package },
     { id: 'team', label: t('nav.team'), icon: Users },
-    { id: 'rank', label: t('nav.rank'), icon: Award },
     { id: 'pv', label: t('nav.pv'), icon: TrendingUp },
     { id: 'notifications', label: t('nav.notifications'), icon: Bell, badge: unreadCount },
     { id: 'profile', label: t('nav.profile'), icon: Settings },
@@ -82,11 +80,9 @@ export function Dashboard() {
     { id: 'team', label: t('nav.team'), icon: UsersRound, masterOnly: true },
     { id: 'users', label: t('nav.users'), icon: Users, permission: 'manage_users' as const },
     { id: 'accounts', label: t('nav.accounts'), icon: UserCircle, permission: 'manage_accounts' as const },
-    { id: 'ranks', label: t('nav.ranks'), icon: Award, adminOnly: true },
     { id: 'products', label: t('nav.products'), icon: Package, permission: 'manage_products' as const },
     { id: 'inventory', label: t('nav.inventory'), icon: TrendingUp, permission: 'manage_inventory' as const },
     { id: 'orders', label: t('nav.orderManagement'), icon: ShoppingBag, permission: 'manage_orders' as const },
-    { id: 'codes', label: t('nav.codes'), icon: Gift, permission: 'manage_codes' as const },
     { id: 'promotions', label: t('nav.promotions'), icon: Award, permission: 'manage_promotions' as const },
     { id: 'deals', label: t('nav.deals'), icon: Tag, permission: 'manage_products' as const },
     { id: 'payment-settings', label: t('nav.paymentSettings'), icon: CreditCard, adminOnly: true },

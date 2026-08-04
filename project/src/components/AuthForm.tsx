@@ -1,53 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { LogIn, UserPlus, Loader2, Eye, EyeOff, Mail, Lock, User, Globe, Users } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { LogIn, UserPlus, Loader2, Eye, EyeOff, Mail, Lock, User, Users } from 'lucide-react';
+
+const DEFAULT_COUNTRY_CODE = 'CA';
 
 export function AuthForm() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [countryCode, setCountryCode] = useState('');
   const [referralCode, setReferralCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [countries, setCountries] = useState<Array<{ code: string; name: string }>>([]);
-  const [loadingCountries, setLoadingCountries] = useState(true);
-  const [countryError, setCountryError] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const { signIn, signUp } = useAuth();
-
-  const fetchCountries = async () => {
-    setLoadingCountries(true);
-    setCountryError(false);
-    try {
-      const { data, error } = await supabase
-        .from('countries')
-        .select('code, name')
-        .eq('is_active', true)
-        .order('name', { ascending: true });
-
-      if (error) {
-        console.error('Error loading countries:', error);
-        setCountryError(true);
-      } else if (data) {
-        setCountries(data);
-      }
-    } catch (err) {
-      console.error('Failed to load countries:', err);
-      setCountryError(true);
-    } finally {
-      setLoadingCountries(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchCountries();
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,7 +29,7 @@ export function AuthForm() {
         return;
       }
     } else {
-      if (!email || !password || !fullName || !countryCode) {
+      if (!email || !password || !fullName) {
         setError('Tous les champs sont requis');
         return;
       }
@@ -72,7 +41,7 @@ export function AuthForm() {
       if (isLogin) {
         await signIn(email, password);
       } else {
-        const result = await signUp(email, password, fullName, countryCode, referralCode || undefined);
+        const result = await signUp(email, password, fullName, DEFAULT_COUNTRY_CODE, referralCode || undefined);
         if (result.requiresApproval) {
           setSuccess('Compte cree avec succes! Veuillez attendre l\'approbation de l\'administrateur avant de pouvoir vous connecter.');
         } else {
@@ -81,7 +50,6 @@ export function AuthForm() {
         setEmail('');
         setPassword('');
         setFullName('');
-        setCountryCode('');
         setReferralCode('');
       }
     } catch (err) {
@@ -272,67 +240,6 @@ export function AuthForm() {
 
                 {!isLogin && (
                   <>
-                    <div className="space-y-1.5">
-                      <label className="block text-sm font-medium text-gray-300">
-                        Pays <span className="text-brand-400">*</span>
-                      </label>
-                      <div className={`relative group transition-all duration-300 ${
-                        focusedField === 'country' ? 'scale-[1.02]' : ''
-                      }`}>
-                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                          <Globe className={`w-5 h-5 transition-colors duration-300 ${
-                            focusedField === 'country' ? 'text-brand-400' : 'text-gray-500'
-                          }`} />
-                        </div>
-                        <select
-                          value={countryCode}
-                          onChange={(e) => setCountryCode(e.target.value)}
-                          onFocus={() => setFocusedField('country')}
-                          onBlur={() => setFocusedField(null)}
-                          className={`w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white transition-all duration-300 focus:bg-white/10 focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/20 focus:outline-none appearance-none cursor-pointer ${
-                            !countryCode ? 'text-gray-500' : ''
-                          }`}
-                          required
-                          disabled={loadingCountries || countryError}
-                        >
-                          {loadingCountries ? (
-                            <option value="">Chargement des pays...</option>
-                          ) : countryError ? (
-                            <option value="">Echec du chargement des pays</option>
-                          ) : (
-                            <>
-                              {countries.length === 0 ? (
-                                <option value="">Aucun pays disponible</option>
-                              ) : (
-                                <>
-                                  <option value="">Choisissez votre pays...</option>
-                                  {countries.map((country) => (
-                                    <option key={country.code} value={country.code} className="bg-gray-800">
-                                      {country.name}
-                                    </option>
-                                  ))}
-                                </>
-                              )}
-                            </>
-                          )}
-                        </select>
-                        <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none">
-                          <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </div>
-                      </div>
-                      {countryError && (
-                        <button
-                          type="button"
-                          onClick={fetchCountries}
-                          className="mt-2 text-sm text-brand-400 hover:text-brand-300 font-medium transition-colors"
-                        >
-                          Reessayer le chargement des pays
-                        </button>
-                      )}
-                    </div>
-
                     <div className="space-y-1.5">
                       <label className="block text-sm font-medium text-gray-300">
                         Code de parrainage <span className="text-gray-500">(Optionnel)</span>

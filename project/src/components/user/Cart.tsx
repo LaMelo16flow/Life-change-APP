@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase, Profile } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency } from '../../utils/currency';
-import { ShoppingCart, Trash2, Plus, Minus, AlertCircle, Check, X, Tag, Wallet } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, AlertCircle, Check, X, Tag } from 'lucide-react';
 import { sendOrderPlacedNotification } from '../../utils/notifications';
 
 interface CartItem {
@@ -44,8 +44,6 @@ export default function Cart() {
   const [processing, setProcessing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
-  const [lifeChangerCode, setLifeChangerCode] = useState('');
-  const [codeValidation, setCodeValidation] = useState<{ valid: boolean; message: string } | null>(null);
 
   useEffect(() => {
     loadCartData();
@@ -160,45 +158,6 @@ export default function Cart() {
     }
   }
 
-  const validateLifeChangerCode = async (code: string) => {
-    if (!code.trim()) {
-      setCodeValidation(null);
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('life_changer_codes')
-        .select('*')
-        .eq('code', code.toUpperCase())
-        .eq('is_active', true)
-        .single();
-
-      if (error || !data) {
-        setCodeValidation({ valid: false, message: 'Invalid code' });
-        return;
-      }
-
-      if (data.expires_at && new Date(data.expires_at) < new Date()) {
-        setCodeValidation({ valid: false, message: 'Code has expired' });
-        return;
-      }
-
-      if (data.usage_limit && data.times_used >= data.usage_limit) {
-        setCodeValidation({ valid: false, message: 'Code usage limit reached' });
-        return;
-      }
-
-      setCodeValidation({
-        valid: true,
-        message: `Valid! You'll receive ${data.bonus_pv} bonus PV`
-      });
-    } catch (error) {
-      console.error('Error validating code:', error);
-      setCodeValidation({ valid: false, message: 'Error validating code' });
-    }
-  };
-
   async function handleCheckout() {
     if (!profile || cartItems.length === 0) return;
 
@@ -247,11 +206,6 @@ export default function Cart() {
         totalFreeItems += freeItems;
       }
 
-      const walletBalance = profile.balance || 0;
-      if (walletBalance < orderTotal) {
-        throw new Error(`Insufficient wallet balance. You have ${formatCurrency(walletBalance, profile.countries?.currency_code || 'USD')} but need ${formatCurrency(orderTotal, profile.countries?.currency_code || 'USD')}`);
-      }
-
       const { data: orderNumberData } = await supabase.rpc('generate_order_number');
       const orderNumber = orderNumberData || `ORD-${Date.now()}`;
 
@@ -271,7 +225,6 @@ export default function Cart() {
           currency_code: profile.countries?.currency_code || 'USD',
           region: region,
           status: 'pending',
-          life_changer_code: lifeChangerCode.trim().toUpperCase() || null,
           items_count: cartItems.length,
           metadata: { items_count: cartItems.length },
         })
@@ -279,25 +232,6 @@ export default function Cart() {
         .single();
 
       if (orderError || !orderData) throw orderError || new Error('Failed to create order');
-
-      const newBalance = walletBalance - orderTotal;
-      const { error: balanceError } = await supabase
-        .from('profiles')
-        .update({ balance: newBalance })
-        .eq('id', user?.id);
-
-      if (balanceError) throw balanceError;
-
-      await supabase.from('wallet_transactions').insert({
-        user_id: user?.id,
-        type: 'debit',
-        amount: orderTotal,
-        balance_after: newBalance,
-        description: `Payment for order ${orderNumber}`,
-        reference_id: orderData.id,
-      });
-
-      setProfile((prev: any) => ({ ...prev, balance: newBalance }));
 
       const orderItems = [];
       const productNames: string[] = [];
@@ -323,33 +257,15 @@ export default function Cart() {
 
         productNames.push(`${item.products.name} x${totalQuantity}`);
 
-        const { data: inventoryData } = await supabase
-          .from('product_inventory')
-          .select('quantity, reserved_quantity')
-          .eq('product_id', item.product_id)
-          .eq('region', region)
-          .single();
+        const { error: reserveError } = await supabase.rpc('reserve_inventory', {
+          p_product_id: item.product_id,
+          p_region: region,
+          p_quantity: totalQuantity,
+          p_notes: `Order ${orderNumber} - pending approval${freeItems > 0 ? ` (includes ${freeItems} free)` : ''}`,
+        });
 
-        if (inventoryData) {
-          await supabase
-            .from('product_inventory')
-            .update({
-              reserved_quantity: inventoryData.reserved_quantity + totalQuantity,
-            })
-            .eq('product_id', item.product_id)
-            .eq('region', region);
-
-          await supabase
-            .from('inventory_logs')
-            .insert({
-              product_id: item.product_id,
-              region: region,
-              action: 'reservation',
-              quantity_change: -totalQuantity,
-              quantity_after: inventoryData.quantity,
-              performed_by: user?.id,
-              notes: `Order ${orderNumber} - pending approval${freeItems > 0 ? ` (includes ${freeItems} free)` : ''}`,
-            });
+        if (reserveError) {
+          throw new Error(`Failed to reserve stock for ${item.products.name}: ${reserveError.message}`);
         }
       }
 
@@ -383,8 +299,6 @@ export default function Cart() {
 
       setCartItems([]);
       setShowCheckoutModal(false);
-      setLifeChangerCode('');
-      setCodeValidation(null);
       setMessage({
         type: 'success',
         text: `Order ${orderNumber} placed successfully!${totalFreeItems > 0 ? ` (${totalFreeItems} free items included!)` : ''}`
@@ -431,14 +345,6 @@ export default function Cart() {
           </h2>
           <p className="text-sm sm:text-base text-gray-600 mt-1">Review and checkout your selected items</p>
         </div>
-        {profile && (
-          <div className="text-left sm:text-right bg-green-50 sm:bg-transparent p-3 sm:p-0 rounded-lg sm:rounded-none">
-            <div className="text-xs sm:text-sm text-gray-600">Wallet Balance</div>
-            <div className="text-xl sm:text-2xl font-bold text-green-600">
-              {formatCurrency(profile.balance, profile.countries?.currency_code || 'USD')}
-            </div>
-          </div>
-        )}
       </div>
 
       {message && (
@@ -604,31 +510,13 @@ export default function Cart() {
               </div>
             </div>
 
-            {profile && (profile.balance || 0) < cartTotal && (
-              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                <div className="flex items-center gap-2 text-red-800">
-                  <Wallet className="w-5 h-5" />
-                  <span className="font-medium">Insufficient wallet balance</span>
-                </div>
-                <p className="text-sm text-red-700 mt-1">
-                  You need {formatCurrency(cartTotal - (profile.balance || 0), profile.countries?.currency_code || 'USD')} more to place this order. Please top up your wallet first.
-                </p>
-              </div>
-            )}
-
             <button
               onClick={() => setShowCheckoutModal(true)}
-              disabled={processing || cartItems.length === 0 || (profile && (profile.balance || 0) < cartTotal)}
+              disabled={processing || cartItems.length === 0}
               className="w-full bg-brand-700 text-white py-4 rounded-lg hover:bg-brand-800 font-semibold text-lg transition-colors disabled:bg-gray-400"
             >
               Proceed to Checkout
             </button>
-
-            <p className="text-xs text-gray-500 mt-3 text-center">
-              {(profile?.balance || 0) >= cartTotal
-                ? 'Order amount will be deducted from your wallet'
-                : 'Top up your wallet to place an order'}
-            </p>
           </div>
         </>
       )}
@@ -676,34 +564,6 @@ export default function Cart() {
                     );
                   })}
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Life Changer Code (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={lifeChangerCode}
-                  onChange={(e) => {
-                    setLifeChangerCode(e.target.value);
-                    if (e.target.value.trim()) {
-                      validateLifeChangerCode(e.target.value);
-                    } else {
-                      setCodeValidation(null);
-                    }
-                  }}
-                  placeholder="Enter code for bonus PV"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 uppercase"
-                />
-                {codeValidation && (
-                  <div className={`mt-2 text-sm flex items-center gap-1 ${
-                    codeValidation.valid ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {codeValidation.valid ? <Check size={16} /> : <AlertCircle size={16} />}
-                    {codeValidation.message}
-                  </div>
-                )}
               </div>
 
               <div className="border-t pt-4">

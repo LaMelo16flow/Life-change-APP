@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react';
-import { supabase, Profile, Rank } from '../../lib/supabase';
+import { supabase, Profile } from '../../lib/supabase';
 import { useToast } from '../../contexts/ToastContext';
 import { loadCountryNames, getCountryName } from '../../utils/countries';
-import { Users, Search, Award, TrendingUp, CreditCard as Edit, Shield, UserX, Trash2, Loader2, AlertTriangle } from 'lucide-react';
-import { autoCreatePromotionRequest } from '../../utils/pv';
+import { Users, Search, TrendingUp, CreditCard as Edit, Shield, UserX, Trash2, Loader2, AlertTriangle } from 'lucide-react';
 
 interface UserWithRank extends Profile {
-  rank: Rank | null;
   profile_image_url?: string;
 }
 
@@ -42,21 +40,7 @@ export function UserManagement() {
       return;
     }
 
-    const rankIds = profiles
-      .map((p) => p.current_rank_id)
-      .filter((id): id is string => id !== null);
-
-    const { data: ranks } = await supabase
-      .from('ranks')
-      .select('*')
-      .in('id', rankIds);
-
-    const usersWithRanks = profiles.map((profile) => ({
-      ...profile,
-      rank: ranks?.find((r) => r.id === profile.current_rank_id) || null,
-    }));
-
-    setUsers(usersWithRanks);
+    setUsers(profiles);
     setLoading(false);
   };
 
@@ -90,8 +74,6 @@ export function UserManagement() {
       toast.error('Failed to adjust PV');
       return;
     }
-
-    await autoCreatePromotionRequest(userId, newTotal);
 
     toast.success('PV adjusted successfully');
     setEditingPV(null);
@@ -209,9 +191,6 @@ export function UserManagement() {
                   Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                  Rank
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                   PV
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
@@ -259,17 +238,6 @@ export function UserManagement() {
                         {user.role === 'admin' ? <Shield className="w-3 h-3" /> : <UserX className="w-3 h-3" />}
                         {user.role === 'admin' ? 'Admin' : 'User'}
                       </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <Award
-                          className="w-4 h-4"
-                          style={{ color: user.rank?.color || '#6B7280' }}
-                        />
-                        <span className="text-sm font-semibold text-slate-900">
-                          {user.rank?.name || 'N/A'}
-                        </span>
-                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">

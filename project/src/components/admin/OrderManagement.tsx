@@ -8,7 +8,7 @@ import {
   sendOrderRejectedNotification,
   sendPaymentVerifiedNotification,
 } from '../../utils/notifications';
-import { roundPVToMultiple, autoCreatePromotionRequest } from '../../utils/pv';
+import { roundPVToMultiple } from '../../utils/pv';
 
 interface OrderItem {
   id: string;
@@ -35,7 +35,6 @@ interface Order {
   currency_code: string;
   region: string;
   status: 'pending' | 'approved' | 'awaiting_payment' | 'rejected' | 'completed' | 'cancelled';
-  life_changer_code: string | null;
   approved_by: string | null;
   approved_at: string | null;
   rejection_reason: string | null;
@@ -545,32 +544,6 @@ export default function OrderManagement() {
       const { data: userData } = await supabase.auth.getUser();
       const { displayName } = getOrderDisplayInfo(selectedOrder);
 
-      const { data: userProfile } = await supabase
-        .from('profiles')
-        .select('balance')
-        .eq('id', selectedOrder.user_id)
-        .maybeSingle();
-
-      const currentBalance = userProfile?.balance || 0;
-      const refundAmount = selectedOrder.total_amount;
-      const newBalance = currentBalance + refundAmount;
-
-      const { error: balanceError } = await supabase
-        .from('profiles')
-        .update({ balance: newBalance })
-        .eq('id', selectedOrder.user_id);
-
-      if (balanceError) throw balanceError;
-
-      await supabase.from('wallet_transactions').insert({
-        user_id: selectedOrder.user_id,
-        type: 'credit',
-        amount: refundAmount,
-        balance_after: newBalance,
-        description: `Refund for rejected order ${selectedOrder.order_number}`,
-        reference_id: selectedOrder.id,
-      });
-
       const { error: orderError } = await supabase
         .from('orders')
         .update({
@@ -587,8 +560,8 @@ export default function OrderManagement() {
       await supabase.from('notifications').insert([{
         user_id: selectedOrder.user_id,
         type: 'approval',
-        title: 'Order Rejected - Refund Issued',
-        message: `Your order ${selectedOrder.order_number} has been rejected. ${selectedOrder.currency_code} ${refundAmount.toFixed(2)} has been refunded to your wallet. Reason: ${rejectionReason}`,
+        title: 'Order Rejected',
+        message: `Your order ${selectedOrder.order_number} has been rejected. Reason: ${rejectionReason}`,
         action_url: '/orders',
       }]);
 
@@ -605,7 +578,7 @@ export default function OrderManagement() {
         selectedOrder.user_id
       );
 
-      toast.success('Order rejected and refund issued. User has been notified.');
+      toast.success('Order rejected. User has been notified.');
       setShowRejectModal(false);
       setAdminNotes('');
       setRejectionReason('');
@@ -666,26 +639,7 @@ export default function OrderManagement() {
         }
       }
 
-      let lifeChangerBonus = 0;
-      if (selectedOrder.life_changer_code) {
-        const { data: codeData } = await supabase
-          .from('life_changer_codes')
-          .select('*')
-          .eq('code', selectedOrder.life_changer_code)
-          .maybeSingle();
-
-        if (codeData) {
-          lifeChangerBonus = codeData.bonus_pv || 0;
-
-          await supabase
-            .from('life_changer_codes')
-            .update({ times_used: (codeData.times_used || 0) + 1 })
-            .eq('id', codeData.id);
-        }
-      }
-
-      const totalRawPV = orderPV + lifeChangerBonus;
-      const roundedPV = roundPVToMultiple(totalRawPV);
+      const roundedPV = roundPVToMultiple(orderPV);
 
       await supabase.from('pv_transactions').insert([{
         user_id: selectedOrder.user_id,
@@ -693,7 +647,7 @@ export default function OrderManagement() {
         transaction_type: 'purchase',
         reference_id: selectedOrder.id,
         reference_type: 'product',
-        description: `Product purchase: ${displayName} (Raw PV: ${totalRawPV}, Rounded: ${roundedPV})`,
+        description: `Product purchase: ${displayName} (Raw PV: ${orderPV}, Rounded: ${roundedPV})`,
         created_by: userData.user?.id,
       }]);
 
@@ -739,8 +693,6 @@ export default function OrderManagement() {
         selectedOrder.user.email,
         selectedOrder.user_id
       );
-
-      await autoCreatePromotionRequest(selectedOrder.user_id, (profileData?.total_pv || 0) + roundedPV);
 
       toast.success('Payment verified and order completed! User has been notified.');
       setShowPaymentModal(false);
@@ -1283,13 +1235,6 @@ export default function OrderManagement() {
                   <span>{getOrderDisplayInfo(selectedOrder).totalPV} PV</span>
                 </div>
               </div>
-
-              {selectedOrder.life_changer_code && (
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Life Changer Code</label>
-                  <p className="text-gray-900 font-mono">{selectedOrder.life_changer_code}</p>
-                </div>
-              )}
 
               <div>
                 <label className="text-sm font-medium text-gray-700">Order Date</label>
@@ -1964,12 +1909,6 @@ function UserOrderHistoryModal({
                               <p className="text-xs text-gray-500">Date</p>
                               <p className="text-sm font-medium">{new Date(order.created_at).toLocaleString()}</p>
                             </div>
-                            {order.life_changer_code && (
-                              <div>
-                                <p className="text-xs text-gray-500">LC Code</p>
-                                <p className="text-sm font-medium font-mono">{order.life_changer_code}</p>
-                              </div>
-                            )}
                             {order.payment_verified_at && (
                               <div>
                                 <p className="text-xs text-gray-500">Paid</p>

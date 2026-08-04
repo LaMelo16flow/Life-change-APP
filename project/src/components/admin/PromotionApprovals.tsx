@@ -1,18 +1,8 @@
 import { useEffect, useState } from 'react';
-import { supabase, PromotionRequest, Profile, Rank } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { useToast } from '../../contexts/ToastContext';
-import { Award, Check, X, Tag, Plus, Calendar, Trash2, AlertTriangle, Ban, Package, TrendingUp } from 'lucide-react';
+import { Tag, Plus, Calendar, Trash2, Ban, Package, X } from 'lucide-react';
 import { getCountryName, loadCountryNames } from '../../utils/countries';
-import {
-  sendRankPromotionApprovedNotification,
-  sendRankPromotionRejectedNotification,
-} from '../../utils/notifications';
-
-interface PromotionWithDetails extends PromotionRequest {
-  user: Profile | null;
-  from_rank: Rank | null;
-  to_rank: Rank | null;
-}
 
 interface ProductPromotion {
   id: string;
@@ -42,8 +32,6 @@ interface CountryOption {
 
 export function PromotionApprovals() {
   const toast = useToast();
-  const [activeSection, setActiveSection] = useState<'ranks' | 'products'>('ranks');
-  const [promotions, setPromotions] = useState<PromotionWithDetails[]>([]);
   const [productPromotions, setProductPromotions] = useState<ProductPromotion[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [countries, setCountries] = useState<CountryOption[]>([]);
@@ -61,45 +49,11 @@ export function PromotionApprovals() {
   });
 
   useEffect(() => {
-    fetchPromotions();
     fetchProductPromotions();
     fetchProducts();
     fetchCountries();
     loadCountryNames().then(setCountryMap);
   }, []);
-
-  const fetchPromotions = async () => {
-    const { data } = await supabase
-      .from('promotion_requests')
-      .select('*')
-      .order('requested_at', { ascending: false });
-
-    if (!data) {
-      setLoading(false);
-      return;
-    }
-
-    const userIds = data.map((p) => p.user_id);
-    const rankIds = [
-      ...data.map((p) => p.from_rank_id),
-      ...data.map((p) => p.to_rank_id),
-    ].filter((id): id is string => id !== null);
-
-    const [usersRes, ranksRes] = await Promise.all([
-      supabase.from('profiles').select('*').in('id', userIds),
-      supabase.from('ranks').select('*').in('id', rankIds),
-    ]);
-
-    const promotionsWithDetails = data.map((promotion) => ({
-      ...promotion,
-      user: usersRes.data?.find((u) => u.id === promotion.user_id) || null,
-      from_rank: ranksRes.data?.find((r) => r.id === promotion.from_rank_id) || null,
-      to_rank: ranksRes.data?.find((r) => r.id === promotion.to_rank_id) || null,
-    }));
-
-    setPromotions(promotionsWithDetails);
-    setLoading(false);
-  };
 
   const fetchProductPromotions = async () => {
     const { data } = await supabase
@@ -108,6 +62,7 @@ export function PromotionApprovals() {
       .order('created_at', { ascending: false });
 
     if (data) setProductPromotions(data);
+    setLoading(false);
   };
 
   const fetchProducts = async () => {
@@ -126,110 +81,6 @@ export function PromotionApprovals() {
       .eq('is_active', true)
       .order('name');
     if (data) setCountries(data);
-  };
-
-  const handleApprove = async (promotionId: string, userId: string, toRankId: string) => {
-    const promotion = promotions.find(p => p.id === promotionId);
-    if (!promotion) return;
-
-    const userPV = promotion.user?.total_pv || 0;
-    const requiredPV = promotion.to_rank?.required_pv || 0;
-
-    if (userPV < requiredPV) {
-      toast.error(
-        `Cannot approve: User has ${userPV} PV but needs ${requiredPV} PV for ${promotion.to_rank?.name}. The request should be cancelled.`
-      );
-      return;
-    }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const [updatePromotion, updateProfile] = await Promise.all([
-      supabase
-        .from('promotion_requests')
-        .update({
-          status: 'approved',
-          reviewed_by: user.id,
-          reviewed_at: new Date().toISOString(),
-        })
-        .eq('id', promotionId),
-      supabase
-        .from('profiles')
-        .update({ current_rank_id: toRankId })
-        .eq('id', userId),
-    ]);
-
-    if (updatePromotion.error || updateProfile.error) {
-      toast.error('Failed to approve promotion');
-      return;
-    }
-
-    await sendRankPromotionApprovedNotification({
-      userId: userId,
-      userName: promotion.user?.full_name || 'User',
-      userEmail: promotion.user?.email || '',
-      newRank: promotion.to_rank?.name || 'New Rank',
-      previousRank: promotion.from_rank?.name,
-    });
-
-    toast.success('Promotion approved successfully');
-    fetchPromotions();
-  };
-
-  const handleReject = async (promotionId: string) => {
-    const promotion = promotions.find(p => p.id === promotionId);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { error } = await supabase
-      .from('promotion_requests')
-      .update({
-        status: 'rejected',
-        reviewed_by: user.id,
-        reviewed_at: new Date().toISOString(),
-      })
-      .eq('id', promotionId);
-
-    if (error) {
-      toast.error('Failed to reject promotion');
-      return;
-    }
-
-    if (promotion) {
-      await sendRankPromotionRejectedNotification({
-        userId: promotion.user_id,
-        userName: promotion.user?.full_name || 'User',
-        userEmail: promotion.user?.email || '',
-        rank: promotion.to_rank?.name || 'Rank',
-      });
-    }
-
-    toast.success('Promotion rejected');
-    fetchPromotions();
-  };
-
-  const handleCancelPromotion = async (promotionId: string) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { error } = await supabase
-      .from('promotion_requests')
-      .update({
-        status: 'cancelled',
-        reviewed_by: user.id,
-        reviewed_at: new Date().toISOString(),
-        review_notes: 'Cancelled by admin - PV requirements not met',
-      })
-      .eq('id', promotionId);
-
-    if (error) {
-      toast.error('Failed to cancel promotion request');
-      return;
-    }
-
-    toast.success('Promotion request cancelled');
-    fetchPromotions();
   };
 
   const handleAddProductPromotion = async (e: React.FormEvent) => {
@@ -333,70 +184,22 @@ export function PromotionApprovals() {
     );
   }
 
-  const pendingPromotions = promotions.filter((p) => p.status === 'pending');
-  const reviewedPromotions = promotions.filter((p) => p.status !== 'pending');
-
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-slate-900">Promotions</h2>
-        <p className="text-slate-600 mt-1">Manage rank promotions and product deals</p>
+        <p className="text-slate-600 mt-1">Manage product deals</p>
       </div>
 
-      <div className="flex gap-2">
-        <button
-          onClick={() => setActiveSection('ranks')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-colors ${
-            activeSection === 'ranks'
-              ? 'bg-brand-700 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          <Award className="w-4 h-4" />
-          Rank Promotions
-          {pendingPromotions.length > 0 && (
-            <span className="bg-red-500 text-white text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5">
-              {pendingPromotions.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveSection('products')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-colors ${
-            activeSection === 'products'
-              ? 'bg-brand-700 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          <Tag className="w-4 h-4" />
-          Product Promotions
-          <span className="bg-gray-500 text-white text-xs font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5">
-            {productPromotions.filter(p => isPromotionActive(p)).length}
-          </span>
-        </button>
-      </div>
-
-      {activeSection === 'ranks' && (
-        <RankPromotionsSection
-          pendingPromotions={pendingPromotions}
-          reviewedPromotions={reviewedPromotions}
-          onApprove={handleApprove}
-          onReject={handleReject}
-          onCancel={handleCancelPromotion}
-        />
-      )}
-
-      {activeSection === 'products' && (
-        <ProductPromotionsSection
-          promotions={productPromotions}
-          countryMap={countryMap}
-          onAdd={() => setShowAddModal(true)}
-          onToggle={toggleProductPromotion}
-          onCancel={cancelProductPromotion}
-          onDelete={deleteProductPromotion}
-          isActive={isPromotionActive}
-        />
-      )}
+      <ProductPromotionsSection
+        promotions={productPromotions}
+        countryMap={countryMap}
+        onAdd={() => setShowAddModal(true)}
+        onToggle={toggleProductPromotion}
+        onCancel={cancelProductPromotion}
+        onDelete={deleteProductPromotion}
+        isActive={isPromotionActive}
+      />
 
       {showAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -524,169 +327,6 @@ export function PromotionApprovals() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function RankPromotionsSection({
-  pendingPromotions,
-  reviewedPromotions,
-  onApprove,
-  onReject,
-  onCancel,
-}: {
-  pendingPromotions: PromotionWithDetails[];
-  reviewedPromotions: PromotionWithDetails[];
-  onApprove: (id: string, userId: string, toRankId: string) => void;
-  onReject: (id: string) => void;
-  onCancel: (id: string) => void;
-}) {
-  return (
-    <div className="space-y-6">
-      {pendingPromotions.length > 0 ? (
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">
-            Pending Approvals ({pendingPromotions.length})
-          </h3>
-          <div className="space-y-4">
-            {pendingPromotions.map((promotion) => {
-              const userPV = promotion.user?.total_pv || 0;
-              const requiredPV = promotion.to_rank?.required_pv || 0;
-              const meetsRequirements = userPV >= requiredPV;
-
-              return (
-                <div
-                  key={promotion.id}
-                  className={`p-4 rounded-lg border ${
-                    meetsRequirements
-                      ? 'bg-yellow-50 border-yellow-200'
-                      : 'bg-red-50 border-red-200'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <p className="font-semibold text-slate-900">{promotion.user?.full_name}</p>
-                        <span className="text-sm text-slate-600">{promotion.user?.email}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-sm">
-                        <div className="flex items-center gap-2">
-                          <Award
-                            className="w-4 h-4"
-                            style={{ color: promotion.from_rank?.color || '#6B7280' }}
-                          />
-                          <span className="text-slate-600">{promotion.from_rank?.name || 'N/A'}</span>
-                        </div>
-                        <span className="text-slate-400">&rarr;</span>
-                        <div className="flex items-center gap-2">
-                          <Award
-                            className="w-4 h-4"
-                            style={{ color: promotion.to_rank?.color || '#6B7280' }}
-                          />
-                          <span className="font-semibold text-slate-900">
-                            {promotion.to_rank?.name}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-4 mt-2">
-                        <span className={`flex items-center gap-1 text-sm font-medium ${
-                          meetsRequirements ? 'text-green-700' : 'text-red-700'
-                        }`}>
-                          <TrendingUp className="w-4 h-4" />
-                          User PV: {userPV} / {requiredPV} required
-                        </span>
-                      </div>
-
-                      {!meetsRequirements && (
-                        <div className="flex items-center gap-2 mt-2 p-2 bg-red-100 rounded-lg">
-                          <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" />
-                          <span className="text-sm font-medium text-red-700">
-                            PV insufficient - user needs {requiredPV - userPV} more PV. This request should be cancelled.
-                          </span>
-                        </div>
-                      )}
-
-                      <p className="text-xs text-slate-500 mt-2">
-                        Requested: {new Date(promotion.requested_at).toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="flex gap-2 flex-shrink-0">
-                      {meetsRequirements && (
-                        <button
-                          onClick={() =>
-                            onApprove(promotion.id, promotion.user_id, promotion.to_rank_id)
-                          }
-                          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
-                        >
-                          <Check className="w-4 h-4" />
-                          Approve
-                        </button>
-                      )}
-                      <button
-                        onClick={() => onCancel(promotion.id)}
-                        className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition font-medium"
-                        title="Cancel - PV requirements not met"
-                      >
-                        <Ban className="w-4 h-4" />
-                        Cancel
-                      </button>
-                      <button
-                        onClick={() => onReject(promotion.id)}
-                        className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium"
-                      >
-                        <X className="w-4 h-4" />
-                        Reject
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ) : (
-        <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm text-center">
-          <Award className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">No pending rank promotion requests</p>
-        </div>
-      )}
-
-      {reviewedPromotions.length > 0 && (
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Recent Reviews</h3>
-          <div className="space-y-3">
-            {reviewedPromotions.slice(0, 10).map((promotion) => (
-              <div key={promotion.id} className="p-4 bg-slate-50 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold text-slate-900">{promotion.user?.full_name}</p>
-                    <div className="flex items-center gap-3 text-sm mt-1">
-                      <span className="text-slate-600">
-                        {promotion.from_rank?.name} &rarr; {promotion.to_rank?.name}
-                      </span>
-                    </div>
-                    {promotion.review_notes && (
-                      <p className="text-xs text-slate-500 mt-1">{promotion.review_notes}</p>
-                    )}
-                  </div>
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                      promotion.status === 'approved'
-                        ? 'bg-green-100 text-green-700'
-                        : promotion.status === 'cancelled'
-                        ? 'bg-gray-100 text-gray-600'
-                        : 'bg-red-100 text-red-700'
-                    }`}
-                  >
-                    {promotion.status}
-                  </span>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       )}

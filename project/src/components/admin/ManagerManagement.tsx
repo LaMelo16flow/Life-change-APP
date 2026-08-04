@@ -29,8 +29,7 @@ const ALL_PERMISSIONS: { key: PermissionType; label: string; description: string
   { key: 'manage_users', label: 'Manage Users', description: 'View and edit user profiles' },
   { key: 'manage_accounts', label: 'Manage Accounts', description: 'Approve or reject new account registrations' },
   { key: 'manage_products', label: 'Manage Products', description: 'Add, edit, and deactivate products' },
-  { key: 'manage_promotions', label: 'Manage Promotions', description: 'Review and approve rank promotions' },
-  { key: 'manage_codes', label: 'Manage Codes', description: 'Manage Life Changer referral codes' },
+  { key: 'manage_promotions', label: 'Manage Promotions', description: 'Manage product promotions and deals' },
 ];
 
 export default function ManagerManagement() {
