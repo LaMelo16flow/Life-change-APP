@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../../contexts/ToastContext';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { getLocalizedProductName } from '../../utils/productLocale';
 import { loadCountryNames, getCountryName } from '../../utils/countries';
 import { ShoppingCart, Check, X, Search, Eye, CreditCard, RefreshCw, Package, Image as ImageIcon, History, ChevronDown, ChevronUp, Merge } from 'lucide-react';
 import {
@@ -20,6 +22,7 @@ interface OrderItem {
   pv_value: number;
   product: {
     name: string;
+    name_en?: string | null;
     image_url: string | null;
   };
 }
@@ -61,6 +64,7 @@ interface Order {
   };
   product: {
     name: string;
+    name_en?: string | null;
     pv_value: number;
     image_url: string | null;
   } | null;
@@ -69,6 +73,7 @@ interface Order {
 
 export default function OrderManagement() {
   const toast = useToast();
+  const { language } = useLanguage();
   const [orders, setOrders] = useState<Order[]>([]);
   const [countryNames, setCountryNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -158,7 +163,7 @@ export default function OrderManagement() {
             country_code,
             profile_image_url
           ),
-          product:products!product_id(name, pv_value, image_url),
+          product:products!product_id(name, name_en, pv_value, image_url),
           order_items(
             id,
             product_id,
@@ -167,7 +172,7 @@ export default function OrderManagement() {
             unit_price,
             subtotal,
             pv_value,
-            product:products(name, image_url)
+            product:products(name, name_en, image_url)
           )
         `)
         .order('created_at', { ascending: false });
@@ -207,11 +212,11 @@ export default function OrderManagement() {
             address_line1, address_line2, city, state_province, postal_code,
             country_code, profile_image_url
           ),
-          product:products!product_id(name, pv_value, image_url),
+          product:products!product_id(name, name_en, pv_value, image_url),
           order_items(
             id, product_id, quantity, free_quantity,
             unit_price, subtotal, pv_value,
-            product:products(name, image_url)
+            product:products(name, name_en, image_url)
           )
         `)
         .eq('user_id', userId)
@@ -229,7 +234,7 @@ export default function OrderManagement() {
 
   const getOrderDisplayInfo = (order: Order) => {
     if (order.order_items && order.order_items.length > 0) {
-      const names = order.order_items.map(item => item.product.name).slice(0, 2);
+      const names = order.order_items.map(item => getLocalizedProductName(item.product, language)).slice(0, 2);
       const remaining = order.order_items.length - 2;
       const displayName = remaining > 0
         ? `${names.join(', ')} +${remaining} more`
@@ -241,7 +246,7 @@ export default function OrderManagement() {
     }
 
     return {
-      displayName: order.product?.name || 'Unknown Product',
+      displayName: (order.product && getLocalizedProductName(order.product, language)) || 'Unknown Product',
       totalPV: order.product ? order.product.pv_value * order.quantity : 0,
       image: order.product?.image_url,
       itemCount: 1
@@ -518,7 +523,7 @@ export default function OrderManagement() {
 
       const { data: freshItems } = await supabase
         .from('order_items')
-        .select('id, product_id, quantity, free_quantity, unit_price, subtotal, pv_value, product:products(name, image_url)')
+        .select('id, product_id, quantity, free_quantity, unit_price, subtotal, pv_value, product:products(name, name_en, image_url)')
         .eq('order_id', selectedOrder.id);
 
       if (freshItems) {
@@ -1044,11 +1049,11 @@ export default function OrderManagement() {
                                       address_line1, address_line2, city, state_province, postal_code,
                                       country_code, profile_image_url
                                     ),
-                                    product:products!product_id(name, pv_value, image_url),
+                                    product:products!product_id(name, name_en, pv_value, image_url),
                                     order_items(
                                       id, product_id, quantity, free_quantity,
                                       unit_price, subtotal, pv_value,
-                                      product:products(name, image_url)
+                                      product:products(name, name_en, image_url)
                                     )
                                   `)
                                   .eq('user_id', order.user_id)
@@ -1175,12 +1180,12 @@ export default function OrderManagement() {
                         {item.product.image_url && (
                           <img
                             src={item.product.image_url}
-                            alt={item.product.name}
+                            alt={getLocalizedProductName(item.product, language)}
                             className="w-16 h-16 object-cover rounded"
                           />
                         )}
                         <div className="flex-1">
-                          <p className="font-medium text-gray-900">{item.product.name}</p>
+                          <p className="font-medium text-gray-900">{getLocalizedProductName(item.product, language)}</p>
                           <div className="flex gap-4 text-sm text-gray-600">
                             <span>Qty: {item.quantity}{item.free_quantity > 0 && ` (+${item.free_quantity} free)`}</span>
                             <span>@ {selectedOrder.currency_code} {item.unit_price.toFixed(2)}</span>
@@ -1198,12 +1203,12 @@ export default function OrderManagement() {
                     {selectedOrder.product.image_url && (
                       <img
                         src={selectedOrder.product.image_url}
-                        alt={selectedOrder.product.name}
+                        alt={getLocalizedProductName(selectedOrder.product, language)}
                         className="w-16 h-16 object-cover rounded"
                       />
                     )}
                     <div className="flex-1">
-                      <p className="font-medium text-gray-900">{selectedOrder.product.name}</p>
+                      <p className="font-medium text-gray-900">{getLocalizedProductName(selectedOrder.product, language)}</p>
                       <div className="flex gap-4 text-sm text-gray-600">
                         <span>Qty: {selectedOrder.quantity}</span>
                         <span>@ {selectedOrder.currency_code} {selectedOrder.unit_price.toFixed(2)}</span>
@@ -1736,6 +1741,7 @@ function UserOrderHistoryModal({
   getCountryLabel: (code: string) => string;
   onClose: () => void;
 }) {
+  const { language } = useLanguage();
   const statusCounts = orders.reduce((acc, o) => {
     acc[o.status] = (acc[o.status] || 0) + 1;
     return acc;
@@ -1862,10 +1868,10 @@ function UserOrderHistoryModal({
                             order.order_items.map((item) => (
                               <div key={item.id} className="flex items-center gap-3 bg-white rounded-lg p-3 border border-gray-100">
                                 {item.product.image_url && (
-                                  <img src={item.product.image_url} alt={item.product.name} className="w-10 h-10 rounded object-cover" />
+                                  <img src={item.product.image_url} alt={getLocalizedProductName(item.product, language)} className="w-10 h-10 rounded object-cover" />
                                 )}
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-gray-900 truncate">{item.product.name}</p>
+                                  <p className="text-sm font-medium text-gray-900 truncate">{getLocalizedProductName(item.product, language)}</p>
                                   <p className="text-xs text-gray-500">
                                     Qty: {item.quantity}{item.free_quantity > 0 && ` (+${item.free_quantity} free)`}
                                     {' '} @ {order.currency_code} {item.unit_price.toFixed(2)}
@@ -1880,10 +1886,10 @@ function UserOrderHistoryModal({
                           ) : order.product ? (
                             <div className="flex items-center gap-3 bg-white rounded-lg p-3 border border-gray-100">
                               {order.product.image_url && (
-                                <img src={order.product.image_url} alt={order.product.name} className="w-10 h-10 rounded object-cover" />
+                                <img src={order.product.image_url} alt={getLocalizedProductName(order.product, language)} className="w-10 h-10 rounded object-cover" />
                               )}
                               <div className="flex-1">
-                                <p className="text-sm font-medium text-gray-900">{order.product.name}</p>
+                                <p className="text-sm font-medium text-gray-900">{getLocalizedProductName(order.product, language)}</p>
                                 <p className="text-xs text-gray-500">Qty: {order.quantity}</p>
                               </div>
                               <p className="text-sm font-semibold">{order.currency_code} {order.total_amount.toFixed(2)}</p>

@@ -82,7 +82,7 @@ const chooseBestProductImage = (values: Array<string | null | undefined>) => {
 const mergeProductData = (existing: Partial<Product>, incoming: Partial<Product>) => {
   const merged: Partial<Product> = { ...existing };
 
-  const fields: Array<keyof Product> = ['name', 'product_type', 'description', 'image_url', 'pv_value', 'is_active'];
+  const fields: Array<keyof Product> = ['name', 'name_en', 'product_type', 'description', 'description_en', 'image_url', 'pv_value', 'is_active'];
 
   for (const field of fields) {
     const existingValue = existing[field];
@@ -197,10 +197,12 @@ export function ProductManagement() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [newProduct, setNewProduct] = useState({
     name: '',
+    name_en: '',
     product_type: '',
     pv_value: 0,
     price: 0,
     description: '',
+    description_en: '',
     image_url: '',
   });
 
@@ -260,9 +262,11 @@ export function ProductManagement() {
     setEditingId(product.id);
     setEditForm({
       name: product.name,
+      name_en: product.name_en || '',
       product_type: product.product_type,
       pv_value: product.pv_value,
       description: product.description || '',
+      description_en: product.description_en || '',
       image_url: product.image_url || '',
       is_active: product.is_active,
       price: productPrices[product.id] ?? 0,
@@ -335,9 +339,11 @@ export function ProductManagement() {
       .from('products')
       .update({
         name: editForm.name,
+        name_en: editForm.name_en || null,
         product_type: editForm.product_type,
         pv_value: parseFloat(editForm.pv_value),
         description: editForm.description,
+        description_en: editForm.description_en || null,
         image_url: finalImageUrl,
         is_active: editForm.is_active,
       })
@@ -444,9 +450,11 @@ export function ProductManagement() {
     if (matchedProduct) {
       const merged = mergeProductData(matchedProduct, {
         name: cleanedName,
+        name_en: newProduct.name_en || matchedProduct.name_en,
         product_type: newProduct.product_type || matchedProduct.product_type,
         pv_value: Number(newProduct.pv_value) || matchedProduct.pv_value,
         description: newProduct.description || matchedProduct.description,
+        description_en: newProduct.description_en || matchedProduct.description_en,
         image_url: finalImageUrl || matchedProduct.image_url,
         is_active: true,
       });
@@ -455,9 +463,11 @@ export function ProductManagement() {
         .from('products')
         .update({
           name: merged.name || matchedProduct.name,
+          name_en: merged.name_en ?? matchedProduct.name_en ?? null,
           product_type: merged.product_type || matchedProduct.product_type,
           pv_value: Number(merged.pv_value ?? matchedProduct.pv_value),
           description: merged.description ?? matchedProduct.description,
+          description_en: merged.description_en ?? matchedProduct.description_en ?? null,
           image_url: merged.image_url ?? matchedProduct.image_url,
           is_active: Boolean(merged.is_active ?? matchedProduct.is_active),
         })
@@ -480,7 +490,7 @@ export function ProductManagement() {
 
       toast.success('Product updated with latest information');
       setShowAdd(false);
-      setNewProduct({ name: '', product_type: '', pv_value: 0, price: 0, description: '', image_url: '' });
+      setNewProduct({ name: '', name_en: '', product_type: '', pv_value: 0, price: 0, description: '', description_en: '', image_url: '' });
       await fetchProducts();
       return;
     }
@@ -489,9 +499,11 @@ export function ProductManagement() {
       .from('products')
       .insert({
         name: cleanedName,
+        name_en: newProduct.name_en || null,
         product_type: newProduct.product_type,
         pv_value: parseFloat(newProduct.pv_value.toString()),
         description: newProduct.description,
+        description_en: newProduct.description_en || null,
         image_url: finalImageUrl,
         is_active: true,
       })
@@ -515,7 +527,7 @@ export function ProductManagement() {
 
     toast.success('Product added successfully');
     setShowAdd(false);
-    setNewProduct({ name: '', product_type: '', pv_value: 0, price: 0, description: '', image_url: '' });
+    setNewProduct({ name: '', name_en: '', product_type: '', pv_value: 0, price: 0, description: '', description_en: '', image_url: '' });
     await fetchProducts();
   };
 
@@ -538,9 +550,11 @@ export function ProductManagement() {
 
       const rawProducts = jsonData.map((row: any) => ({
         name: row['Product Name'] || row['name'] || row['Name'] || row['PRODUCT NAME'] || '',
+        name_en: row['Product Name (English)'] || row['name_en'] || row['English Name'] || row['NAME_EN'] || row['Name EN'] || '',
         product_type: row['Type'] || row['type'] || row['Product Type'] || row['CATEGORY'] || 'General',
         pv_value: parseFloat(row['PV'] || row['pv'] || row['PV Value'] || row['pv_value'] || row['PV VALUE'] || 0),
         description: row['Description'] || row['description'] || row['DESCRIPTION'] || '',
+        description_en: row['Description (English)'] || row['description_en'] || row['English Description'] || row['DESCRIPTION_EN'] || '',
         is_active: true,
       })).filter((product) => product.name && String(product.name).trim());
 
@@ -550,7 +564,7 @@ export function ProductManagement() {
         return;
       }
 
-      const dedupedProducts: Array<{ name: string; product_type: string; pv_value: number; description: string; is_active: boolean }> = [];
+      const dedupedProducts: Array<{ name: string; name_en: string; product_type: string; pv_value: number; description: string; description_en: string; is_active: boolean }> = [];
       const seenProductKeys = new Set<string>();
 
       for (const row of rawProducts) {
@@ -563,9 +577,11 @@ export function ProductManagement() {
           const merged = mergeProductData(existing as Partial<Product>, row as Partial<Product>);
           dedupedProducts[existingIndex] = {
             name: String(merged.name || existing.name),
+            name_en: String(merged.name_en ?? existing.name_en ?? ''),
             product_type: String(merged.product_type || existing.product_type),
             pv_value: Number(merged.pv_value ?? existing.pv_value),
             description: String(merged.description ?? existing.description),
+            description_en: String(merged.description_en ?? existing.description_en ?? ''),
             is_active: Boolean(merged.is_active ?? existing.is_active),
           };
           continue;
@@ -574,9 +590,11 @@ export function ProductManagement() {
         seenProductKeys.add(normalizedName);
         dedupedProducts.push({
           name: String(row.name).trim(),
+          name_en: String(row.name_en || '').trim(),
           product_type: String(row.product_type || 'General'),
           pv_value: Number(row.pv_value) || 0,
           description: String(row.description || ''),
+          description_en: String(row.description_en || ''),
           is_active: true,
         });
       }
@@ -595,9 +613,11 @@ export function ProductManagement() {
             .from('products')
             .update({
               name: String(merged.name || matchedProduct.name),
+              name_en: merged.name_en ?? matchedProduct.name_en ?? null,
               product_type: String(merged.product_type || matchedProduct.product_type),
               pv_value: Number(merged.pv_value ?? matchedProduct.pv_value),
               description: String(merged.description ?? matchedProduct.description),
+              description_en: merged.description_en ?? matchedProduct.description_en ?? null,
               image_url: merged.image_url ?? matchedProduct.image_url,
               is_active: Boolean(merged.is_active ?? matchedProduct.is_active),
             })
@@ -615,9 +635,11 @@ export function ProductManagement() {
           .from('products')
           .insert({
             name: product.name,
+            name_en: product.name_en || null,
             product_type: product.product_type,
             pv_value: product.pv_value,
             description: product.description,
+            description_en: product.description_en || null,
             image_url: null,
             is_active: product.is_active,
           });
@@ -761,6 +783,25 @@ export function ProductManagement() {
               onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
               className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent col-span-2"
             />
+            <div className="col-span-2 border-t border-slate-200 pt-3 mt-1">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">English translation (optional)</p>
+              <div className="grid grid-cols-2 gap-4">
+                <input
+                  type="text"
+                  placeholder="Product Name (English) — optional"
+                  value={newProduct.name_en}
+                  onChange={(e) => setNewProduct({ ...newProduct, name_en: e.target.value })}
+                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                />
+                <input
+                  type="text"
+                  placeholder="Description (English) — optional"
+                  value={newProduct.description_en}
+                  onChange={(e) => setNewProduct({ ...newProduct, description_en: e.target.value })}
+                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                />
+              </div>
+            </div>
           </div>
           {newProduct.image_url && (
             <div className="mt-4">
@@ -884,6 +925,32 @@ export function ProductManagement() {
                     />
                   </div>
 
+                  <div className="border-t border-slate-200 pt-3">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">English translation (optional)</p>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Product Name (English)</label>
+                        <input
+                          type="text"
+                          placeholder="Optional"
+                          value={editForm.name_en}
+                          onChange={(e) => setEditForm({ ...editForm, name_en: e.target.value })}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Description (English)</label>
+                        <textarea
+                          placeholder="Optional"
+                          value={editForm.description_en}
+                          onChange={(e) => setEditForm({ ...editForm, description_en: e.target.value })}
+                          rows={2}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Price (CAD)</label>
                     <input
@@ -954,6 +1021,9 @@ export function ProductManagement() {
                 )}
                   <div className="flex-1">
                     <h3 className="font-semibold text-slate-900">{product.name}</h3>
+                    {product.name_en && (
+                      <p className="text-xs text-slate-400">EN: {product.name_en}</p>
+                    )}
                     <p className="text-sm text-slate-600">{product.product_type}</p>
                     <div className="mt-2">
                       <span className="text-lg font-bold text-green-600">{product.pv_value} PV</span>
@@ -972,7 +1042,10 @@ export function ProductManagement() {
               </div>
 
               {product.description && (
-                <p className="text-sm text-slate-600 mb-3 line-clamp-2">{product.description}</p>
+                <p className="text-sm text-slate-600 mb-1 line-clamp-2">{product.description}</p>
+              )}
+              {product.description_en && (
+                <p className="text-xs text-slate-400 mb-3 line-clamp-2">EN: {product.description_en}</p>
               )}
 
               <div className="mb-3 pb-3 border-b border-slate-200">

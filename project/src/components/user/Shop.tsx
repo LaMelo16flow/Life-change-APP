@@ -1,16 +1,20 @@
 import { useState, useEffect } from 'react';
 import { supabase, Profile } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { formatCurrency } from '../../utils/currency';
+import { getLocalizedProductName, getLocalizedProductDescription } from '../../utils/productLocale';
 import { ShoppingCart, Package, Check, AlertCircle, X, ShoppingBag, Minus, Plus, Gift } from 'lucide-react';
 import { sendOrderPlacedNotification } from '../../utils/notifications';
 
 interface Product {
   id: string;
   name: string;
+  name_en?: string | null;
   product_type: string;
   pv_value: number;
   description: string;
+  description_en?: string | null;
   is_active: boolean;
   image_url: string | null;
 }
@@ -54,6 +58,7 @@ function getPromoBonusInfo(promo: ActivePromotion, quantity: number) {
 
 export default function Shop() {
   const { user } = useAuth();
+  const { language } = useLanguage();
   const [products, setProducts] = useState<Product[]>([]);
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [promotions, setPromotions] = useState<Record<string, ActivePromotion>>({});
@@ -408,7 +413,7 @@ export default function Shop() {
                 <div className="relative h-48 w-full overflow-hidden bg-gray-100">
                   <img
                     src={product.image_url}
-                    alt={product.name}
+                    alt={getLocalizedProductName(product, language)}
                     className="w-full h-full object-cover"
                     onError={(e) => {
                       e.currentTarget.onerror = null;
@@ -431,8 +436,8 @@ export default function Shop() {
                   </div>
                 </div>
 
-                <h3 className="font-bold text-base sm:text-lg text-gray-900 mb-2">{product.name}</h3>
-                <p className="text-xs sm:text-sm text-gray-600 mb-4 line-clamp-2">{product.description}</p>
+                <h3 className="font-bold text-base sm:text-lg text-gray-900 mb-2">{getLocalizedProductName(product, language)}</h3>
+                <p className="text-xs sm:text-sm text-gray-600 mb-4 line-clamp-2">{getLocalizedProductDescription(product, language)}</p>
 
                 {promo && (
                   <div className="mb-3 px-3 py-2 bg-red-50 border border-red-100 rounded-lg">
@@ -572,6 +577,7 @@ function OrderModal({
   onPlaceOrder: () => void;
   onClose: () => void;
 }) {
+  const { language } = useLanguage();
   const { freeItems } = promo
     ? getPromoBonusInfo(promo, quantity)
     : { freeItems: 0 };
@@ -590,7 +596,7 @@ function OrderModal({
 
         <div className="space-y-4">
           <div>
-            <h4 className="font-semibold text-lg">{product.name}</h4>
+            <h4 className="font-semibold text-lg">{getLocalizedProductName(product, language)}</h4>
             <p className="text-sm text-gray-600">{product.product_type}</p>
           </div>
 
@@ -598,7 +604,7 @@ function OrderModal({
             {product.image_url && (
               <img
                 src={product.image_url}
-                alt={product.name}
+                alt={getLocalizedProductName(product, language)}
                 className="w-20 h-20 object-cover rounded"
                 onError={(e) => {
                   e.currentTarget.onerror = null;

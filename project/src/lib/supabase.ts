@@ -86,9 +86,11 @@ export interface Notification {
 export interface Product {
   id: string;
   name: string;
+  name_en?: string | null;
   product_type: string;
   pv_value: number;
   description: string | null;
+  description_en?: string | null;
   image_url: string | null;
   is_active: boolean;
 }

@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../../contexts/ToastContext';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { getLocalizedProductName } from '../../utils/productLocale';
 import { Tag, Plus, Trash2, CreditCard as Edit2, Save, Package, Ban } from 'lucide-react';
 import { sendPromotionNotification } from '../../utils/notifications';
 
 interface Product {
   id: string;
   name: string;
+  name_en?: string | null;
   product_type: string;
 }
 
@@ -26,6 +29,7 @@ interface Promotion {
 
 export default function ProductPromotions() {
   const toast = useToast();
+  const { language } = useLanguage();
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,9 +54,9 @@ export default function ProductPromotions() {
     const [promoRes, productsRes] = await Promise.all([
       supabase
         .from('product_promotions')
-        .select('*, product:products(id, name, product_type)')
+        .select('*, product:products(id, name, name_en, product_type)')
         .order('created_at', { ascending: false }),
-      supabase.from('products').select('id, name, product_type').eq('is_active', true).order('name'),
+      supabase.from('products').select('id, name, name_en, product_type').eq('is_active', true).order('name'),
     ]);
 
     if (promoRes.data) setPromotions(promoRes.data);
@@ -227,7 +231,7 @@ export default function ProductPromotions() {
               >
                 <option value="">Select a product</option>
                 {products.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
+                  <option key={p.id} value={p.id}>{getLocalizedProductName(p, language)}</option>
                 ))}
               </select>
             </div>
@@ -351,7 +355,7 @@ export default function ProductPromotions() {
                       <Package className={`w-5 h-5 ${active ? 'text-green-600' : 'text-gray-500'}`} />
                     </div>
                     <div>
-                      <h4 className="font-semibold text-gray-900">{promo.product?.name || 'Unknown Product'}</h4>
+                      <h4 className="font-semibold text-gray-900">{promo.product ? getLocalizedProductName(promo.product, language) : 'Unknown Product'}</h4>
                       <p className="text-sm text-gray-500">{promo.product?.product_type}</p>
                     </div>
                   </div>

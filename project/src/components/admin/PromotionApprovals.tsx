@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../../contexts/ToastContext';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { getLocalizedProductName } from '../../utils/productLocale';
 import { Tag, Plus, Calendar, Trash2, Ban, Package, X } from 'lucide-react';
 import { getCountryName, loadCountryNames } from '../../utils/countries';
 
@@ -15,13 +17,14 @@ interface ProductPromotion {
   ends_at: string;
   is_active: boolean;
   created_at: string;
-  product?: { name: string; product_type: string; image_url: string | null };
+  product?: { name: string; name_en?: string | null; product_type: string; image_url: string | null };
   country?: { name: string } | null;
 }
 
 interface ProductOption {
   id: string;
   name: string;
+  name_en?: string | null;
   product_type: string;
 }
 
@@ -32,6 +35,7 @@ interface CountryOption {
 
 export function PromotionApprovals() {
   const toast = useToast();
+  const { language } = useLanguage();
   const [productPromotions, setProductPromotions] = useState<ProductPromotion[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [countries, setCountries] = useState<CountryOption[]>([]);
@@ -58,7 +62,7 @@ export function PromotionApprovals() {
   const fetchProductPromotions = async () => {
     const { data } = await supabase
       .from('product_promotions')
-      .select('*, product:products(name, product_type, image_url), country:countries(name)')
+      .select('*, product:products(name, name_en, product_type, image_url), country:countries(name)')
       .order('created_at', { ascending: false });
 
     if (data) setProductPromotions(data);
@@ -68,7 +72,7 @@ export function PromotionApprovals() {
   const fetchProducts = async () => {
     const { data } = await supabase
       .from('products')
-      .select('id, name, product_type')
+      .select('id, name, name_en, product_type')
       .eq('is_active', true)
       .order('name');
     if (data) setProducts(data);
@@ -222,7 +226,7 @@ export function PromotionApprovals() {
                 >
                   <option value="">Select a product</option>
                   {products.map(p => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.product_type})</option>
+                    <option key={p.id} value={p.id}>{getLocalizedProductName(p, language)} ({p.product_type})</option>
                   ))}
                 </select>
               </div>
@@ -421,21 +425,23 @@ function PromoRow({
   onDelete: (id: string) => void;
   active: boolean;
 }) {
+  const { language } = useLanguage();
   const expired = new Date(promo.ends_at) <= new Date();
   const [showConfirmCancel, setShowConfirmCancel] = useState(false);
+  const productName = promo.product ? getLocalizedProductName(promo.product, language) : undefined;
 
   return (
     <div className="px-6 py-4 flex items-center gap-4">
       {promo.product?.image_url && (
         <img
           src={promo.product.image_url}
-          alt={promo.product?.name}
+          alt={productName}
           className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
         />
       )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <p className="font-semibold text-gray-900 truncate">{promo.product?.name}</p>
+          <p className="font-semibold text-gray-900 truncate">{productName}</p>
           {active && (
             <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-700">
               Active

@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../../contexts/ToastContext';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { getLocalizedProductName } from '../../utils/productLocale';
 import { Package, Plus, CreditCard as Edit2, AlertTriangle, Search, RefreshCw } from 'lucide-react';
 
 interface Product {
   id: string;
   name: string;
+  name_en?: string | null;
   product_type: string;
   image_url: string | null;
 }
@@ -24,6 +27,7 @@ interface InventoryItem {
 
 export default function InventoryManagement() {
   const toast = useToast();
+  const { language } = useLanguage();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,7 +60,7 @@ export default function InventoryManagement() {
         .from('product_inventory')
         .select(`
           *,
-          product:products(id, name, product_type, image_url)
+          product:products(id, name, name_en, product_type, image_url)
         `)
         .order('created_at', { ascending: true });
 
@@ -73,7 +77,7 @@ export default function InventoryManagement() {
     try {
       const { data, error } = await supabase
         .from('products')
-        .select('id, name, product_type, image_url')
+        .select('id, name, name_en, product_type, image_url')
         .eq('is_active', true)
         .order('name');
 
@@ -248,9 +252,11 @@ export default function InventoryManagement() {
     }
   };
 
-  const filteredInventory = inventory.filter(item =>
-    item.product.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredInventory = inventory.filter(item => {
+    const term = searchTerm.toLowerCase();
+    return item.product.name.toLowerCase().includes(term)
+      || (item.product.name_en || '').toLowerCase().includes(term);
+  });
 
   const getStockStatus = (item: InventoryItem) => {
     const available = item.quantity - item.reserved_quantity;
@@ -340,12 +346,12 @@ export default function InventoryManagement() {
                         {item.product.image_url && (
                           <img
                             src={item.product.image_url}
-                            alt={item.product.name}
+                            alt={getLocalizedProductName(item.product, language)}
                             className="w-10 h-10 rounded object-cover mr-3"
                           />
                         )}
                         <div>
-                          <div className="font-medium text-gray-900">{item.product.name}</div>
+                          <div className="font-medium text-gray-900">{getLocalizedProductName(item.product, language)}</div>
                           <div className="text-sm text-gray-500">{item.product.product_type}</div>
                         </div>
                       </div>
@@ -400,7 +406,7 @@ export default function InventoryManagement() {
                   <option value="">Select a product</option>
                   {products.map(product => (
                     <option key={product.id} value={product.id}>
-                      {product.name}
+                      {getLocalizedProductName(product, language)}
                     </option>
                   ))}
                 </select>
@@ -467,7 +473,7 @@ export default function InventoryManagement() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
                 <input
                   type="text"
-                  value={selectedItem.product.name}
+                  value={getLocalizedProductName(selectedItem.product, language)}
                   disabled
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
                 />

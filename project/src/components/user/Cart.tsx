@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase, Profile } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { formatCurrency } from '../../utils/currency';
+import { getLocalizedProductName } from '../../utils/productLocale';
 import { ShoppingCart, Trash2, Plus, Minus, AlertCircle, Check, X, Tag } from 'lucide-react';
 import { sendOrderPlacedNotification } from '../../utils/notifications';
 
@@ -12,9 +14,11 @@ interface CartItem {
   products: {
     id: string;
     name: string;
+    name_en?: string | null;
     product_type: string;
     pv_value: number;
     description: string;
+    description_en?: string | null;
     image_url: string | null;
   };
 }
@@ -35,6 +39,7 @@ interface ProductPromotion {
 
 export default function Cart() {
   const { user } = useAuth();
+  const { language } = useLanguage();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [promotions, setPromotions] = useState<ProductPromotion[]>([]);
@@ -398,7 +403,7 @@ export default function Cart() {
                         {item.products.image_url && (
                           <img
                             src={item.products.image_url}
-                            alt={item.products.name}
+                            alt={getLocalizedProductName(item.products, language)}
                             className="w-full sm:w-24 h-32 sm:h-24 object-cover rounded-lg"
                           />
                         )}
@@ -407,7 +412,7 @@ export default function Cart() {
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start mb-2 gap-2">
                           <div className="min-w-0">
-                            <h3 className="font-bold text-base sm:text-lg text-gray-900 truncate">{item.products.name}</h3>
+                            <h3 className="font-bold text-base sm:text-lg text-gray-900 truncate">{getLocalizedProductName(item.products, language)}</h3>
                             <p className="text-xs sm:text-sm text-gray-600">{item.products.product_type}</p>
                             {promo && (
                               <div className="flex items-center gap-1 mt-1">
@@ -558,7 +563,7 @@ export default function Cart() {
                       <div key={item.id}>
                         <div className="flex justify-between">
                           <span className="text-gray-600">
-                            {item.products.name} x {item.quantity}
+                            {getLocalizedProductName(item.products, language)} x {item.quantity}
                           </span>
                           <span className="font-semibold">
                             {formatCurrency((prices[item.product_id] || 0) * item.quantity)}

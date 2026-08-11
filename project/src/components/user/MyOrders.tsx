@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { formatCurrency } from '../../utils/currency';
+import { getLocalizedProductName } from '../../utils/productLocale';
 import { ShoppingBag, Clock, Check, X, Package, Upload, CreditCard, ChevronDown, ChevronUp, Phone, Mail, Building2 } from 'lucide-react';
 import { sendPaymentSubmittedNotification } from '../../utils/notifications';
 
@@ -28,6 +30,7 @@ interface OrderItem {
   pv_value: number;
   product: {
     name: string;
+    name_en?: string | null;
     image_url: string | null;
   };
 }
@@ -54,6 +57,7 @@ interface Order {
   created_at: string;
   product: {
     name: string;
+    name_en?: string | null;
     pv_value: number;
     image_url: string | null;
   } | null;
@@ -63,6 +67,7 @@ interface Order {
 export default function MyOrders() {
   const { user } = useAuth();
   const toast = useToast();
+  const { language } = useLanguage();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -105,7 +110,7 @@ export default function MyOrders() {
         .from('orders')
         .select(`
           *,
-          product:products(name, pv_value, image_url),
+          product:products(name, name_en, pv_value, image_url),
           order_items(
             id,
             product_id,
@@ -114,7 +119,7 @@ export default function MyOrders() {
             unit_price,
             subtotal,
             pv_value,
-            product:products(name, image_url)
+            product:products(name, name_en, image_url)
           )
         `)
         .eq('user_id', user.id)
@@ -161,7 +166,7 @@ export default function MyOrders() {
 
   const getOrderDisplayInfo = (order: Order) => {
     if (order.order_items && order.order_items.length > 0) {
-      const names = order.order_items.map(item => item.product.name);
+      const names = order.order_items.map(item => getLocalizedProductName(item.product, language));
       const displayName = names.length > 2
         ? `${names.slice(0, 2).join(', ')} +${names.length - 2} more`
         : names.join(', ');
@@ -172,7 +177,7 @@ export default function MyOrders() {
     }
 
     return {
-      displayName: order.product?.name || 'Unknown Product',
+      displayName: order.product ? getLocalizedProductName(order.product, language) : 'Unknown Product',
       totalPV: order.product ? order.product.pv_value * order.quantity : 0,
       image: order.product?.image_url,
       itemCount: 1
@@ -403,12 +408,12 @@ export default function MyOrders() {
                             {item.product.image_url && (
                               <img
                                 src={item.product.image_url}
-                                alt={item.product.name}
+                                alt={getLocalizedProductName(item.product, language)}
                                 className="w-12 h-12 object-cover rounded"
                               />
                             )}
                             <div className="flex-1">
-                              <p className="font-medium text-gray-900 text-sm">{item.product.name}</p>
+                              <p className="font-medium text-gray-900 text-sm">{getLocalizedProductName(item.product, language)}</p>
                               <p className="text-xs text-gray-600">
                                 Qty: {item.quantity}{item.free_quantity > 0 && ` (+${item.free_quantity} free)`}
                                 <span className="mx-2">|</span>
