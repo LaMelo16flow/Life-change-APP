@@ -1,14 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase, Product } from '../../lib/supabase';
 import { useToast } from '../../contexts/ToastContext';
-import { loadCountryNames, getCountryName } from '../../utils/countries';
+import { formatCurrency } from '../../utils/currency';
 import { Upload, Plus, CreditCard as Edit2, Save, X, Image } from 'lucide-react';
 import * as XLSX from 'xlsx';
-
-interface ProductPrice {
-  country_code: string;
-  price: number;
-}
 
 const normalizedProductName = (value: string) => {
   if (!value) return '';
@@ -189,9 +184,7 @@ const mergeDuplicateProducts = (items: Product[]) => {
 export function ProductManagement() {
   const toast = useToast();
   const [products, setProducts] = useState<Product[]>([]);
-  const [productPrices, setProductPrices] = useState<Record<string, ProductPrice[]>>({});
-  const [countryMap, setCountryMap] = useState<Record<string, string>>({});
-  const [countryList, setCountryList] = useState<[string, string][]>([]);
+  const [productPrices, setProductPrices] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -206,18 +199,13 @@ export function ProductManagement() {
     name: '',
     product_type: '',
     pv_value: 0,
+    price: 0,
     description: '',
     image_url: '',
   });
 
   useEffect(() => {
-    const loadData = async () => {
-      const countries = await loadCountryNames();
-      setCountryMap(countries);
-      setCountryList(Object.entries(countries).sort((a, b) => a[1].localeCompare(b[1])));
-      await fetchProducts();
-    };
-    loadData();
+    fetchProducts();
   }, []);
 
   useEffect(() => {
@@ -252,16 +240,16 @@ export function ProductManagement() {
 
       setProducts(cleanedProducts);
 
-      const pricesMap: Record<string, ProductPrice[]> = {};
+      const pricesMap: Record<string, number> = {};
       for (const product of cleanedProducts) {
-        const { data: prices } = await supabase
+        const { data: price } = await supabase
           .from('product_prices')
-          .select('country_code, price')
-          .eq('product_id', product.id);
+          .select('price')
+          .eq('product_id', product.id)
+          .eq('country_code', 'CA')
+          .maybeSingle();
 
-        if (prices) {
-          pricesMap[product.id] = prices;
-        }
+        pricesMap[product.id] = price?.price ?? 0;
       }
       setProductPrices(pricesMap);
     }
@@ -277,7 +265,7 @@ export function ProductManagement() {
       description: product.description || '',
       image_url: product.image_url || '',
       is_active: product.is_active,
-      prices: productPrices[product.id] || [],
+      price: productPrices[product.id] ?? 0,
     });
   };
 
@@ -354,38 +342,21 @@ export function ProductManagement() {
       return;
     }
 
-    for (const price of editForm.prices) {
-      await supabase
-        .from('product_prices')
-        .upsert({
-          product_id: editingId,
-          country_code: price.country_code,
-          price: parseFloat(price.price),
-        }, {
-          onConflict: 'product_id,country_code',
-        });
-    }
+    await supabase
+      .from('product_prices')
+      .upsert({
+        product_id: editingId,
+        country_code: 'CA',
+        price: parseFloat(editForm.price) || 0,
+      }, {
+        onConflict: 'product_id,country_code',
+      });
 
     toast.success('Product updated successfully');
     setEditingId(null);
     setEditForm(null);
     await fetchProducts();
   };
-
-  const updatePriceForCountry = (countryCode: string, newPrice: string) => {
-    const prices = [...editForm.prices];
-    const existingIndex = prices.findIndex(p => p.country_code === countryCode);
-
-    if (existingIndex >= 0) {
-      prices[existingIndex].price = parseFloat(newPrice) || 0;
-    } else {
-      prices.push({ country_code: countryCode, price: parseFloat(newPrice) || 0 });
-    }
-
-    setEditForm({ ...editForm, prices });
-  };
-
-  const getCountryDisplayName = (code: string) => getCountryName(code, countryMap);
 
   const uploadImage = async (file: File): Promise<string | null> => {
     try {
@@ -491,14 +462,24 @@ export function ProductManagement() {
         return;
       }
 
+      await supabase
+        .from('product_prices')
+        .upsert({
+          product_id: matchedProduct.id,
+          country_code: 'CA',
+          price: parseFloat(newProduct.price.toString()) || 0,
+        }, {
+          onConflict: 'product_id,country_code',
+        });
+
       toast.success('Product updated with latest information');
       setShowAdd(false);
-      setNewProduct({ name: '', product_type: '', pv_value: 0, description: '', image_url: '' });
+      setNewProduct({ name: '', product_type: '', pv_value: 0, price: 0, description: '', image_url: '' });
       await fetchProducts();
       return;
     }
 
-    const { error } = await supabase
+    const { data: createdProduct, error } = await supabase
       .from('products')
       .insert({
         name: cleanedName,
@@ -511,14 +492,24 @@ export function ProductManagement() {
       .select()
       .single();
 
-    if (error) {
+    if (error || !createdProduct) {
       toast.error('Failed to add product');
       return;
     }
 
+    await supabase
+      .from('product_prices')
+      .upsert({
+        product_id: createdProduct.id,
+        country_code: 'CA',
+        price: parseFloat(newProduct.price.toString()) || 0,
+      }, {
+        onConflict: 'product_id,country_code',
+      });
+
     toast.success('Product added successfully');
     setShowAdd(false);
-    setNewProduct({ name: '', product_type: '', pv_value: 0, description: '', image_url: '' });
+    setNewProduct({ name: '', product_type: '', pv_value: 0, price: 0, description: '', image_url: '' });
     await fetchProducts();
   };
 
@@ -720,6 +711,14 @@ export function ProductManagement() {
               onChange={(e) => setNewProduct({ ...newProduct, pv_value: parseFloat(e.target.value) || 0 })}
               className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
             />
+            <input
+              type="number"
+              step="0.01"
+              placeholder="Price (CAD)"
+              value={newProduct.price || ''}
+              onChange={(e) => setNewProduct({ ...newProduct, price: parseFloat(e.target.value) || 0 })}
+              className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+            />
             <div className="col-span-2">
               <label className="block text-sm font-medium text-slate-700 mb-2">Product Image</label>
               <div className="flex gap-3">
@@ -790,7 +789,7 @@ export function ProductManagement() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {products.map((product) => {
           const isEditing = editingId === product.id;
-          const prices = productPrices[product.id] || [];
+          const price = productPrices[product.id] ?? 0;
 
           if (isEditing && editForm) {
             return (
@@ -880,25 +879,15 @@ export function ProductManagement() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Prices by Country</label>
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {countryList.map(([countryCode, countryName]) => {
-                        const countryPrice = editForm.prices.find((p: ProductPrice) => p.country_code === countryCode);
-                        return (
-                          <div key={countryCode} className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-slate-700 flex-shrink-0 max-w-32 truncate" title={countryName}>{countryName}:</span>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={countryPrice?.price || ''}
-                              onChange={(e) => updatePriceForCountry(countryCode, e.target.value)}
-                              placeholder="0.00"
-                              className="flex-1 px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Price (CAD)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={editForm.price || ''}
+                      onChange={(e) => setEditForm({ ...editForm, price: parseFloat(e.target.value) || 0 })}
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                    />
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -980,18 +969,11 @@ export function ProductManagement() {
                 <p className="text-sm text-slate-600 mb-3 line-clamp-2">{product.description}</p>
               )}
 
-              {prices.length > 0 && (
-                <div className="mb-3 pb-3 border-b border-slate-200">
-                  <p className="text-xs font-semibold text-slate-500 mb-1">Prices:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {prices.map((price) => (
-                      <span key={price.country_code} className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded" title={price.country_code}>
-                        {getCountryDisplayName(price.country_code)}: {price.price}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <div className="mb-3 pb-3 border-b border-slate-200">
+                <span className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded font-medium">
+                  {formatCurrency(price)}
+                </span>
+              </div>
 
               <div className="flex items-center justify-between pt-3 border-t border-slate-200">
                 <span

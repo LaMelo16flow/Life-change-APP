@@ -38,7 +38,7 @@ export default function Cart() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [promotions, setPromotions] = useState<ProductPromotion[]>([]);
-  const [profile, setProfile] = useState<Profile & { countries?: { currency_code: string; currency_symbol: string } | null } | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -48,6 +48,22 @@ export default function Cart() {
   useEffect(() => {
     loadCartData();
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('cart-live-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_prices' }, () => loadCartData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_inventory' }, () => loadCartData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_promotions' }, () => loadCartData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cart_items', filter: `user_id=eq.${user.id}` }, () => loadCartData())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   async function loadCartData() {
     try {
@@ -59,7 +75,7 @@ export default function Cart() {
           .order('created_at', { ascending: false }),
         supabase
           .from('profiles')
-          .select('*, countries(currency_code, currency_symbol)')
+          .select('*')
           .eq('id', user?.id)
           .single(),
         supabase
@@ -73,19 +89,17 @@ export default function Cart() {
       if (profileRes.data) {
         setProfile(profileRes.data);
 
-        if (profileRes.data.country_code) {
-          const pricesRes = await supabase
-            .from('product_prices')
-            .select('product_id, price')
-            .eq('country_code', profileRes.data.country_code);
+        const pricesRes = await supabase
+          .from('product_prices')
+          .select('product_id, price')
+          .eq('country_code', 'CA');
 
-          if (pricesRes.data) {
-            const priceMap: Record<string, number> = {};
-            pricesRes.data.forEach((p: ProductPrice) => {
-              priceMap[p.product_id] = p.price;
-            });
-            setPrices(priceMap);
-          }
+        if (pricesRes.data) {
+          const priceMap: Record<string, number> = {};
+          pricesRes.data.forEach((p: ProductPrice) => {
+            priceMap[p.product_id] = p.price;
+          });
+          setPrices(priceMap);
         }
       }
     } catch (error) {
@@ -99,7 +113,7 @@ export default function Cart() {
     return promotions.find(
       (p) =>
         p.product_id === productId &&
-        (!p.country_code || p.country_code === profile?.country_code)
+        (!p.country_code || p.country_code === 'CA')
     ) || null;
   }
 
@@ -165,7 +179,6 @@ export default function Cart() {
     setMessage(null);
 
     try {
-      const region = profile.region || profile.country_code;
       let totalFreeItems = 0;
       let orderTotal = 0;
 
@@ -186,7 +199,7 @@ export default function Cart() {
           .from('product_inventory')
           .select('quantity, reserved_quantity')
           .eq('product_id', item.product_id)
-          .eq('region', region)
+          .eq('region', 'CA')
           .maybeSingle();
 
         if (inventoryError) {
@@ -222,8 +235,8 @@ export default function Cart() {
           }, 0),
           unit_price: 0,
           total_amount: orderTotal,
-          currency_code: profile.countries?.currency_code || 'USD',
-          region: region,
+          currency_code: 'CAD',
+          region: 'CA',
           status: 'pending',
           items_count: cartItems.length,
           metadata: { items_count: cartItems.length },
@@ -259,7 +272,7 @@ export default function Cart() {
 
         const { error: reserveError } = await supabase.rpc('reserve_inventory', {
           p_product_id: item.product_id,
-          p_region: region,
+          p_region: 'CA',
           p_quantity: totalQuantity,
           p_notes: `Order ${orderNumber} - pending approval${freeItems > 0 ? ` (includes ${freeItems} free)` : ''}`,
         });
@@ -285,7 +298,7 @@ export default function Cart() {
           const { freeItems } = promo ? getPromoBonusInfo(promo, item.quantity) : { freeItems: 0 };
           return sum + item.quantity + freeItems;
         }, 0),
-        totalAmount: formatCurrency(orderTotal, profile.countries?.currency_code || 'USD'),
+        totalAmount: formatCurrency(orderTotal),
         userName: profile.full_name || user?.email || 'Customer',
         userEmail: user?.email || '',
       }, user?.id);
@@ -455,7 +468,7 @@ export default function Cart() {
                             <div className="text-xs sm:text-sm">
                               <span className="text-gray-600">Unit: </span>
                               <span className="font-semibold">
-                                {price ? formatCurrency(price, profile?.countries?.currency_code || 'USD') : 'N/A'}
+                                {price ? formatCurrency(price) : 'N/A'}
                               </span>
                               <span className="text-orange-600 ml-2">{item.products.pv_value} PV</span>
                             </div>
@@ -464,7 +477,7 @@ export default function Cart() {
                           <div className="text-left sm:text-right pt-3 sm:pt-0 border-t sm:border-0 border-gray-200">
                             <div className="text-xs sm:text-sm text-gray-600">Subtotal</div>
                             <div className="text-lg sm:text-xl font-bold text-gray-900">
-                              {formatCurrency(subtotal, profile?.countries?.currency_code || 'USD')}
+                              {formatCurrency(subtotal)}
                             </div>
                             <div className="text-xs sm:text-sm text-orange-600 font-medium">
                               {item.products.pv_value * (item.quantity + freeItems)} PV
@@ -486,7 +499,7 @@ export default function Cart() {
               <div className="flex justify-between text-gray-600">
                 <span>Items ({cartItems.length})</span>
                 <span className="font-semibold text-gray-900">
-                  {formatCurrency(cartTotal, profile?.countries?.currency_code || 'USD')}
+                  {formatCurrency(cartTotal)}
                 </span>
               </div>
               {totalFreeItemsInCart > 0 && (
@@ -505,7 +518,7 @@ export default function Cart() {
               <div className="border-t pt-3 flex justify-between text-lg font-bold">
                 <span>Total</span>
                 <span className="text-brand-600">
-                  {formatCurrency(cartTotal, profile?.countries?.currency_code || 'USD')}
+                  {formatCurrency(cartTotal)}
                 </span>
               </div>
             </div>
@@ -548,10 +561,7 @@ export default function Cart() {
                             {item.products.name} x {item.quantity}
                           </span>
                           <span className="font-semibold">
-                            {formatCurrency(
-                              (prices[item.product_id] || 0) * item.quantity,
-                              profile?.countries?.currency_code || 'USD'
-                            )}
+                            {formatCurrency((prices[item.product_id] || 0) * item.quantity)}
                           </span>
                         </div>
                         {freeItems > 0 && (
@@ -570,7 +580,7 @@ export default function Cart() {
                 <div className="flex justify-between mb-2">
                   <span className="font-semibold">Total Amount:</span>
                   <span className="font-bold text-lg text-brand-600">
-                    {formatCurrency(cartTotal, profile?.countries?.currency_code || 'USD')}
+                    {formatCurrency(cartTotal)}
                   </span>
                 </div>
                 <div className="flex justify-between mb-2">

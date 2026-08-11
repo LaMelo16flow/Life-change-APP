@@ -37,7 +37,6 @@ export default function ManagerManagement() {
   const toast = useToast();
   const [managers, setManagers] = useState<(ManagerProfile & { permissions: PermissionRow[] })[]>([]);
   const [allUsers, setAllUsers] = useState<ManagerProfile[]>([]);
-  const [countries, setCountries] = useState<{ code: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -48,14 +47,10 @@ export default function ManagerManagement() {
   const [addForm, setAddForm] = useState({
     user_id: '',
     selectedPermissions: [] as PermissionType[],
-    regions: [] as string[],
-    allRegions: true,
   });
 
   const [editForm, setEditForm] = useState({
     selectedPermissions: [] as PermissionType[],
-    regions: [] as string[],
-    allRegions: true,
   });
 
   useEffect(() => {
@@ -64,7 +59,7 @@ export default function ManagerManagement() {
 
   const loadData = async () => {
     setLoading(true);
-    await Promise.all([loadManagers(), loadUsers(), loadCountries()]);
+    await Promise.all([loadManagers(), loadUsers()]);
     setLoading(false);
   };
 
@@ -108,19 +103,6 @@ export default function ManagerManagement() {
     setAllUsers(data || []);
   };
 
-  const loadCountries = async () => {
-    const { data, error } = await supabase
-      .from('countries')
-      .select('code, name')
-      .order('name');
-
-    if (error) {
-      console.error('Error loading countries:', error);
-      return;
-    }
-    setCountries(data || []);
-  };
-
   const handleAddManager = async () => {
     if (!addForm.user_id || addForm.selectedPermissions.length === 0) {
       toast.warning('Please select a user and at least one permission.');
@@ -136,12 +118,11 @@ export default function ManagerManagement() {
       if (roleError) throw roleError;
 
       const { data: userData } = await supabase.auth.getUser();
-      const regions = addForm.allRegions ? null : addForm.regions;
 
       const permInserts = addForm.selectedPermissions.map(perm => ({
         user_id: addForm.user_id,
         permission: perm,
-        regions,
+        regions: null,
         granted_by: userData.user?.id,
       }));
 
@@ -152,7 +133,7 @@ export default function ManagerManagement() {
       if (permError) throw permError;
 
       setShowAddModal(false);
-      setAddForm({ user_id: '', selectedPermissions: [], regions: [], allRegions: true });
+      setAddForm({ user_id: '', selectedPermissions: [] });
       loadData();
     } catch (error) {
       console.error('Error adding manager:', error);
@@ -185,12 +166,11 @@ export default function ManagerManagement() {
         if (roleError) throw roleError;
       } else {
         const { data: userData } = await supabase.auth.getUser();
-        const regions = editForm.allRegions ? null : editForm.regions;
 
         const permInserts = editForm.selectedPermissions.map(perm => ({
           user_id: selectedManager.id,
           permission: perm,
-          regions,
+          regions: null,
           granted_by: userData.user?.id,
         }));
 
@@ -279,11 +259,8 @@ export default function ManagerManagement() {
   const openEditModal = (manager: ManagerProfile & { permissions: PermissionRow[] }) => {
     setSelectedManager(manager);
     const existingPerms = manager.permissions.map(p => p.permission);
-    const existingRegions = manager.permissions[0]?.regions;
     setEditForm({
       selectedPermissions: existingPerms,
-      regions: existingRegions || [],
-      allRegions: existingRegions === null,
     });
     setShowEditModal(true);
   };
@@ -305,24 +282,6 @@ export default function ManagerManagement() {
         selectedPermissions: prev.selectedPermissions.includes(perm)
           ? prev.selectedPermissions.filter(p => p !== perm)
           : [...prev.selectedPermissions, perm],
-      }));
-    }
-  };
-
-  const toggleRegion = (code: string, form: 'add' | 'edit') => {
-    if (form === 'add') {
-      setAddForm(prev => ({
-        ...prev,
-        regions: prev.regions.includes(code)
-          ? prev.regions.filter(r => r !== code)
-          : [...prev.regions, code],
-      }));
-    } else {
-      setEditForm(prev => ({
-        ...prev,
-        regions: prev.regions.includes(code)
-          ? prev.regions.filter(r => r !== code)
-          : [...prev.regions, code],
       }));
     }
   };
@@ -351,7 +310,7 @@ export default function ManagerManagement() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Team Management</h2>
-          <p className="text-gray-600">Assign people to manage orders, inventory, and more by country</p>
+          <p className="text-gray-600">Assign people to manage orders, inventory, and more</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
@@ -415,7 +374,7 @@ export default function ManagerManagement() {
                   {manager.role === 'admin' ? (
                     <div className="bg-blue-50 rounded-lg p-3 mb-3">
                       <p className="text-sm text-blue-800">
-                        <strong>Full Admin</strong> - Has access to all features across all countries.
+                        <strong>Full Admin</strong> - Has access to all features.
                       </p>
                     </div>
                   ) : (
@@ -435,22 +394,6 @@ export default function ManagerManagement() {
                           })
                         )}
                       </div>
-                      {manager.permissions[0]?.regions && (
-                        <div className="mt-2">
-                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Countries</p>
-                          <div className="flex flex-wrap gap-1">
-                            {manager.permissions[0].regions.map(r => {
-                              const countryName = countries.find(c => c.code === r)?.name || r;
-                              return (
-                                <span key={r} className="text-xs px-2 py-0.5 rounded bg-brand-50 text-brand-700 font-medium">{countryName}</span>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                      {!manager.permissions[0]?.regions && manager.permissions.length > 0 && (
-                        <p className="text-xs text-gray-500">Countries: All countries</p>
-                      )}
                     </div>
                   )}
 
@@ -543,34 +486,6 @@ export default function ManagerManagement() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Country Access</label>
-                <label className="flex items-center gap-2 mb-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={addForm.allRegions}
-                    onChange={(e) => setAddForm({ ...addForm, allRegions: e.target.checked, regions: [] })}
-                    className="w-4 h-4 text-brand-600 rounded focus:ring-brand-500"
-                  />
-                  <span className="text-sm text-gray-700">All countries</span>
-                </label>
-                {!addForm.allRegions && (
-                  <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2 grid grid-cols-3 gap-1">
-                    {countries.map(c => (
-                      <label key={c.code} className="flex items-center gap-1.5 text-xs cursor-pointer p-1 rounded hover:bg-gray-50">
-                        <input
-                          type="checkbox"
-                          checked={addForm.regions.includes(c.code)}
-                          onChange={() => toggleRegion(c.code, 'add')}
-                          className="w-3.5 h-3.5 text-brand-600 rounded focus:ring-brand-500"
-                        />
-                        <span>{c.code}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={handleAddManager}
@@ -579,7 +494,7 @@ export default function ManagerManagement() {
                   Add Manager
                 </button>
                 <button
-                  onClick={() => { setShowAddModal(false); setAddForm({ user_id: '', selectedPermissions: [], regions: [], allRegions: true }); }}
+                  onClick={() => { setShowAddModal(false); setAddForm({ user_id: '', selectedPermissions: [] }); }}
                   className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300 font-medium"
                 >
                   Cancel
@@ -615,34 +530,6 @@ export default function ManagerManagement() {
                     </label>
                   ))}
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Country Access</label>
-                <label className="flex items-center gap-2 mb-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editForm.allRegions}
-                    onChange={(e) => setEditForm({ ...editForm, allRegions: e.target.checked, regions: [] })}
-                    className="w-4 h-4 text-brand-600 rounded focus:ring-brand-500"
-                  />
-                  <span className="text-sm text-gray-700">All countries</span>
-                </label>
-                {!editForm.allRegions && (
-                  <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2 grid grid-cols-3 gap-1">
-                    {countries.map(c => (
-                      <label key={c.code} className="flex items-center gap-1.5 text-xs cursor-pointer p-1 rounded hover:bg-gray-50">
-                        <input
-                          type="checkbox"
-                          checked={editForm.regions.includes(c.code)}
-                          onChange={() => toggleRegion(c.code, 'edit')}
-                          className="w-3.5 h-3.5 text-brand-600 rounded focus:ring-brand-500"
-                        />
-                        <span>{c.code}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {editForm.selectedPermissions.length === 0 && (

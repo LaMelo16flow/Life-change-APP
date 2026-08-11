@@ -73,11 +73,25 @@ export default function Shop() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    const channel = supabase
+      .channel('shop-live-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_prices' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_inventory' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_promotions' }, () => loadData())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   async function loadData() {
     try {
       const [productsRes, profileRes] = await Promise.all([
         supabase.from('products').select('*').eq('is_active', true).order('product_type', { ascending: true }),
-        supabase.from('profiles').select('*, countries(currency_code, currency_symbol)').eq('id', user?.id).single()
+        supabase.from('profiles').select('*').eq('id', user?.id).single()
       ]);
 
       if (productsRes.data) {
@@ -94,52 +108,49 @@ export default function Shop() {
       if (profileRes.data) {
         setProfile(profileRes.data);
 
-        const region = profileRes.data.region || profileRes.data.country_code;
-        if (region) {
-          const [pricesRes, promosRes, inventoryRes] = await Promise.all([
-            supabase
-              .from('product_prices')
-              .select('product_id, price')
-              .eq('country_code', profileRes.data.country_code),
-            supabase
-              .from('product_promotions')
-              .select('id, product_id, title, buy_quantity, free_quantity, country_code')
-              .eq('is_active', true)
-              .lte('starts_at', new Date().toISOString())
-              .gt('ends_at', new Date().toISOString()),
-            supabase
-              .from('product_inventory')
-              .select('product_id, quantity, reserved_quantity, low_stock_threshold')
-              .eq('region', region),
-          ]);
+        const [pricesRes, promosRes, inventoryRes] = await Promise.all([
+          supabase
+            .from('product_prices')
+            .select('product_id, price')
+            .eq('country_code', 'CA'),
+          supabase
+            .from('product_promotions')
+            .select('id, product_id, title, buy_quantity, free_quantity, country_code')
+            .eq('is_active', true)
+            .lte('starts_at', new Date().toISOString())
+            .gt('ends_at', new Date().toISOString()),
+          supabase
+            .from('product_inventory')
+            .select('product_id, quantity, reserved_quantity, low_stock_threshold')
+            .eq('region', 'CA'),
+        ]);
 
-          if (pricesRes.data) {
-            const priceMap: Record<string, number> = {};
-            pricesRes.data.forEach((p: ProductPrice) => {
-              priceMap[p.product_id] = p.price;
-            });
-            setPrices(priceMap);
-          }
+        if (pricesRes.data) {
+          const priceMap: Record<string, number> = {};
+          pricesRes.data.forEach((p: ProductPrice) => {
+            priceMap[p.product_id] = p.price;
+          });
+          setPrices(priceMap);
+        }
 
-          if (promosRes.data) {
-            const promoMap: Record<string, ActivePromotion> = {};
-            promosRes.data.forEach((p: any) => {
-              if (!p.country_code || p.country_code === profileRes.data.country_code) {
-                if (!promoMap[p.product_id]) {
-                  promoMap[p.product_id] = p;
-                }
+        if (promosRes.data) {
+          const promoMap: Record<string, ActivePromotion> = {};
+          promosRes.data.forEach((p: any) => {
+            if (!p.country_code || p.country_code === 'CA') {
+              if (!promoMap[p.product_id]) {
+                promoMap[p.product_id] = p;
               }
-            });
-            setPromotions(promoMap);
-          }
+            }
+          });
+          setPromotions(promoMap);
+        }
 
-          if (inventoryRes.data) {
-            const inventoryMap: Record<string, InventoryInfo> = {};
-            inventoryRes.data.forEach((inv: InventoryInfo) => {
-              inventoryMap[inv.product_id] = inv;
-            });
-            setInventory(inventoryMap);
-          }
+        if (inventoryRes.data) {
+          const inventoryMap: Record<string, InventoryInfo> = {};
+          inventoryRes.data.forEach((inv: InventoryInfo) => {
+            inventoryMap[inv.product_id] = inv;
+          });
+          setInventory(inventoryMap);
         }
       }
     } catch (error) {
@@ -229,12 +240,11 @@ export default function Shop() {
     setMessage(null);
 
     try {
-      const region = profile.region || profile.country_code;
       const { data: inventoryData, error: inventoryError } = await supabase
         .from('product_inventory')
         .select('quantity, reserved_quantity')
         .eq('product_id', selectedProduct.id)
-        .eq('region', region)
+        .eq('region', 'CA')
         .single();
 
       if (inventoryError || !inventoryData) {
@@ -258,8 +268,8 @@ export default function Shop() {
           quantity: totalQuantity,
           unit_price: originalPrice,
           total_amount: totalPrice,
-          currency_code: profile.countries?.currency_code || 'USD',
-          region,
+          currency_code: 'CAD',
+          region: 'CA',
           status: 'pending',
           items_count: 1,
         })
@@ -281,7 +291,7 @@ export default function Shop() {
 
       const { error: reserveError } = await supabase.rpc('reserve_inventory', {
         p_product_id: selectedProduct.id,
-        p_region: region,
+        p_region: 'CA',
         p_quantity: totalQuantity,
         p_notes: `Order ${orderNumber} - pending approval${freeItems > 0 ? ` (includes ${freeItems} free)` : ''}`,
       });
@@ -294,7 +304,7 @@ export default function Shop() {
         orderNumber,
         productName: selectedProduct.name,
         quantity: totalQuantity,
-        totalAmount: formatCurrency(totalPrice, profile.countries?.currency_code || 'USD'),
+        totalAmount: formatCurrency(totalPrice),
         userName: profile.full_name || user?.email || 'Customer',
         userEmail: user?.email || '',
       }, user?.id);
@@ -332,8 +342,6 @@ export default function Shop() {
   if (loading) {
     return <div className="text-center py-8">Loading products...</div>;
   }
-
-  const currencyCode = profile?.countries?.currency_code || 'USD';
 
   return (
     <div className="space-y-6">
@@ -438,7 +446,7 @@ export default function Shop() {
                   <div className="mb-3">
                     {originalPrice ? (
                       <div className="text-xl sm:text-2xl font-bold text-gray-900">
-                        {formatCurrency(originalPrice, currencyCode)}
+                        {formatCurrency(originalPrice)}
                       </div>
                     ) : (
                       <div className="text-sm text-gray-500">Price not set</div>
@@ -472,7 +480,7 @@ export default function Shop() {
                         </button>
                         {cardQty > 1 && originalPrice && (
                           <span className="ml-2 text-xs text-gray-500 font-medium">
-                            = {formatCurrency(originalPrice * cardQty, currencyCode)}
+                            = {formatCurrency(originalPrice * cardQty)}
                           </span>
                         )}
                       </div>
@@ -534,7 +542,6 @@ export default function Shop() {
           product={selectedProduct}
           originalPrice={prices[selectedProduct.id]}
           promo={promotions[selectedProduct.id]}
-          currencyCode={currencyCode}
           quantity={orderQuantity}
           onQuantityChange={setOrderQuantity}
           purchasing={purchasing === selectedProduct.id}
@@ -550,7 +557,6 @@ function OrderModal({
   product,
   originalPrice,
   promo,
-  currencyCode,
   quantity,
   onQuantityChange,
   purchasing,
@@ -560,7 +566,6 @@ function OrderModal({
   product: Product;
   originalPrice: number;
   promo?: ActivePromotion;
-  currencyCode: string;
   quantity: number;
   onQuantityChange: (q: number) => void;
   purchasing: boolean;
@@ -604,7 +609,7 @@ function OrderModal({
             <div>
               <div className="text-sm text-gray-600">Unit Price</div>
               <div className="text-xl font-bold">
-                {formatCurrency(originalPrice, currencyCode)}
+                {formatCurrency(originalPrice)}
               </div>
               <div className="text-sm text-orange-600 font-medium">{product.pv_value} PV per unit</div>
             </div>
@@ -651,7 +656,7 @@ function OrderModal({
             <div className="flex justify-between mb-2">
               <span className="text-gray-600">Total Amount:</span>
               <span className="font-bold text-lg">
-                {formatCurrency(totalPrice, currencyCode)}
+                {formatCurrency(totalPrice)}
               </span>
             </div>
             <div className="flex justify-between mb-2">

@@ -70,12 +70,10 @@ interface Order {
 export default function OrderManagement() {
   const toast = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [allRegions, setAllRegions] = useState<string[]>([]);
   const [countryNames, setCountryNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('pending');
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
-  const [regionFilter, setRegionFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -101,7 +99,6 @@ export default function OrderManagement() {
     const loadData = async () => {
       const countries = await loadCountryNames();
       setCountryNames(countries);
-      await loadAllRegions();
       await loadOrders();
       await loadStatusCounts();
     };
@@ -138,18 +135,6 @@ export default function OrderManagement() {
       setStatusCounts(counts);
     } catch (error) {
       console.error('Error loading status counts:', error);
-    }
-  };
-
-  const loadAllRegions = async () => {
-    try {
-      const { data, error } = await supabase.from('orders').select('region');
-      if (error) throw error;
-
-      const regions = Array.from(new Set(data?.map(order => order.region).filter(Boolean))).sort();
-      setAllRegions(regions);
-    } catch (error) {
-      console.error('Error loading regions:', error);
     }
   };
 
@@ -794,13 +779,12 @@ export default function OrderManagement() {
   };
 
   const filteredOrders = orders.filter(order => {
-    const matchesRegion = regionFilter === 'all' || order.region === regionFilter;
     const { displayName } = getOrderDisplayInfo(order);
     const matchesSearch =
       order.order_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       displayName.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesRegion && matchesSearch;
+    return matchesSearch;
   });
 
   const getStatusBadge = (status: string) => {
@@ -917,21 +901,6 @@ export default function OrderManagement() {
           <option value="awaiting_payment">Awaiting Payment ({statusCounts.awaiting_payment || 0})</option>
           <option value="rejected">Rejected ({statusCounts.rejected || 0})</option>
           <option value="completed">Completed ({statusCounts.completed || 0})</option>
-        </select>
-        <select
-          value={regionFilter}
-          onChange={(e) => setRegionFilter(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-        >
-          <option value="all">All Countries ({orders.length})</option>
-          {allRegions.sort((a, b) => getCountryLabel(a).localeCompare(getCountryLabel(b))).map(region => {
-            const count = orders.filter(o => o.region === region).length;
-            return (
-              <option key={region} value={region}>
-                {getCountryLabel(region)} ({count})
-              </option>
-            );
-          })}
         </select>
       </div>
 

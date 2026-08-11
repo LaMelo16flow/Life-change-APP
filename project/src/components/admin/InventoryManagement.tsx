@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { loadCountryNames, getCountryName } from '../../utils/countries';
 import { useToast } from '../../contexts/ToastContext';
 import { Package, Plus, CreditCard as Edit2, AlertTriangle, Search, RefreshCw } from 'lucide-react';
 
@@ -27,36 +26,28 @@ export default function InventoryManagement() {
   const toast = useToast();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [countryMap, setCountryMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [regionFilter, setRegionFilter] = useState('all');
 
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkQuantity, setBulkQuantity] = useState(100);
   const [bulkMaxQuantity, setBulkMaxQuantity] = useState(200);
-  const [bulkRegion, setBulkRegion] = useState('all');
   const [bulkUpdating, setBulkUpdating] = useState(false);
 
   const [formData, setFormData] = useState({
     product_id: '',
-    region: '',
+    region: 'CA',
     quantity: 0,
     max_quantity: 100,
     low_stock_threshold: 10,
   });
 
   useEffect(() => {
-    const loadData = async () => {
-      const countries = await loadCountryNames();
-      setCountryMap(countries);
-      await loadInventory();
-      await loadProducts();
-    };
-    loadData();
+    loadInventory();
+    loadProducts();
   }, []);
 
   const loadInventory = async () => {
@@ -67,7 +58,7 @@ export default function InventoryManagement() {
           *,
           product:products(id, name, product_type, image_url)
         `)
-        .order('region', { ascending: true });
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
       setInventory(data || []);
@@ -124,7 +115,7 @@ export default function InventoryManagement() {
       setShowAddModal(false);
       setFormData({
         product_id: '',
-        region: '',
+        region: 'CA',
         quantity: 0,
         max_quantity: 100,
         low_stock_threshold: 10,
@@ -198,21 +189,17 @@ export default function InventoryManagement() {
   const handleBulkUpdate = async () => {
     setBulkUpdating(true);
     try {
-      let query = supabase
+      const { error } = await supabase
         .from('product_inventory')
         .update({
           quantity: bulkQuantity,
           max_quantity: bulkMaxQuantity,
-        });
+        })
+        .eq('region', 'CA');
 
-      if (bulkRegion !== 'all') {
-        query = query.eq('region', bulkRegion);
-      }
-
-      const { error } = await query;
       if (error) throw error;
 
-      toast.success(`Stock updated to ${bulkQuantity} for ${bulkRegion === 'all' ? 'all countries' : getCountryLabel(bulkRegion)}`);
+      toast.success(`Stock updated to ${bulkQuantity} for all products`);
       setShowBulkModal(false);
       loadInventory();
     } catch (error) {
@@ -226,12 +213,6 @@ export default function InventoryManagement() {
   const handleInitializeAllStock = async () => {
     setBulkUpdating(true);
     try {
-      const { data: countries, error: countriesError } = await supabase
-        .from('countries')
-        .select('code');
-
-      if (countriesError) throw countriesError;
-
       const { data: activeProducts, error: productsError } = await supabase
         .from('products')
         .select('id')
@@ -239,18 +220,13 @@ export default function InventoryManagement() {
 
       if (productsError) throw productsError;
 
-      const inserts = [];
-      for (const product of activeProducts || []) {
-        for (const country of countries || []) {
-          inserts.push({
-            product_id: product.id,
-            region: country.code,
-            quantity: bulkQuantity,
-            max_quantity: bulkMaxQuantity,
-            low_stock_threshold: 10,
-          });
-        }
-      }
+      const inserts = (activeProducts || []).map((product) => ({
+        product_id: product.id,
+        region: 'CA',
+        quantity: bulkQuantity,
+        max_quantity: bulkMaxQuantity,
+        low_stock_threshold: 10,
+      }));
 
       const batchSize = 500;
       for (let i = 0; i < inserts.length; i += batchSize) {
@@ -272,18 +248,9 @@ export default function InventoryManagement() {
     }
   };
 
-  const getCountryLabel = (code: string) => getCountryName(code, countryMap);
-
-  const filteredInventory = inventory.filter(item => {
-    const countryLabel = getCountryLabel(item.region).toLowerCase();
-    const matchesSearch = item.product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         countryLabel.includes(searchTerm.toLowerCase()) ||
-                         item.region.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRegion = regionFilter === 'all' || item.region === regionFilter;
-    return matchesSearch && matchesRegion;
-  });
-
-  const uniqueRegions = Array.from(new Set(inventory.map(item => item.region)));
+  const filteredInventory = inventory.filter(item =>
+    item.product.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const getStockStatus = (item: InventoryItem) => {
     const available = item.quantity - item.reserved_quantity;
@@ -301,7 +268,7 @@ export default function InventoryManagement() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Inventory Management</h2>
-          <p className="text-gray-600">Manage product stock levels by country</p>
+          <p className="text-gray-600">Manage product stock levels</p>
         </div>
         <div className="flex gap-3">
           <button
@@ -321,27 +288,15 @@ export default function InventoryManagement() {
         </div>
       </div>
 
-      <div className="flex gap-4">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
-            placeholder="Search products or countries..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-          />
-        </div>
-        <select
-          value={regionFilter}
-          onChange={(e) => setRegionFilter(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-        >
-          <option value="all">All Countries</option>
-          {uniqueRegions.sort((a, b) => getCountryLabel(a).localeCompare(getCountryLabel(b))).map(region => (
-            <option key={region} value={region}>{getCountryLabel(region)}</option>
-          ))}
-        </select>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+        <input
+          type="text"
+          placeholder="Search products..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+        />
       </div>
 
       {filteredInventory.length === 0 ? (
@@ -356,9 +311,6 @@ export default function InventoryManagement() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Product
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Country
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Available
@@ -397,11 +349,6 @@ export default function InventoryManagement() {
                           <div className="text-sm text-gray-500">{item.product.product_type}</div>
                         </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 py-1 text-xs font-semibold rounded bg-gray-100 text-gray-800">
-                        {getCountryLabel(item.region)}
-                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {available}
@@ -455,20 +402,6 @@ export default function InventoryManagement() {
                     <option key={product.id} value={product.id}>
                       {product.name}
                     </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
-                <select
-                  value={formData.region}
-                  onChange={(e) => setFormData({ ...formData, region: e.target.value })}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                >
-                  <option value="">Select a country</option>
-                  {Object.entries(countryMap).sort((a, b) => a[1].localeCompare(b[1])).map(([code, name]) => (
-                    <option key={code} value={code}>{name}</option>
                   ))}
                 </select>
               </div>
@@ -540,15 +473,6 @@ export default function InventoryManagement() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
-                <input
-                  type="text"
-                  value={getCountryLabel(selectedItem.region)}
-                  disabled
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
-                />
-              </div>
-              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Quantity (Reserved: {selectedItem.reserved_quantity})
                 </label>
@@ -608,24 +532,10 @@ export default function InventoryManagement() {
           <div className="bg-white rounded-lg p-6 max-w-lg w-full">
             <h3 className="text-xl font-bold mb-2">Set Default Stock</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Update stock levels across all products. You can target a specific country or all countries.
+              Update stock levels across all products.
             </p>
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
-                <select
-                  value={bulkRegion}
-                  onChange={(e) => setBulkRegion(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                >
-                  <option value="all">All Countries</option>
-                  {uniqueRegions.sort((a, b) => getCountryLabel(a).localeCompare(getCountryLabel(b))).map(region => (
-                    <option key={region} value={region}>{getCountryLabel(region)}</option>
-                  ))}
-                </select>
-              </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Stock Quantity</label>
                 <input
@@ -660,14 +570,14 @@ export default function InventoryManagement() {
                   disabled={bulkUpdating}
                   className="w-full bg-brand-700 text-white py-2 rounded-lg hover:bg-brand-800 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
-                  {bulkUpdating ? 'Updating...' : `Update Existing Stock (${bulkRegion === 'all' ? 'All Countries' : getCountryLabel(bulkRegion)})`}
+                  {bulkUpdating ? 'Updating...' : 'Update Existing Stock'}
                 </button>
                 <button
                   onClick={handleInitializeAllStock}
                   disabled={bulkUpdating}
                   className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
-                  {bulkUpdating ? 'Initializing...' : 'Initialize All Products x All Countries'}
+                  {bulkUpdating ? 'Initializing...' : 'Initialize All Products'}
                 </button>
                 <button
                   onClick={() => setShowBulkModal(false)}

@@ -412,11 +412,11 @@ export default function MyOrders() {
                               <p className="text-xs text-gray-600">
                                 Qty: {item.quantity}{item.free_quantity > 0 && ` (+${item.free_quantity} free)`}
                                 <span className="mx-2">|</span>
-                                {formatCurrency(item.unit_price, order.currency_code)} each
+                                {formatCurrency(item.unit_price)} each
                               </p>
                             </div>
                             <div className="text-right">
-                              <p className="font-semibold text-sm">{formatCurrency(item.subtotal, order.currency_code)}</p>
+                              <p className="font-semibold text-sm">{formatCurrency(item.subtotal)}</p>
                               <p className="text-xs text-orange-600">{item.pv_value * (item.quantity + item.free_quantity)} PV</p>
                             </div>
                           </div>
@@ -432,7 +432,7 @@ export default function MyOrders() {
                       <div>
                         <div className="text-gray-600">Total Amount</div>
                         <div className="font-medium text-gray-900">
-                          {formatCurrency(order.total_amount, order.currency_code)}
+                          {formatCurrency(order.total_amount)}
                         </div>
                       </div>
                       <div>
@@ -570,7 +570,7 @@ export default function MyOrders() {
                   <div>
                     <span className="text-brand-700">Total Amount:</span>
                     <span className="font-bold text-brand-900 ml-2">
-                      {formatCurrency(selectedOrder.total_amount, selectedOrder.currency_code)}
+                      {formatCurrency(selectedOrder.total_amount)}
                     </span>
                   </div>
                   <div>

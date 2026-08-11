@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../../contexts/ToastContext';
 import { Tag, Plus, Trash2, CreditCard as Edit2, Save, Package, Ban } from 'lucide-react';
-import { getCountryName, loadCountryNames } from '../../utils/countries';
 import { sendPromotionNotification } from '../../utils/notifications';
 
 interface Product {
@@ -29,8 +28,6 @@ export default function ProductPromotions() {
   const toast = useToast();
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [countries, setCountries] = useState<{ code: string; name: string }[]>([]);
-  const [countryMap, setCountryMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -40,7 +37,6 @@ export default function ProductPromotions() {
     title: '',
     buy_quantity: 3,
     free_quantity: 1,
-    country_code: '',
     starts_at: new Date().toISOString().slice(0, 16),
     ends_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
     is_active: true,
@@ -51,20 +47,16 @@ export default function ProductPromotions() {
   }, []);
 
   const loadData = async () => {
-    const [promoRes, productsRes, countriesRes, cMap] = await Promise.all([
+    const [promoRes, productsRes] = await Promise.all([
       supabase
         .from('product_promotions')
         .select('*, product:products(id, name, product_type)')
         .order('created_at', { ascending: false }),
       supabase.from('products').select('id, name, product_type').eq('is_active', true).order('name'),
-      supabase.from('countries').select('code, name').eq('is_active', true).order('name'),
-      loadCountryNames(),
     ]);
 
     if (promoRes.data) setPromotions(promoRes.data);
     if (productsRes.data) setProducts(productsRes.data);
-    if (countriesRes.data) setCountries(countriesRes.data);
-    setCountryMap(cMap);
     setLoading(false);
   };
 
@@ -74,7 +66,6 @@ export default function ProductPromotions() {
       title: '',
       buy_quantity: 3,
       free_quantity: 1,
-      country_code: '',
       starts_at: new Date().toISOString().slice(0, 16),
       ends_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
       is_active: true,
@@ -94,7 +85,7 @@ export default function ProductPromotions() {
       title: form.title || `Buy ${form.buy_quantity} Get ${form.free_quantity} Free`,
       buy_quantity: form.buy_quantity,
       free_quantity: form.free_quantity,
-      country_code: form.country_code || null,
+      country_code: null,
       starts_at: new Date(form.starts_at).toISOString(),
       ends_at: new Date(form.ends_at).toISOString(),
       is_active: form.is_active,
@@ -130,7 +121,6 @@ export default function ProductPromotions() {
       title: promo.title,
       buy_quantity: promo.buy_quantity,
       free_quantity: promo.free_quantity,
-      country_code: promo.country_code || '',
       starts_at: new Date(promo.starts_at).toISOString().slice(0, 16),
       ends_at: new Date(promo.ends_at).toISOString().slice(0, 16),
       is_active: promo.is_active,
@@ -147,7 +137,7 @@ export default function ProductPromotions() {
         title: form.title,
         buy_quantity: form.buy_quantity,
         free_quantity: form.free_quantity,
-        country_code: form.country_code || null,
+        country_code: null,
         starts_at: new Date(form.starts_at).toISOString(),
         ends_at: new Date(form.ends_at).toISOString(),
         is_active: form.is_active,
@@ -277,20 +267,6 @@ export default function ProductPromotions() {
               <p className="text-xs text-gray-500 mt-1">They get this many for free</p>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Country (optional)</label>
-              <select
-                value={form.country_code}
-                onChange={(e) => setForm({ ...form, country_code: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-              >
-                <option value="">All Countries</option>
-                {countries.map((c) => (
-                  <option key={c.code} value={c.code}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-
             <div className="flex items-center gap-3 pt-6">
               <input
                 type="checkbox"
@@ -398,10 +374,6 @@ export default function ProductPromotions() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 mb-3">
-                  <div>
-                    <span className="font-medium">Country:</span>{' '}
-                    {promo.country_code ? getCountryName(promo.country_code, countryMap) : 'All'}
-                  </div>
                   <div>
                     <span className="font-medium">Starts:</span>{' '}
                     {new Date(promo.starts_at).toLocaleDateString()}
