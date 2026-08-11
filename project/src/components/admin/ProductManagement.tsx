@@ -282,39 +282,69 @@ export function ProductManagement() {
     );
   };
 
+  const deleteOrDeactivateProduct = async (productId: string): Promise<'deleted' | 'deactivated' | 'failed'> => {
+    const { error: pricesError } = await supabase
+      .from('product_prices')
+      .delete()
+      .eq('product_id', productId);
+
+    if (pricesError) {
+      console.error(pricesError);
+      return 'failed';
+    }
+
+    const { error } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', productId);
+
+    if (!error) {
+      return 'deleted';
+    }
+
+    if (error.code === '23503') {
+      const { error: deactivateError } = await supabase
+        .from('products')
+        .update({ is_active: false })
+        .eq('id', productId);
+
+      return deactivateError ? 'failed' : 'deactivated';
+    }
+
+    console.error(error);
+    return 'failed';
+  };
+
   const deleteSelectedProducts = async () => {
     if (selectedProductIds.length === 0) return;
 
-    const confirmed = window.confirm(`Delete ${selectedProductIds.length} selected product(s)?`);
+    const confirmed = window.confirm(
+      `Delete ${selectedProductIds.length} selected product(s)? Products with existing orders will be deactivated instead, to preserve order history.`
+    );
     if (!confirmed) return;
 
-    try {
-      const productIds = [...selectedProductIds];
+    const productIds = [...selectedProductIds];
+    let deletedCount = 0;
+    let deactivatedCount = 0;
+    let failedCount = 0;
 
-      const { error: pricesError } = await supabase
-        .from('product_prices')
-        .delete()
-        .in('product_id', productIds);
+    for (const productId of productIds) {
+      const outcome = await deleteOrDeactivateProduct(productId);
+      if (outcome === 'deleted') deletedCount++;
+      else if (outcome === 'deactivated') deactivatedCount++;
+      else failedCount++;
+    }
 
-      if (pricesError) {
-        throw new Error(pricesError.message);
-      }
+    setSelectedProductIds([]);
+    await fetchProducts();
 
-      const { error } = await supabase
-        .from('products')
-        .delete()
-        .in('id', productIds);
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      toast.success(`Deleted ${productIds.length} product(s)`);
-      setSelectedProductIds([]);
-      await fetchProducts();
-    } catch (error) {
-      console.error(error);
-      toast.error('Failed to delete selected products');
+    if (failedCount === 0) {
+      const parts: string[] = [];
+      if (deletedCount > 0) parts.push(`${deletedCount} deleted`);
+      if (deactivatedCount > 0) parts.push(`${deactivatedCount} deactivated (had orders)`);
+      toast.success(parts.join(', '));
+    } else {
+      toast.error(`${failedCount} failed, ${deletedCount} deleted, ${deactivatedCount} deactivated`);
     }
   };
 
@@ -995,30 +1025,22 @@ export function ProductManagement() {
                   </button>
                   <button
                     onClick={async () => {
-                      const confirmed = window.confirm(`Delete "${product.name}"? This will remove the product and its stored prices.`);
+                      const confirmed = window.confirm(
+                        `Delete "${product.name}"? If it has existing orders, it will be deactivated instead, to preserve order history.`
+                      );
                       if (!confirmed) return;
 
-                      const { error: pricesError } = await supabase
-                        .from('product_prices')
-                        .delete()
-                        .eq('product_id', product.id);
+                      const outcome = await deleteOrDeactivateProduct(product.id);
 
-                      if (pricesError) {
-                        toast.error('Failed to delete product prices');
-                        return;
-                      }
-
-                      const { error } = await supabase
-                        .from('products')
-                        .delete()
-                        .eq('id', product.id);
-
-                      if (error) {
+                      if (outcome === 'deleted') {
+                        toast.success('Product deleted');
+                      } else if (outcome === 'deactivated') {
+                        toast.success(`"${product.name}" has existing orders, so it was deactivated instead of deleted`);
+                      } else {
                         toast.error('Failed to delete product');
                         return;
                       }
 
-                      toast.success('Product deleted');
                       await fetchProducts();
                     }}
                     className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium"
