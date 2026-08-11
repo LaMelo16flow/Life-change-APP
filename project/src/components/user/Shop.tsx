@@ -297,7 +297,7 @@ export default function Shop() {
         totalAmount: formatCurrency(totalPrice, profile.countries?.currency_code || 'USD'),
         userName: profile.full_name || user?.email || 'Customer',
         userEmail: user?.email || '',
-      });
+      }, user?.id);
 
       setShowOrderModal(false);
       setSelectedProduct(null);

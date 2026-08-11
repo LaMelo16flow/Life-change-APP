@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { isGmailConfigured, sendGmailEmail } from "../_shared/sendGmailEmail.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,14 +49,12 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
-
-    if (!RESEND_API_KEY) {
-      console.log(`RESEND_API_KEY not found; email skipped for ${to} (development mode)`);
+    if (!isGmailConfigured()) {
+      console.log(`Gmail credentials not configured; email skipped for ${to} (development mode)`);
       return new Response(
         JSON.stringify({
           success: true,
-          message: 'Email skipped - no API key configured',
+          message: 'Email skipped - Gmail not configured',
           development: true,
           recipient: to,
           type,
@@ -69,30 +68,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const emailBody = {
-      from: 'LifeChangers <notifications@lifechangers.com>',
-      to: [to],
-      subject: subject,
-      html: html,
-    };
-
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(emailBody),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(`Failed to send email: ${JSON.stringify(data)}`);
-    }
+    await sendGmailEmail({ to, subject, html });
 
     return new Response(
-      JSON.stringify({ success: true, data }),
+      JSON.stringify({ success: true }),
       {
         headers: {
           ...corsHeaders,

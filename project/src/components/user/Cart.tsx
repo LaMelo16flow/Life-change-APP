@@ -288,7 +288,7 @@ export default function Cart() {
         totalAmount: formatCurrency(orderTotal, profile.countries?.currency_code || 'USD'),
         userName: profile.full_name || user?.email || 'Customer',
         userEmail: user?.email || '',
-      });
+      }, user?.id);
 
       const { error: clearCartError } = await supabase
         .from('cart_items')

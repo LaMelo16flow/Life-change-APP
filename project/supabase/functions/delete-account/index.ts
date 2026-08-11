@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { isGmailConfigured, sendGmailEmail } from "../_shared/sendGmailEmail.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -164,24 +165,14 @@ Deno.serve(async (req: Request) => {
         isSelfDelete
       );
 
-      const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-
-      if (RESEND_API_KEY) {
+      if (isGmailConfigured()) {
         const emailPromises = recipients
           .filter((r) => r.email)
           .map((r) =>
-            fetch("https://api.resend.com/emails", {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${RESEND_API_KEY}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                from: "LifeChangers <notifications@lifechangers.com>",
-                to: [r.email],
-                subject: `Account Deleted: ${deletedUserName}`,
-                html: emailHtml,
-              }),
+            sendGmailEmail({
+              to: r.email,
+              subject: `Account Deleted: ${deletedUserName}`,
+              html: emailHtml,
             }).catch((err) =>
               console.error(`Failed to email ${r.email}:`, err)
             )

@@ -125,16 +125,24 @@ export async function sendPromotionNotification(data: {
   );
 }
 
-export async function sendOrderPlacedNotification(orderData: OrderNotificationData) {
+export async function sendOrderPlacedNotification(orderData: OrderNotificationData, userId?: string) {
   const adminSettings = await supabase
     .from('admin_settings')
     .select('value')
     .eq('key', 'admin_contact_email')
     .maybeSingle();
 
-  const adminEmail = adminSettings?.data?.value?.email || 'admin@lifechangers.com';
+  const configuredAdminEmail = adminSettings?.data?.value?.email || 'admin@lifechangers.com';
 
-  const html = `
+  const { data: staff } = await supabase
+    .from('profiles')
+    .select('email')
+    .or('role.eq.admin,role.eq.manager,is_master.eq.true');
+
+  const staffEmails = (staff || []).map((recipient) => recipient.email).filter((email): email is string => Boolean(email));
+  const adminRecipients = [...new Set([configuredAdminEmail, ...staffEmails])];
+
+  const adminHtml = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #2563eb;">New Order Placed</h2>
       <p>A new order has been placed and requires your approval.</p>
@@ -156,21 +164,74 @@ export async function sendOrderPlacedNotification(orderData: OrderNotificationDa
     </div>
   `;
 
-  await sendEmail({
-    to: adminEmail,
-    subject: `New Order #${orderData.orderNumber} - Action Required`,
-    html,
-    type: 'order_placed',
-    orderData,
-  });
+  await Promise.allSettled(
+    adminRecipients.map((to) =>
+      sendEmail({
+        to,
+        subject: `New Order #${orderData.orderNumber} - Action Required`,
+        html: adminHtml,
+        type: 'order_placed',
+        orderData,
+      })
+    )
+  );
 
   await createInAppNotification({
     type: 'approval',
     title: 'New Order Placed',
     message: `Order #${orderData.orderNumber} from ${orderData.userName} requires approval`,
     action_url: '/admin/orders',
-    userRole: 'admin',
+    userRole: 'admin_and_managers',
   });
+
+  if (orderData.userEmail) {
+    const customerHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background-color: #2563eb; padding: 20px; border-radius: 8px 8px 0 0;">
+          <h2 style="color: #ffffff; margin: 0;">Order Received</h2>
+        </div>
+        <div style="background-color: #ffffff; padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+          <p style="color: #374151; font-size: 15px; line-height: 1.6;">Hi ${orderData.userName}, thanks for your order! We've received it and it's now pending approval.</p>
+
+          <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="margin-top: 0; color: #1f2937;">Order Details</h3>
+            <p style="margin: 8px 0; color: #374151;"><strong>Order Number:</strong> ${orderData.orderNumber}</p>
+            <p style="margin: 8px 0; color: #374151;"><strong>Product:</strong> ${orderData.productName}</p>
+            <p style="margin: 8px 0; color: #374151;"><strong>Quantity:</strong> ${orderData.quantity}</p>
+            <p style="margin: 8px 0; color: #374151;"><strong>Total Amount:</strong> ${orderData.totalAmount}</p>
+          </div>
+
+          <p style="color: #374151;">We'll notify you as soon as it's approved with instructions to complete payment.</p>
+
+          <a href="${window.location.origin}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 10px; font-weight: 600;">
+            View My Orders
+          </a>
+
+          <p style="color: #6b7280; font-size: 13px; margin-top: 24px;">
+            This is an automated notification from the LifeChangers platform.
+          </p>
+        </div>
+      </div>
+    `;
+
+    await sendEmail({
+      to: orderData.userEmail,
+      subject: `Order #${orderData.orderNumber} Received`,
+      html: customerHtml,
+      type: 'order_placed',
+      orderData,
+    });
+  }
+
+  if (userId) {
+    await createInAppNotification({
+      type: 'approval',
+      title: 'Order Received',
+      message: `Your order #${orderData.orderNumber} has been received and is pending approval.`,
+      action_url: '/orders',
+      userId,
+    });
+  }
 }
 
 export async function sendOrderApprovedNotification(orderData: OrderNotificationData, userEmail: string, userId?: string) {

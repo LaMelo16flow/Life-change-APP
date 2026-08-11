@@ -11,7 +11,10 @@
       "Read(//tmp/**)",
       "Bash(awk 'NR==523')",
       "Bash(awk 'NR>=515 && NR<=530')",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(git merge *)",
+      "Bash(git push *)",
+      "Bash(curl -s -o /dev/null -w \"HTTP_STATUS:%{http_code}\\\\n\" --max-time 15 \"https://lamelo16flow.github.io/Life-change-APP/\")"
     ]
   }
 }
