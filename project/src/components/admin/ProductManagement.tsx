@@ -284,30 +284,12 @@ export function ProductManagement() {
 
   const deleteProduct = async (productId: string): Promise<boolean> => {
     try {
-      const cleanupDeletes = [
-        supabase.from('cart_items').delete().eq('product_id', productId),
-        supabase.from('order_items').delete().eq('product_id', productId),
-        supabase.from('product_prices').delete().eq('product_id', productId),
-        supabase.from('product_inventory').delete().eq('product_id', productId),
-        supabase.from('inventory_logs').delete().eq('product_id', productId),
-        supabase.from('product_promotions').delete().eq('product_id', productId),
-        supabase.from('orders').delete().eq('product_id', productId),
-      ];
-
-      for (const query of cleanupDeletes) {
-        const { error } = await query;
-        if (error) {
-          console.error('Cleanup delete error:', error);
-        }
-      }
-
-      const { error } = await supabase
-        .from('products')
-        .delete()
-        .eq('id', productId);
+      const { error } = await supabase.rpc('delete_product_cascade', {
+        p_product_id: productId,
+      });
 
       if (error) {
-        console.error(error);
+        console.error('deleteProduct failed:', error);
         return false;
       }
 
