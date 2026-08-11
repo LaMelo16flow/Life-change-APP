@@ -282,56 +282,53 @@ export function ProductManagement() {
     );
   };
 
-  const deleteOrDeactivateProduct = async (productId: string): Promise<'deleted' | 'deactivated' | 'failed'> => {
-    const { error: pricesError } = await supabase
-      .from('product_prices')
-      .delete()
-      .eq('product_id', productId);
+  const deleteProduct = async (productId: string): Promise<boolean> => {
+    try {
+      const cleanupDeletes = [
+        supabase.from('cart_items').delete().eq('product_id', productId),
+        supabase.from('order_items').delete().eq('product_id', productId),
+        supabase.from('product_prices').delete().eq('product_id', productId),
+        supabase.from('product_inventory').delete().eq('product_id', productId),
+        supabase.from('inventory_logs').delete().eq('product_id', productId),
+        supabase.from('product_promotions').delete().eq('product_id', productId),
+        supabase.from('orders').delete().eq('product_id', productId),
+      ];
 
-    if (pricesError) {
-      console.error(pricesError);
-      return 'failed';
-    }
+      for (const query of cleanupDeletes) {
+        const { error } = await query;
+        if (error) {
+          console.error('Cleanup delete error:', error);
+        }
+      }
 
-    const { error } = await supabase
-      .from('products')
-      .delete()
-      .eq('id', productId);
-
-    if (!error) {
-      return 'deleted';
-    }
-
-    if (error.code === '23503') {
-      const { error: deactivateError } = await supabase
+      const { error } = await supabase
         .from('products')
-        .update({ is_active: false })
+        .delete()
         .eq('id', productId);
 
-      return deactivateError ? 'failed' : 'deactivated';
-    }
+      if (error) {
+        console.error(error);
+        return false;
+      }
 
-    console.error(error);
-    return 'failed';
+      setProducts((current) => current.filter((product) => product.id !== productId));
+      return true;
+    } catch (error) {
+      console.error('deleteProduct failed:', error);
+      return false;
+    }
   };
 
   const deleteSelectedProducts = async () => {
     if (selectedProductIds.length === 0) return;
 
-    const confirmed = window.confirm(
-      `Delete ${selectedProductIds.length} selected product(s)? Products with existing orders will be deactivated instead, to preserve order history.`
-    );
-    if (!confirmed) return;
-
     const productIds = [...selectedProductIds];
     let deletedCount = 0;
-    let deactivatedCount = 0;
     let failedCount = 0;
 
     for (const productId of productIds) {
-      const outcome = await deleteOrDeactivateProduct(productId);
-      if (outcome === 'deleted') deletedCount++;
-      else if (outcome === 'deactivated') deactivatedCount++;
+      const success = await deleteProduct(productId);
+      if (success) deletedCount++;
       else failedCount++;
     }
 
@@ -339,12 +336,9 @@ export function ProductManagement() {
     await fetchProducts();
 
     if (failedCount === 0) {
-      const parts: string[] = [];
-      if (deletedCount > 0) parts.push(`${deletedCount} deleted`);
-      if (deactivatedCount > 0) parts.push(`${deactivatedCount} deactivated (had orders)`);
-      toast.success(parts.join(', '));
+      toast.success(`${deletedCount} product${deletedCount === 1 ? '' : 's'} deleted`);
     } else {
-      toast.error(`${failedCount} failed, ${deletedCount} deleted, ${deactivatedCount} deactivated`);
+      toast.error(`${failedCount} failed, ${deletedCount} deleted`);
     }
   };
 
@@ -1025,22 +1019,14 @@ export function ProductManagement() {
                   </button>
                   <button
                     onClick={async () => {
-                      const confirmed = window.confirm(
-                        `Delete "${product.name}"? If it has existing orders, it will be deactivated instead, to preserve order history.`
-                      );
-                      if (!confirmed) return;
+                      const success = await deleteProduct(product.id);
 
-                      const outcome = await deleteOrDeactivateProduct(product.id);
-
-                      if (outcome === 'deleted') {
-                        toast.success('Product deleted');
-                      } else if (outcome === 'deactivated') {
-                        toast.success(`"${product.name}" has existing orders, so it was deactivated instead of deleted`);
-                      } else {
+                      if (!success) {
                         toast.error('Failed to delete product');
                         return;
                       }
 
+                      toast.success('Product deleted');
                       await fetchProducts();
                     }}
                     className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium"
