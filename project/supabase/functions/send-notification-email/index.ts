@@ -10,7 +10,7 @@ interface EmailRequest {
   to: string;
   subject: string;
   html: string;
-  type: 'order_placed' | 'order_approved' | 'payment_submitted' | 'payment_verified' | 'order_rejected' | 'account_approval_request';
+  type: 'order_placed' | 'order_approved' | 'payment_submitted' | 'payment_verified' | 'order_rejected' | 'account_approval_request' | 'promotion_created';
   orderData?: {
     orderNumber: string;
     productName: string;
@@ -30,17 +30,35 @@ Deno.serve(async (req: Request) => {
 
   try {
     const emailRequest: EmailRequest = await req.json();
-    const { to, subject, html, type, orderData } = emailRequest;
+    const { to, subject, html, type } = emailRequest;
+
+    if (!to || !to.includes('@')) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Email skipped - no valid recipient email',
+          development: true
+        }),
+        {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+    }
 
     const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
 
     if (!RESEND_API_KEY) {
-      console.log('RESEND_API_KEY not found, email not sent (development mode)');
+      console.log(`RESEND_API_KEY not found; email skipped for ${to} (development mode)`);
       return new Response(
         JSON.stringify({
           success: true,
           message: 'Email skipped - no API key configured',
-          development: true
+          development: true,
+          recipient: to,
+          type,
         }),
         {
           headers: {

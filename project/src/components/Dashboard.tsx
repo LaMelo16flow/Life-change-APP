@@ -150,7 +150,7 @@ export function Dashboard() {
             <div className={`${sidebarCollapsed && !isMobile ? 'p-2' : 'p-4 pb-3'}`}>
               <div className={`flex items-center ${sidebarCollapsed && !isMobile ? 'justify-center' : 'gap-3'} mb-3`}>
                 <img
-                  src="/logo.webp"
+                  src={`${import.meta.env.BASE_URL}logo.webp`}
                   alt="Life Changer Logo"
                   className={`${sidebarCollapsed && !isMobile ? 'w-10 h-10' : 'w-11 h-11'} rounded-lg object-contain transition-all duration-300`}
                 />

@@ -10,6 +10,182 @@ interface ProductPrice {
   price: number;
 }
 
+const normalizedProductName = (value: string) => {
+  if (!value) return '';
+
+  const aliases: Record<string, string> = {
+    savon: 'soap',
+    soap: 'soap',
+    gel: 'gel',
+    shampoo: 'shampoo',
+    shampooing: 'shampoo',
+    toothpaste: 'toothpaste',
+    dentifrice: 'toothpaste',
+    cream: 'cream',
+    creme: 'cream',
+    cremee: 'cream',
+    crème: 'cream',
+    lotion: 'lotion',
+    lait: 'milk',
+    milk: 'milk',
+    huile: 'oil',
+    oil: 'oil',
+    tea: 'tea',
+    the: 'tea',
+    thé: 'tea',
+    white: 'white',
+    blanc: 'white',
+    black: 'black',
+    noir: 'black',
+    body: 'body',
+    corps: 'body',
+    face: 'face',
+    visage: 'face',
+    vitamin: 'vitamin',
+    vitamine: 'vitamin',
+    guard: 'guard',
+    protect: 'protect',
+    anti: 'anti',
+    acne: 'acne',
+  };
+
+  const cleaned = value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((token) => aliases[token] || token)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return cleaned;
+};
+
+const isValidImageUrl = (value?: string | null) => {
+  if (!value) return false;
+
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === 'null' || trimmed === 'undefined') return false;
+
+  return true;
+};
+
+const buildInternetProductImageUrl = () => `${import.meta.env.BASE_URL}logo.webp`;
+
+const chooseBestProductImage = (values: Array<string | null | undefined>) => {
+  const validValues = values.filter(isValidImageUrl);
+  if (validValues.length > 0) {
+    return validValues[0];
+  }
+
+  return buildInternetProductImageUrl();
+};
+
+const mergeProductData = (existing: Partial<Product>, incoming: Partial<Product>) => {
+  const merged: Partial<Product> = { ...existing };
+
+  const fields: Array<keyof Product> = ['name', 'product_type', 'description', 'image_url', 'pv_value', 'is_active'];
+
+  for (const field of fields) {
+    const existingValue = existing[field];
+    const incomingValue = incoming[field];
+
+    if (incomingValue === undefined || incomingValue === null || incomingValue === '') {
+      continue;
+    }
+
+    if (field === 'pv_value') {
+      const parsedIncoming = Number(incomingValue);
+      if (!Number.isNaN(parsedIncoming) && parsedIncoming > 0) {
+        merged[field] = parsedIncoming;
+      }
+      continue;
+    }
+
+    if (field === 'is_active') {
+      merged[field] = Boolean(incomingValue) || Boolean(existingValue);
+      continue;
+    }
+
+    if (field === 'image_url') {
+      const candidate = String(incomingValue).trim();
+      const currentImage = typeof existingValue === 'string' ? existingValue.trim() : '';
+
+      if (!currentImage || (candidate && candidate.length >= currentImage.length)) {
+        merged[field] = candidate || currentImage || chooseBestProductImage([currentImage, candidate]);
+      }
+      continue;
+    }
+
+    if (typeof incomingValue === 'string') {
+      const incomingText = incomingValue.trim();
+      const existingText = typeof existingValue === 'string' ? existingValue.trim() : '';
+
+      if (!existingText || incomingText.length >= existingText.length) {
+        merged[field] = incomingValue;
+      }
+    }
+  }
+
+  if (!isValidImageUrl(merged.image_url as string | null | undefined)) {
+    merged.image_url = chooseBestProductImage([existing.image_url, incoming.image_url]);
+  }
+
+  return merged;
+};
+
+const mergeDuplicateProducts = (items: Product[]) => {
+  const groups = new Map<string, Product[]>();
+
+  for (const item of items) {
+    const key = normalizedProductName(item.name);
+    if (!key) {
+      continue;
+    }
+
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key)!.push(item);
+  }
+
+  const merged: Product[] = [];
+
+  for (const group of groups.values()) {
+    if (group.length === 1) {
+      const product = group[0];
+      product.image_url = isValidImageUrl(product.image_url)
+        ? product.image_url
+        : buildInternetProductImageUrl();
+      merged.push(product);
+      continue;
+    }
+
+    const primary = group.reduce((best, current) => {
+      const bestScore = Number(Boolean(best.image_url)) + Number(Boolean(best.description)) + Number(best.is_active ? 1 : 0);
+      const currentScore = Number(Boolean(current.image_url)) + Number(Boolean(current.description)) + Number(current.is_active ? 1 : 0);
+      return currentScore > bestScore ? current : best;
+    });
+
+    const mergedProduct = group.reduce((result, current) => mergeProductData(result, current) as Product, { ...primary });
+    mergedProduct.image_url = isValidImageUrl(mergedProduct.image_url as string | null | undefined)
+      ? String(mergedProduct.image_url)
+      : buildInternetProductImageUrl();
+    mergedProduct.name = mergedProduct.name || primary.name;
+    mergedProduct.product_type = mergedProduct.product_type || primary.product_type;
+    mergedProduct.pv_value = Number(mergedProduct.pv_value ?? primary.pv_value) || 0;
+    mergedProduct.description = mergedProduct.description ?? primary.description ?? '';
+    mergedProduct.is_active = Boolean(mergedProduct.is_active ?? primary.is_active);
+
+    merged.push(mergedProduct);
+  }
+
+  return merged.sort((a, b) => a.name.localeCompare(b.name));
+};
+
 export function ProductManagement() {
   const toast = useToast();
   const [products, setProducts] = useState<Product[]>([]);
@@ -19,6 +195,7 @@ export function ProductManagement() {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -43,6 +220,22 @@ export function ProductManagement() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    const channel = supabase
+      .channel('product-management-live-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, async () => {
+        await fetchProducts();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_prices' }, async () => {
+        await fetchProducts();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const fetchProducts = async () => {
     const { data } = await supabase
       .from('products')
@@ -50,10 +243,17 @@ export function ProductManagement() {
       .order('created_at', { ascending: false });
 
     if (data) {
-      setProducts(data);
+      const dedupedProducts = mergeDuplicateProducts(data as Product[]);
+
+      const cleanedProducts = dedupedProducts.map((product) => ({
+        ...product,
+        image_url: isValidImageUrl(product.image_url) ? product.image_url : buildInternetProductImageUrl(),
+      }));
+
+      setProducts(cleanedProducts);
 
       const pricesMap: Record<string, ProductPrice[]> = {};
-      for (const product of data) {
+      for (const product of cleanedProducts) {
         const { data: prices } = await supabase
           .from('product_prices')
           .select('country_code, price')
@@ -86,8 +286,56 @@ export function ProductManagement() {
     setEditForm(null);
   };
 
+  const toggleProductSelection = (productId: string) => {
+    setSelectedProductIds((current) =>
+      current.includes(productId)
+        ? current.filter((id) => id !== productId)
+        : [...current, productId]
+    );
+  };
+
+  const deleteSelectedProducts = async () => {
+    if (selectedProductIds.length === 0) return;
+
+    const confirmed = window.confirm(`Delete ${selectedProductIds.length} selected product(s)?`);
+    if (!confirmed) return;
+
+    try {
+      const productIds = [...selectedProductIds];
+
+      const { error: pricesError } = await supabase
+        .from('product_prices')
+        .delete()
+        .in('product_id', productIds);
+
+      if (pricesError) {
+        throw new Error(pricesError.message);
+      }
+
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .in('id', productIds);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      toast.success(`Deleted ${productIds.length} product(s)`);
+      setSelectedProductIds([]);
+      await fetchProducts();
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to delete selected products');
+    }
+  };
+
   const saveEdit = async () => {
     if (!editingId || !editForm) return;
+
+    const finalImageUrl = isValidImageUrl(editForm.image_url)
+      ? editForm.image_url.trim()
+      : buildInternetProductImageUrl();
 
     const { error: productError } = await supabase
       .from('products')
@@ -96,7 +344,7 @@ export function ProductManagement() {
         product_type: editForm.product_type,
         pv_value: parseFloat(editForm.pv_value),
         description: editForm.description,
-        image_url: editForm.image_url,
+        image_url: finalImageUrl,
         is_active: editForm.is_active,
       })
       .eq('id', editingId);
@@ -121,7 +369,7 @@ export function ProductManagement() {
     toast.success('Product updated successfully');
     setEditingId(null);
     setEditForm(null);
-    fetchProducts();
+    await fetchProducts();
   };
 
   const updatePriceForCountry = (countryCode: string, newPrice: string) => {
@@ -200,14 +448,64 @@ export function ProductManagement() {
   };
 
   const handleAddProduct = async () => {
+    const cleanedName = newProduct.name.trim();
+    if (!cleanedName) {
+      toast.error('Product name is required');
+      return;
+    }
+
+    const finalImageUrl = isValidImageUrl(newProduct.image_url)
+      ? newProduct.image_url.trim()
+      : buildInternetProductImageUrl();
+
+    const matchedProduct = products.find((product) => {
+      const normalizedExisting = normalizedProductName(product.name);
+      const normalizedIncoming = normalizedProductName(cleanedName);
+      return normalizedExisting && normalizedIncoming && normalizedExisting === normalizedIncoming;
+    });
+
+    if (matchedProduct) {
+      const merged = mergeProductData(matchedProduct, {
+        name: cleanedName,
+        product_type: newProduct.product_type || matchedProduct.product_type,
+        pv_value: Number(newProduct.pv_value) || matchedProduct.pv_value,
+        description: newProduct.description || matchedProduct.description,
+        image_url: finalImageUrl || matchedProduct.image_url,
+        is_active: true,
+      });
+
+      const { error } = await supabase
+        .from('products')
+        .update({
+          name: merged.name || matchedProduct.name,
+          product_type: merged.product_type || matchedProduct.product_type,
+          pv_value: Number(merged.pv_value ?? matchedProduct.pv_value),
+          description: merged.description ?? matchedProduct.description,
+          image_url: merged.image_url ?? matchedProduct.image_url,
+          is_active: Boolean(merged.is_active ?? matchedProduct.is_active),
+        })
+        .eq('id', matchedProduct.id);
+
+      if (error) {
+        toast.error('Failed to update matching product');
+        return;
+      }
+
+      toast.success('Product updated with latest information');
+      setShowAdd(false);
+      setNewProduct({ name: '', product_type: '', pv_value: 0, description: '', image_url: '' });
+      await fetchProducts();
+      return;
+    }
+
     const { error } = await supabase
       .from('products')
       .insert({
-        name: newProduct.name,
+        name: cleanedName,
         product_type: newProduct.product_type,
         pv_value: parseFloat(newProduct.pv_value.toString()),
         description: newProduct.description,
-        image_url: newProduct.image_url,
+        image_url: finalImageUrl,
         is_active: true,
       })
       .select()
@@ -221,7 +519,7 @@ export function ProductManagement() {
     toast.success('Product added successfully');
     setShowAdd(false);
     setNewProduct({ name: '', product_type: '', pv_value: 0, description: '', image_url: '' });
-    fetchProducts();
+    await fetchProducts();
   };
 
   const handleImportClick = () => {
@@ -241,31 +539,103 @@ export function ProductManagement() {
       const worksheet = workbook.Sheets[sheetName];
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-      const productsToImport = jsonData.map((row: any) => ({
-        name: row['Product Name'] || row['name'] || row['Name'] || '',
-        product_type: row['Type'] || row['type'] || row['Product Type'] || 'General',
-        pv_value: parseFloat(row['PV'] || row['pv'] || row['PV Value'] || row['pv_value'] || 0),
-        description: row['Description'] || row['description'] || '',
+      const rawProducts = jsonData.map((row: any) => ({
+        name: row['Product Name'] || row['name'] || row['Name'] || row['PRODUCT NAME'] || '',
+        product_type: row['Type'] || row['type'] || row['Product Type'] || row['CATEGORY'] || 'General',
+        pv_value: parseFloat(row['PV'] || row['pv'] || row['PV Value'] || row['pv_value'] || row['PV VALUE'] || 0),
+        description: row['Description'] || row['description'] || row['DESCRIPTION'] || '',
         is_active: true,
-      })).filter(p => p.name);
+      })).filter((product) => product.name && String(product.name).trim());
 
-      if (productsToImport.length === 0) {
+      if (rawProducts.length === 0) {
         toast.warning('No valid products found in Excel file. Please ensure columns are named: Product Name, Type, PV, Description');
         setImporting(false);
         return;
       }
 
-      const { error } = await supabase.from('products').insert(productsToImport);
+      const dedupedProducts: Array<{ name: string; product_type: string; pv_value: number; description: string; is_active: boolean }> = [];
+      const seenProductKeys = new Set<string>();
 
-      if (error) {
-        toast.error('Failed to import products');
-        setImporting(false);
-        return;
+      for (const row of rawProducts) {
+        const normalizedName = normalizedProductName(row.name);
+        if (!normalizedName) continue;
+
+        const existingIndex = dedupedProducts.findIndex((product) => normalizedProductName(product.name) === normalizedName);
+        if (existingIndex >= 0) {
+          const existing = dedupedProducts[existingIndex];
+          const merged = mergeProductData(existing as Partial<Product>, row as Partial<Product>);
+          dedupedProducts[existingIndex] = {
+            name: String(merged.name || existing.name),
+            product_type: String(merged.product_type || existing.product_type),
+            pv_value: Number(merged.pv_value ?? existing.pv_value),
+            description: String(merged.description ?? existing.description),
+            is_active: Boolean(merged.is_active ?? existing.is_active),
+          };
+          continue;
+        }
+
+        seenProductKeys.add(normalizedName);
+        dedupedProducts.push({
+          name: String(row.name).trim(),
+          product_type: String(row.product_type || 'General'),
+          pv_value: Number(row.pv_value) || 0,
+          description: String(row.description || ''),
+          is_active: true,
+        });
       }
 
-      toast.success(`Successfully imported ${productsToImport.length} products`);
-      fetchProducts();
+      let importedCount = 0;
+
+      for (const product of dedupedProducts) {
+        const matchedProduct = products.find((existingProduct) => {
+          const normalizedExisting = normalizedProductName(existingProduct.name);
+          return normalizedExisting && normalizedExisting === normalizedProductName(product.name);
+        });
+
+        if (matchedProduct) {
+          const merged = mergeProductData(matchedProduct, product as Partial<Product>);
+          const { error } = await supabase
+            .from('products')
+            .update({
+              name: String(merged.name || matchedProduct.name),
+              product_type: String(merged.product_type || matchedProduct.product_type),
+              pv_value: Number(merged.pv_value ?? matchedProduct.pv_value),
+              description: String(merged.description ?? matchedProduct.description),
+              image_url: merged.image_url ?? matchedProduct.image_url,
+              is_active: Boolean(merged.is_active ?? matchedProduct.is_active),
+            })
+            .eq('id', matchedProduct.id);
+
+          if (error) {
+            throw error;
+          }
+
+          importedCount += 1;
+          continue;
+        }
+
+        const { error } = await supabase
+          .from('products')
+          .insert({
+            name: product.name,
+            product_type: product.product_type,
+            pv_value: product.pv_value,
+            description: product.description,
+            image_url: null,
+            is_active: product.is_active,
+          });
+
+        if (error) {
+          throw error;
+        }
+
+        importedCount += 1;
+      }
+
+      toast.success(`Processed ${importedCount} product${importedCount === 1 ? '' : 's'} with duplicate matching and update logic`);
+      await fetchProducts();
     } catch (error) {
+      console.error(error);
       toast.error('Error processing Excel file');
     } finally {
       setImporting(false);
@@ -290,7 +660,7 @@ export function ProductManagement() {
           <h2 className="text-2xl font-bold text-slate-900">Product Management</h2>
           <p className="text-slate-600 mt-1">Manage products and PV values</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap justify-end">
           <input
             ref={fileInputRef}
             type="file"
@@ -312,6 +682,14 @@ export function ProductManagement() {
           >
             <Plus className="w-5 h-5" />
             Add Product
+          </button>
+          <button
+            onClick={deleteSelectedProducts}
+            disabled={selectedProductIds.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium disabled:bg-red-300 disabled:cursor-not-allowed"
+          >
+            <X className="w-5 h-5" />
+            Delete Selected ({selectedProductIds.length})
           </button>
         </div>
       </div>
@@ -560,16 +938,18 @@ export function ProductManagement() {
           return (
             <div
               key={product.id}
-              className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition"
+              className={`bg-white p-6 rounded-xl border shadow-sm hover:shadow-md transition ${selectedProductIds.includes(product.id) ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'}`}
             >
-              <div className="flex gap-4 mb-4">
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div className="flex gap-4 flex-1">
                 {product.image_url ? (
                   <img
                     src={product.image_url}
                     alt={product.name}
                     className="w-20 h-20 object-cover rounded-lg border border-slate-200"
                     onError={(e) => {
-                      e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="80" height="80"%3E%3Crect fill="%23e2e8f0" width="80" height="80"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" fill="%2394a3b8" font-size="12"%3ENo Image%3C/text%3E%3C/svg%3E';
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = `${import.meta.env.BASE_URL}logo.webp`;
                     }}
                   />
                 ) : (
@@ -577,13 +957,23 @@ export function ProductManagement() {
                     <Image className="w-8 h-8 text-slate-400" />
                   </div>
                 )}
-                <div className="flex-1">
-                  <h3 className="font-semibold text-slate-900">{product.name}</h3>
-                  <p className="text-sm text-slate-600">{product.product_type}</p>
-                  <div className="mt-2">
-                    <span className="text-lg font-bold text-green-600">{product.pv_value} PV</span>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-slate-900">{product.name}</h3>
+                    <p className="text-sm text-slate-600">{product.product_type}</p>
+                    <div className="mt-2">
+                      <span className="text-lg font-bold text-green-600">{product.pv_value} PV</span>
+                    </div>
                   </div>
                 </div>
+                <label className="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedProductIds.includes(product.id)}
+                    onChange={() => toggleProductSelection(product.id)}
+                    className="w-4 h-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                  />
+                  Select
+                </label>
               </div>
 
               {product.description && (
@@ -613,13 +1003,48 @@ export function ProductManagement() {
                 >
                   {product.is_active ? 'Active' : 'Inactive'}
                 </span>
-                <button
-                  onClick={() => startEdit(product)}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition text-sm font-medium"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                  Edit
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => startEdit(product)}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition text-sm font-medium"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    Edit
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const confirmed = window.confirm(`Delete "${product.name}"? This will remove the product and its stored prices.`);
+                      if (!confirmed) return;
+
+                      const { error: pricesError } = await supabase
+                        .from('product_prices')
+                        .delete()
+                        .eq('product_id', product.id);
+
+                      if (pricesError) {
+                        toast.error('Failed to delete product prices');
+                        return;
+                      }
+
+                      const { error } = await supabase
+                        .from('products')
+                        .delete()
+                        .eq('id', product.id);
+
+                      if (error) {
+                        toast.error('Failed to delete product');
+                        return;
+                      }
+
+                      toast.success('Product deleted');
+                      await fetchProducts();
+                    }}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
           );

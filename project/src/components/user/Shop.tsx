@@ -36,6 +36,15 @@ interface InventoryInfo {
   low_stock_threshold: number;
 }
 
+const isValidImageUrl = (value?: string | null) => {
+  if (!value) return false;
+
+  const trimmed = value.trim();
+  return Boolean(trimmed) && trimmed !== 'null' && trimmed !== 'undefined';
+};
+
+const buildInternetProductImageUrl = () => `${import.meta.env.BASE_URL}logo.webp`;
+
 function getPromoBonusInfo(promo: ActivePromotion, quantity: number) {
   if (quantity < promo.buy_quantity) return { freeItems: 0, paidQuantity: quantity };
   const sets = Math.floor(quantity / promo.buy_quantity);
@@ -72,7 +81,14 @@ export default function Shop() {
       ]);
 
       if (productsRes.data) {
-        setProducts(productsRes.data);
+        const visibleProducts = productsRes.data.map((product) => ({
+          ...product,
+          image_url: isValidImageUrl(product.image_url)
+            ? product.image_url
+            : buildInternetProductImageUrl(),
+        })).filter((product) => Boolean(product.name));
+
+        setProducts(visibleProducts);
       }
 
       if (profileRes.data) {
@@ -386,6 +402,10 @@ export default function Shop() {
                     src={product.image_url}
                     alt={product.name}
                     className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = `${import.meta.env.BASE_URL}logo.webp`;
+                    }}
                   />
                   <div className="absolute top-2 right-2 bg-orange-600 text-white px-2 py-1 rounded-lg text-xs font-bold">
                     {product.pv_value} PV
@@ -575,6 +595,10 @@ function OrderModal({
                 src={product.image_url}
                 alt={product.name}
                 className="w-20 h-20 object-cover rounded"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = `${import.meta.env.BASE_URL}logo.webp`;
+                }}
               />
             )}
             <div>

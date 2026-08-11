@@ -83,7 +83,7 @@ export function AuthForm() {
             <div className="absolute inset-0 bg-brand-500/20 rounded-full blur-xl scale-150" />
             <div className="relative bg-white rounded-full p-3 shadow-2xl shadow-brand-500/20 ring-4 ring-white/10">
               <img
-                src="/logo.webp"
+                src={`${import.meta.env.BASE_URL}logo.webp`}
                 alt="Life Changers Logo"
                 className="w-20 h-20 object-contain"
               />

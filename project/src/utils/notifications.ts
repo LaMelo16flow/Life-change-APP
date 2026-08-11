@@ -68,6 +68,63 @@ export async function sendAccountApprovalRequestNotification(userData: {
   }
 }
 
+export async function sendPromotionNotification(data: {
+  productName: string;
+  title: string;
+  buyQuantity: number;
+  freeQuantity: number;
+  startsAt?: string;
+  endsAt?: string;
+}) {
+  const { data: recipients } = await supabase
+    .from('profiles')
+    .select('id, email, full_name');
+
+  if (!recipients || recipients.length === 0) return;
+
+  const validRecipients = recipients.filter((recipient) => recipient.email);
+  if (validRecipients.length === 0) return;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background-color: #f59e0b; padding: 20px; border-radius: 8px 8px 0 0;">
+        <h2 style="color: #ffffff; margin: 0;">New Promotion Available</h2>
+      </div>
+      <div style="background-color: #ffffff; padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+        <p style="color: #374151; font-size: 15px; line-height: 1.6;">A new promotion is live for ${data.productName}.</p>
+        <div style="background-color: #fff7ed; padding: 16px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+          <p style="margin: 0 0 8px 0; color: #9a4d00;"><strong>${data.title || `Buy ${data.buyQuantity} Get ${data.freeQuantity} Free`}</strong></p>
+          <p style="margin: 4px 0; color: #7c2d12;">Product: ${data.productName}</p>
+          <p style="margin: 4px 0; color: #7c2d12;">Buy: ${data.buyQuantity}</p>
+          <p style="margin: 4px 0; color: #7c2d12;">Free: ${data.freeQuantity}</p>
+          ${data.startsAt ? `<p style="margin: 4px 0; color: #7c2d12;">Starts: ${new Date(data.startsAt).toLocaleString()}</p>` : ''}
+          ${data.endsAt ? `<p style="margin: 4px 0; color: #7c2d12;">Ends: ${new Date(data.endsAt).toLocaleString()}</p>` : ''}
+        </div>
+        <p style="color: #374151; font-size: 14px;">Visit the shop today and take advantage of this special offer.</p>
+      </div>
+    </div>
+  `;
+
+  await Promise.allSettled(
+    validRecipients.map((recipient) =>
+      sendEmail({
+        to: recipient.email,
+        subject: `New promotion: ${data.productName}`,
+        html,
+        type: 'promotion_created',
+      }).then(() =>
+        createInAppNotification({
+          type: 'promotion',
+          title: 'New Promotion Available',
+          message: `${data.title || `Buy ${data.buyQuantity} Get ${data.freeQuantity} Free`} is now active for ${data.productName}.`,
+          action_url: '/shop',
+          userId: recipient.id,
+        })
+      )
+    )
+  );
+}
+
 export async function sendOrderPlacedNotification(orderData: OrderNotificationData) {
   const adminSettings = await supabase
     .from('admin_settings')

@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useToast } from '../../contexts/ToastContext';
 import { Tag, Plus, Trash2, CreditCard as Edit2, Save, Package, Ban } from 'lucide-react';
 import { getCountryName, loadCountryNames } from '../../utils/countries';
+import { sendPromotionNotification } from '../../utils/notifications';
 
 interface Product {
   id: string;
@@ -105,10 +106,21 @@ export default function ProductPromotions() {
       return;
     }
 
+    const productName = products.find((product) => product.id === form.product_id)?.name || 'Selected product';
+
+    sendPromotionNotification({
+      productName,
+      title: form.title || `Buy ${form.buy_quantity} Get ${form.free_quantity} Free`,
+      buyQuantity: form.buy_quantity,
+      freeQuantity: form.free_quantity,
+      startsAt: new Date(form.starts_at).toISOString(),
+      endsAt: new Date(form.ends_at).toISOString(),
+    }).catch((notifyError) => console.error('Error sending promotion notifications:', notifyError));
+
     toast.success('Promotion created successfully');
     setShowAdd(false);
     resetForm();
-    loadData();
+    await loadData();
   };
 
   const startEdit = (promo: Promotion) => {
@@ -150,7 +162,7 @@ export default function ProductPromotions() {
     toast.success('Promotion updated successfully');
     setEditingId(null);
     resetForm();
-    loadData();
+    await loadData();
   };
 
   const handleCancel = async (id: string) => {
@@ -168,7 +180,7 @@ export default function ProductPromotions() {
       return;
     }
     toast.success('Promotion cancelled and ended');
-    loadData();
+    await loadData();
   };
 
   const handleDelete = async (id: string) => {
@@ -178,7 +190,7 @@ export default function ProductPromotions() {
       return;
     }
     toast.success('Promotion deleted');
-    loadData();
+    await loadData();
   };
 
   const isPromoActive = (promo: Promotion) => {

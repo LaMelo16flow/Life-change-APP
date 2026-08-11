@@ -108,6 +108,24 @@ export default function OrderManagement() {
     loadData();
   }, [statusFilter]);
 
+  useEffect(() => {
+    const updateChannel = supabase
+      .channel('order-management-live-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, async () => {
+        await loadOrders();
+        await loadStatusCounts();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, async () => {
+        await loadOrders();
+        await loadStatusCounts();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(updateChannel);
+    };
+  }, []);
+
   const loadStatusCounts = async () => {
     try {
       const { data, error } = await supabase.from('orders').select('status');
@@ -397,8 +415,8 @@ export default function OrderManagement() {
       setSelectedOrder(null);
       setOtherPendingOrders([]);
       setSelectedMergeOrderIds(new Set());
-      loadOrders();
-      loadStatusCounts();
+      await loadOrders();
+      await loadStatusCounts();
     } catch (error) {
       console.error('Error approving order:', error);
       toast.error('Failed to approve order');
@@ -519,7 +537,10 @@ export default function OrderManagement() {
         .eq('order_id', selectedOrder.id);
 
       if (freshItems) {
-        updatedOrder.order_items = freshItems as OrderItem[];
+        updatedOrder.order_items = freshItems.map((item) => ({
+          ...item,
+          product: Array.isArray(item.product) ? item.product[0] : item.product,
+        })) as OrderItem[];
       }
 
       setSelectedOrder(updatedOrder);
@@ -583,8 +604,8 @@ export default function OrderManagement() {
       setAdminNotes('');
       setRejectionReason('');
       setSelectedOrder(null);
-      loadOrders();
-      loadStatusCounts();
+      await loadOrders();
+      await loadStatusCounts();
     } catch (error) {
       console.error('Error rejecting order:', error);
       toast.error('Failed to reject order');
@@ -697,8 +718,8 @@ export default function OrderManagement() {
       toast.success('Payment verified and order completed! User has been notified.');
       setShowPaymentModal(false);
       setSelectedOrder(null);
-      loadOrders();
-      loadStatusCounts();
+      await loadOrders();
+      await loadStatusCounts();
     } catch (error) {
       console.error('Error verifying payment:', error);
       toast.error('Failed to verify payment');
@@ -733,8 +754,8 @@ export default function OrderManagement() {
       setShowRejectPaymentModal(false);
       setPaymentRejectionReason('');
       setSelectedOrder(null);
-      loadOrders();
-      loadStatusCounts();
+      await loadOrders();
+      await loadStatusCounts();
     } catch (error) {
       console.error('Error rejecting payment:', error);
       toast.error('Failed to reject payment');
@@ -764,8 +785,8 @@ export default function OrderManagement() {
       setShowStatusChangeModal(false);
       setNewStatus('');
       setSelectedOrder(null);
-      loadOrders();
-      loadStatusCounts();
+      await loadOrders();
+      await loadStatusCounts();
     } catch (error) {
       console.error('Error changing order status:', error);
       toast.error('Failed to change status');
