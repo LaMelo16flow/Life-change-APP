@@ -4,6 +4,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { LayoutDashboard, Users, Award, TrendingUp, Bell, LogOut, Menu, ShoppingCart, Shield, CircleUser as UserCircle, Package, ShoppingBag, UsersRound, Tag, Globe, Settings, CreditCard } from 'lucide-react';
 import { UserDashboard } from './user/UserDashboard';
 import { AdminDashboard } from './admin/AdminDashboard';
+import { NotificationBell } from './NotificationBell';
 import { supabase } from '../lib/supabase';
 
 export function Dashboard() {
@@ -273,17 +274,10 @@ export function Dashboard() {
                   {viewMode === 'admin' ? 'Admin' : 'User'}
                 </span>
               )}
-              <button
-                onClick={() => handleTabClick('notifications')}
-                className="relative p-2 hover:bg-gray-100 rounded-xl transition"
-              >
-                <Bell className="w-5 h-5 text-gray-500" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center">
-                    {unreadCount}
-                  </span>
-                )}
-              </button>
+              <NotificationBell
+                unreadCount={unreadCount}
+                onViewAll={() => handleTabClick('notifications')}
+              />
               <div className="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center text-white text-sm font-bold">
                 {profile?.full_name?.charAt(0)?.toUpperCase() || '?'}
               </div>
