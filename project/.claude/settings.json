@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm ls *)",
+      "Bash(npx --no-install --package=playwright -- node check.mjs)",
+      "Bash(node check.mjs)",
+      "Bash(netstat -ano)",
+      "Bash(git fetch *)",
+      "Bash(git rev-list *)",
+      "Bash(git show *)",
+      "Read(//tmp/**)",
+      "Bash(awk 'NR==523')",
+      "Bash(awk 'NR>=515 && NR<=530')",
+      "Bash(git stash *)"
+    ]
+  }
+}
