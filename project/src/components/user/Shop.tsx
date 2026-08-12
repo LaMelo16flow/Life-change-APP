@@ -95,7 +95,14 @@ export default function Shop() {
   async function loadData() {
     try {
       const [productsRes, profileRes] = await Promise.all([
-        supabase.from('products').select('*').eq('is_active', true).order('product_type', { ascending: true }),
+        supabase
+          .from('products')
+          .select(`
+            *,
+            product_prices!inner (price)
+          `)
+          .eq('is_active', true)
+          .order('product_type', { ascending: true }),
         supabase.from('profiles').select('*').eq('id', user?.id).single()
       ]);
 
