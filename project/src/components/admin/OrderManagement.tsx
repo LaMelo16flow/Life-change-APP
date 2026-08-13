@@ -373,7 +373,7 @@ export default function OrderManagement() {
     }
   };
 
-  const getInsufficientStockProduct = async (order: Order): Promise<string | null> => {
+  const getOrderProductQuantities = (order: Order): Map<string, number> => {
     const needed = new Map<string, number>();
     if (order.order_items && order.order_items.length > 0) {
       for (const item of order.order_items) {
@@ -382,7 +382,11 @@ export default function OrderManagement() {
     } else if (order.product_id) {
       needed.set(order.product_id, order.quantity);
     }
+    return needed;
+  };
 
+  const getInsufficientStockProduct = async (order: Order): Promise<string | null> => {
+    const needed = getOrderProductQuantities(order);
     if (needed.size === 0) return null;
 
     const { data: inventoryRows } = await supabase
@@ -400,6 +404,32 @@ export default function OrderManagement() {
       }
     }
     return null;
+  };
+
+  // Releases a pending/awaiting_payment order's stock reservation (made by
+  // reserve_inventory at checkout) back to available stock. Must only be
+  // called when an order leaves 'pending'/'awaiting_payment' for a terminal
+  // state WITHOUT completing (rejected/cancelled) - completing an order
+  // releases the reservation itself, paired with decrementing quantity, in
+  // handleVerifyPayment.
+  const releaseInventoryReservation = async (order: Order) => {
+    const needed = getOrderProductQuantities(order);
+    if (needed.size === 0) return;
+
+    const { data: inventoryRows } = await supabase
+      .from('product_inventory')
+      .select('id, product_id, reserved_quantity')
+      .eq('region', order.region)
+      .in('product_id', Array.from(needed.keys()));
+
+    for (const [productId, qty] of needed) {
+      const inv = inventoryRows?.find((r) => r.product_id === productId);
+      if (!inv) continue;
+      await supabase
+        .from('product_inventory')
+        .update({ reserved_quantity: Math.max(0, inv.reserved_quantity - qty) })
+        .eq('id', inv.id);
+    }
   };
 
   const handleApproveOrder = async () => {
@@ -641,6 +671,8 @@ export default function OrderManagement() {
 
       if (orderError) throw orderError;
 
+      await releaseInventoryReservation(selectedOrder);
+
       await supabase.from('notifications').insert([{
         user_id: selectedOrder.user_id,
         type: 'approval',
@@ -835,6 +867,12 @@ export default function OrderManagement() {
         .eq('id', selectedOrder.id);
 
       if (error) throw error;
+
+      const wasHoldingReservation = selectedOrder.status === 'pending' || selectedOrder.status === 'awaiting_payment';
+      const isTerminalNonFulfillment = newStatus === 'rejected' || newStatus === 'cancelled';
+      if (wasHoldingReservation && isTerminalNonFulfillment) {
+        await releaseInventoryReservation(selectedOrder);
+      }
 
       await supabase.from('notifications').insert([{
         user_id: selectedOrder.user_id,
@@ -1646,7 +1684,7 @@ export default function OrderManagement() {
       )}
 
       {showRejectModal && selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold mb-4">Reject Order</h3>
             <p className="text-gray-600 mb-4">
@@ -1773,7 +1811,7 @@ export default function OrderManagement() {
       )}
 
       {showRejectPaymentModal && selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold mb-4">Reject Payment Proof</h3>
             <p className="text-gray-600 mb-4">
@@ -1813,7 +1851,7 @@ export default function OrderManagement() {
       )}
 
       {showStatusChangeModal && selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold mb-2">Change Order Status</h3>
             <p className="text-sm text-gray-600 mb-4">
