@@ -307,14 +307,14 @@ export default function ManagerManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Team Management</h2>
           <p className="text-gray-600">Assign people to manage orders, inventory, and more</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg hover:bg-brand-800"
+          className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg hover:bg-brand-800 self-start sm:self-auto"
         >
           <UserPlus size={20} />
           Add Manager
@@ -341,13 +341,13 @@ export default function ManagerManagement() {
                 className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition"
                 onClick={() => setExpandedManager(isExpanded ? null : manager.id)}
               >
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-bold text-sm">
+                <div className="flex items-center gap-4 min-w-0 flex-1">
+                  <div className="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-bold text-sm flex-shrink-0">
                     {manager.full_name.charAt(0).toUpperCase()}
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-gray-900">{manager.full_name}</span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-gray-900 truncate">{manager.full_name}</span>
                       {manager.is_master && (
                         <span className="text-xs font-bold px-2 py-0.5 rounded bg-yellow-100 text-yellow-800">MASTER</span>
                       )}
@@ -357,12 +357,12 @@ export default function ManagerManagement() {
                         {manager.role === 'admin' ? 'Admin' : 'Manager'}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-500">{manager.email}</p>
+                    <p className="text-sm text-gray-500 truncate">{manager.email}</p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">
+                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                  <span className="text-xs text-gray-500 hidden sm:inline">
                     {manager.role === 'admin' ? 'Full Access' : `${manager.permissions.length} permissions`}
                   </span>
                   {isExpanded ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
@@ -398,7 +398,7 @@ export default function ManagerManagement() {
                   )}
 
                   {!manager.is_master && (
-                    <div className="flex gap-2 pt-2 border-t border-gray-100">
+                    <div className="flex gap-2 flex-wrap pt-2 border-t border-gray-100">
                       {manager.role === 'manager' && (
                         <>
                           <button
@@ -447,7 +447,7 @@ export default function ManagerManagement() {
       </div>
 
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold mb-4">Add Manager</h3>
 
@@ -506,7 +506,7 @@ export default function ManagerManagement() {
       )}
 
       {showEditModal && selectedManager && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold mb-2">Edit Permissions</h3>
             <p className="text-sm text-gray-600 mb-4">{selectedManager.full_name} ({selectedManager.email})</p>

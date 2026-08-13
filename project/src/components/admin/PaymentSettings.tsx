@@ -375,25 +375,25 @@ export default function PaymentSettings() {
             >
               <button
                 onClick={() => toggleCountry(country.code)}
-                className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition"
+                className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-5 py-4 hover:bg-gray-50 transition"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   {isExpanded ? (
-                    <ChevronDown className="w-5 h-5 text-gray-400" />
+                    <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" />
                   ) : (
-                    <ChevronRight className="w-5 h-5 text-gray-400" />
+                    <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
                   )}
-                  <div className="text-left">
-                    <span className="font-semibold text-gray-900">{country.name}</span>
-                    <span className="text-sm text-gray-500 ml-2">({country.code})</span>
+                  <div className="text-left flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
+                    <span className="font-semibold text-gray-900 truncate">{country.name}</span>
+                    <span className="text-sm text-gray-500">({country.code})</span>
                     {country.continent && (
-                      <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
                         {country.continent}
                       </span>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 pl-8 sm:pl-0 flex-shrink-0">
                   <span className="text-sm text-gray-500">
                     {country.currency_symbol} {country.currency_code}
                   </span>

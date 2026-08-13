@@ -1475,7 +1475,7 @@ export default function OrderManagement() {
 
       {showRejectModal && selectedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold mb-4">Reject Order</h3>
             <p className="text-gray-600 mb-4">
               Please provide a reason for rejecting order <strong>{selectedOrder.order_number}</strong>:
@@ -1602,7 +1602,7 @@ export default function OrderManagement() {
 
       {showRejectPaymentModal && selectedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold mb-4">Reject Payment Proof</h3>
             <p className="text-gray-600 mb-4">
               Please provide a reason for rejecting the payment proof for order <strong>{selectedOrder.order_number}</strong>:
@@ -1642,7 +1642,7 @@ export default function OrderManagement() {
 
       {showStatusChangeModal && selectedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold mb-2">Change Order Status</h3>
             <p className="text-sm text-gray-600 mb-4">
               Order <strong>{selectedOrder.order_number}</strong>

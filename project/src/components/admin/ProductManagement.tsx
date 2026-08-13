@@ -674,12 +674,12 @@ export function ProductManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Product Management</h2>
           <p className="text-slate-600 mt-1">Manage products and PV values</p>
         </div>
-        <div className="flex gap-3 flex-wrap justify-end">
+        <div className="flex gap-3 flex-wrap sm:justify-end">
           <input
             ref={fileInputRef}
             type="file"
@@ -716,7 +716,7 @@ export function ProductManagement() {
       {showAdd && (
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <h3 className="text-lg font-semibold text-slate-900 mb-4">Add New Product</h3>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <input
               type="text"
               placeholder="Product Name"
@@ -785,7 +785,7 @@ export function ProductManagement() {
             />
             <div className="col-span-2 border-t border-slate-200 pt-3 mt-1">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">English translation (optional)</p>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <input
                   type="text"
                   placeholder="Product Name (English) — optional"
@@ -843,7 +843,7 @@ export function ProductManagement() {
               <div key={product.id} className="bg-white p-6 rounded-xl border-2 border-brand-500 shadow-lg">
                 <h3 className="text-lg font-semibold text-slate-900 mb-4">Edit Product</h3>
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Product Name</label>
                       <input

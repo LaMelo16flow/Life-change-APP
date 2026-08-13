@@ -202,14 +202,14 @@ export default function ProductPromotions() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Product Promotions</h2>
           <p className="text-gray-600 mt-1">Create "Buy X Get Y Free" deals for products</p>
         </div>
         <button
           onClick={() => { resetForm(); setShowAdd(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-brand-700 text-white rounded-lg hover:bg-brand-800 font-medium"
+          className="flex items-center gap-2 px-4 py-2 bg-brand-700 text-white rounded-lg hover:bg-brand-800 font-medium self-start sm:self-auto"
         >
           <Plus className="w-5 h-5" />
           New Promotion
@@ -349,17 +349,17 @@ export default function ProductPromotions() {
                   active ? 'border-green-200' : expired ? 'border-gray-200 opacity-70' : 'border-yellow-200'
                 }`}
               >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${active ? 'bg-green-100' : 'bg-gray-100'}`}>
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`p-2 rounded-lg flex-shrink-0 ${active ? 'bg-green-100' : 'bg-gray-100'}`}>
                       <Package className={`w-5 h-5 ${active ? 'text-green-600' : 'text-gray-500'}`} />
                     </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900">{promo.product ? getLocalizedProductName(promo.product, language) : 'Unknown Product'}</h4>
-                      <p className="text-sm text-gray-500">{promo.product?.product_type}</p>
+                    <div className="min-w-0">
+                      <h4 className="font-semibold text-gray-900 truncate">{promo.product ? getLocalizedProductName(promo.product, language) : 'Unknown Product'}</h4>
+                      <p className="text-sm text-gray-500 truncate">{promo.product?.product_type}</p>
                     </div>
                   </div>
-                  <span className={`px-2 py-1 text-xs font-semibold rounded ${
+                  <span className={`px-2 py-1 text-xs font-semibold rounded flex-shrink-0 ${
                     active ? 'bg-green-100 text-green-700' :
                     expired ? 'bg-gray-100 text-gray-500' :
                     'bg-yellow-100 text-yellow-700'
@@ -388,7 +388,7 @@ export default function ProductPromotions() {
                   </div>
                 </div>
 
-                <div className="flex gap-2 pt-3 border-t border-gray-100">
+                <div className="flex gap-2 flex-wrap pt-3 border-t border-gray-100">
                   <button
                     onClick={() => startEdit(promo)}
                     className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"

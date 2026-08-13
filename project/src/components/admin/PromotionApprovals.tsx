@@ -242,7 +242,7 @@ export function PromotionApprovals() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Buy Quantity</label>
                   <input
@@ -292,7 +292,7 @@ export function PromotionApprovals() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Starts At</label>
                   <input
@@ -360,7 +360,7 @@ function ProductPromotionsSection({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <p className="text-sm text-gray-600">
           {activePromos.length} active promotion{activePromos.length !== 1 ? 's' : ''}
         </p>
@@ -431,7 +431,7 @@ function PromoRow({
   const productName = promo.product ? getLocalizedProductName(promo.product, language) : undefined;
 
   return (
-    <div className="px-6 py-4 flex items-center gap-4">
+    <div className="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-4">
       {promo.product?.image_url && (
         <img
           src={promo.product.image_url}
@@ -477,7 +477,7 @@ function PromoRow({
           {new Date(promo.starts_at).toLocaleDateString()} &mdash; {new Date(promo.ends_at).toLocaleDateString()}
         </div>
       </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
         {active && (
           <>
             <button
