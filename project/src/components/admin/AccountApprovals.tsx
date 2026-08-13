@@ -210,7 +210,7 @@ export default function AccountApprovals() {
           <p className="text-gray-600">No pending accounts to review</p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-x-auto">
+        <div className="bg-white rounded-lg shadow overflow-x-auto hidden md:block">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -287,6 +287,69 @@ export default function AccountApprovals() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {pendingUsers.length > 0 && (
+        <div className="md:hidden space-y-3">
+          {pendingUsers.map((user) => (
+            <div key={user.id} className="bg-white rounded-lg shadow p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                {user.profile_image_url ? (
+                  <img
+                    src={user.profile_image_url}
+                    alt={user.full_name}
+                    className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white font-semibold flex-shrink-0">
+                    {user.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-gray-900 truncate">{user.full_name}</div>
+                  <div className="text-sm text-gray-500 truncate">{user.email}</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-sm border-t border-gray-100 pt-3">
+                <div>
+                  <div className="text-xs text-gray-500">Country</div>
+                  <div className="text-gray-900">{getCountryName(user.country_code, countryMap)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">Referred By</div>
+                  <div className="text-gray-900">{user.referred_by || 'None'}</div>
+                </div>
+                <div className="col-span-2">
+                  <div className="text-xs text-gray-500">Registration Date</div>
+                  <div className="text-gray-900">{new Date(user.created_at).toLocaleDateString()}</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 border-t border-gray-100 pt-3 text-sm font-medium">
+                <button
+                  onClick={() => handleApprove(user.id)}
+                  disabled={processing}
+                  className="text-green-600 hover:text-green-900 inline-flex items-center gap-1 disabled:opacity-50"
+                >
+                  <UserCheck size={16} />
+                  Approve
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedUser(user);
+                    setShowRejectModal(true);
+                  }}
+                  disabled={processing}
+                  className="text-red-600 hover:text-red-900 inline-flex items-center gap-1 disabled:opacity-50"
+                >
+                  <UserX size={16} />
+                  Reject
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

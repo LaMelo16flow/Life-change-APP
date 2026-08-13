@@ -232,6 +232,44 @@ export default function OrderManagement() {
     }
   };
 
+  const openApproveModalForOrder = async (order: Order) => {
+    setSelectedOrder(order);
+    setSelectedMergeOrderIds(new Set());
+    setShowApproveModal(true);
+    const others = orders.filter(
+      o => o.user_id === order.user_id
+        && o.id !== order.id
+        && o.status === 'pending'
+        && o.region === order.region
+    );
+    if (others.length === 0) {
+      const { data } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          user:profiles!orders_user_id_profile_fkey(
+            full_name, email, phone,
+            address_line1, address_line2, city, state_province, postal_code,
+            country_code, profile_image_url
+          ),
+          product:products!product_id(name, name_en, pv_value, image_url),
+          order_items(
+            id, product_id, quantity, free_quantity,
+            unit_price, subtotal, pv_value,
+            product:products(name, name_en, image_url)
+          )
+        `)
+        .eq('user_id', order.user_id)
+        .eq('status', 'pending')
+        .eq('region', order.region)
+        .neq('id', order.id)
+        .order('created_at', { ascending: false });
+      setOtherPendingOrders(data || []);
+    } else {
+      setOtherPendingOrders(others);
+    }
+  };
+
   const getOrderDisplayInfo = (order: Order) => {
     if (order.order_items && order.order_items.length > 0) {
       const names = order.order_items.map(item => getLocalizedProductName(item.product, language)).slice(0, 2);
@@ -335,8 +373,43 @@ export default function OrderManagement() {
     }
   };
 
+  const getInsufficientStockProduct = async (order: Order): Promise<string | null> => {
+    const needed = new Map<string, number>();
+    if (order.order_items && order.order_items.length > 0) {
+      for (const item of order.order_items) {
+        needed.set(item.product_id, (needed.get(item.product_id) || 0) + item.quantity + item.free_quantity);
+      }
+    } else if (order.product_id) {
+      needed.set(order.product_id, order.quantity);
+    }
+
+    if (needed.size === 0) return null;
+
+    const { data: inventoryRows } = await supabase
+      .from('product_inventory')
+      .select('product_id, quantity, reserved_quantity, product:products(name)')
+      .eq('region', order.region)
+      .in('product_id', Array.from(needed.keys()));
+
+    for (const productId of needed.keys()) {
+      const inv = inventoryRows?.find((r) => r.product_id === productId);
+      const available = inv ? inv.quantity - inv.reserved_quantity : 0;
+      if (available < 0) {
+        const invProduct = Array.isArray(inv?.product) ? inv.product[0] : inv?.product;
+        return invProduct?.name || 'this product';
+      }
+    }
+    return null;
+  };
+
   const handleApproveOrder = async () => {
     if (!selectedOrder) return;
+
+    const insufficientProduct = await getInsufficientStockProduct(selectedOrder);
+    if (insufficientProduct) {
+      toast.error(`Cannot approve: not enough stock available for ${insufficientProduct}.`);
+      return;
+    }
 
     try {
       const { data: userData } = await supabase.auth.getUser();
@@ -915,7 +988,7 @@ export default function OrderManagement() {
           <p className="text-gray-600">No orders found</p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-x-auto">
+        <div className="bg-white rounded-lg shadow overflow-x-auto hidden md:block">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -1029,43 +1102,7 @@ export default function OrderManagement() {
                       {order.status === 'pending' && (
                         <>
                           <button
-                            onClick={async () => {
-                              setSelectedOrder(order);
-                              setSelectedMergeOrderIds(new Set());
-                              setShowApproveModal(true);
-                              const others = orders.filter(
-                                o => o.user_id === order.user_id
-                                  && o.id !== order.id
-                                  && o.status === 'pending'
-                                  && o.region === order.region
-                              );
-                              if (others.length === 0) {
-                                const { data } = await supabase
-                                  .from('orders')
-                                  .select(`
-                                    *,
-                                    user:profiles!orders_user_id_profile_fkey(
-                                      full_name, email, phone,
-                                      address_line1, address_line2, city, state_province, postal_code,
-                                      country_code, profile_image_url
-                                    ),
-                                    product:products!product_id(name, name_en, pv_value, image_url),
-                                    order_items(
-                                      id, product_id, quantity, free_quantity,
-                                      unit_price, subtotal, pv_value,
-                                      product:products(name, name_en, image_url)
-                                    )
-                                  `)
-                                  .eq('user_id', order.user_id)
-                                  .eq('status', 'pending')
-                                  .eq('region', order.region)
-                                  .neq('id', order.id)
-                                  .order('created_at', { ascending: false });
-                                setOtherPendingOrders(data || []);
-                              } else {
-                                setOtherPendingOrders(others);
-                              }
-                            }}
+                            onClick={() => openApproveModalForOrder(order)}
                             className="text-green-600 hover:text-green-900 inline-flex items-center gap-1"
                           >
                             <Check size={16} />
@@ -1124,6 +1161,141 @@ export default function OrderManagement() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {filteredOrders.length > 0 && (
+        <div className="md:hidden space-y-3">
+          {filteredOrders.map((order) => {
+            const { displayName, image, itemCount } = getOrderDisplayInfo(order);
+            return (
+              <div key={order.id} className="bg-white rounded-lg shadow p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <button
+                    onClick={() => loadUserOrderHistory(order.user_id, order.user.full_name)}
+                    className="flex items-center gap-3 min-w-0 text-left"
+                  >
+                    {order.user.profile_image_url ? (
+                      <img
+                        src={order.user.profile_image_url}
+                        alt={order.user.full_name}
+                        className="w-9 h-9 rounded-full object-cover border border-gray-200 flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                        {order.user.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-gray-900 truncate">{order.user.full_name}</div>
+                      <div className="text-xs text-gray-500 truncate">{order.user.email}</div>
+                    </div>
+                  </button>
+                  <div className="flex items-center gap-1 flex-wrap justify-end flex-shrink-0">
+                    <span className={`px-2 py-1 text-xs font-semibold rounded ${getStatusBadge(order.status)}`}>
+                      {getStatusLabel(order.status)}
+                    </span>
+                    {order.status === 'awaiting_payment' && order.payment_screenshot_url && (
+                      <span className="px-2 py-1 text-xs font-semibold rounded bg-green-100 text-green-700 flex items-center gap-1">
+                        <ImageIcon size={12} />
+                        Proof
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {image && (
+                    <img src={image} alt={displayName} className="w-10 h-10 rounded object-cover flex-shrink-0" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm text-gray-900 truncate">{displayName}</div>
+                    {itemCount > 1 && (
+                      <div className="text-xs text-brand-600 font-medium flex items-center gap-1">
+                        <Package size={12} />
+                        {itemCount} items
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-sm border-t border-gray-100 pt-3">
+                  <span className="text-gray-500">{order.order_number}</span>
+                  <span className="font-medium text-gray-900">{order.currency_code} {order.total_amount.toFixed(2)}</span>
+                  <span className="text-gray-500">{new Date(order.created_at).toLocaleDateString()}</span>
+                </div>
+
+                <div className="flex items-center gap-3 flex-wrap border-t border-gray-100 pt-3 text-sm font-medium">
+                  <button
+                    onClick={() => {
+                      setSelectedOrder(order);
+                      setShowDetailsModal(true);
+                    }}
+                    className="text-brand-600 hover:text-brand-900 inline-flex items-center gap-1"
+                  >
+                    <Eye size={16} />
+                    View
+                  </button>
+                  {order.status === 'pending' && (
+                    <>
+                      <button
+                        onClick={() => openApproveModalForOrder(order)}
+                        className="text-green-600 hover:text-green-900 inline-flex items-center gap-1"
+                      >
+                        <Check size={16} />
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedOrder(order);
+                          setShowRejectModal(true);
+                        }}
+                        className="text-red-600 hover:text-red-900 inline-flex items-center gap-1"
+                      >
+                        <X size={16} />
+                        Reject
+                      </button>
+                    </>
+                  )}
+                  {order.status === 'awaiting_payment' && order.payment_screenshot_url && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setSelectedOrder(order);
+                          setShowPaymentModal(true);
+                        }}
+                        className="text-green-600 hover:text-green-900 inline-flex items-center gap-1"
+                      >
+                        <CreditCard size={16} />
+                        Verify
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedOrder(order);
+                          setShowRejectPaymentModal(true);
+                        }}
+                        className="text-red-600 hover:text-red-900 inline-flex items-center gap-1"
+                      >
+                        <X size={16} />
+                        Reject
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={() => {
+                      setSelectedOrder(order);
+                      setNewStatus(order.status);
+                      setShowStatusChangeModal(true);
+                    }}
+                    className="text-gray-500 hover:text-gray-800 inline-flex items-center gap-1"
+                    title="Change Status"
+                  >
+                    <RefreshCw size={14} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 

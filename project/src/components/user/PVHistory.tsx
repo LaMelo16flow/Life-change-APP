@@ -88,7 +88,7 @@ export function PVHistory() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full">
               <thead className="bg-slate-50">
                 <tr>
@@ -146,6 +146,42 @@ export function PVHistory() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {transactions.length > 0 && (
+          <div className="md:hidden divide-y divide-slate-200">
+            {transactions.map((transaction) => (
+              <div key={transaction.id} className="p-4 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                      transaction.transaction_type === 'purchase'
+                        ? 'bg-brand-100 text-brand-700'
+                        : transaction.transaction_type === 'meeting'
+                        ? 'bg-green-100 text-green-700'
+                        : transaction.transaction_type === 'reward'
+                        ? 'bg-purple-100 text-purple-700'
+                        : transaction.transaction_type === 'bonus'
+                        ? 'bg-orange-100 text-orange-700'
+                        : 'bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    {transaction.transaction_type}
+                  </span>
+                  <span
+                    className={`font-semibold text-sm ${
+                      Number(transaction.amount) > 0 ? 'text-green-600' : 'text-red-600'
+                    }`}
+                  >
+                    {Number(transaction.amount) > 0 ? '+' : ''}
+                    {transaction.amount} PV
+                  </span>
+                </div>
+                <p className="text-sm text-slate-600">{transaction.description || 'No description'}</p>
+                <p className="text-xs text-slate-500">{new Date(transaction.created_at).toLocaleDateString()}</p>
+              </div>
+            ))}
           </div>
         )}
       </div>

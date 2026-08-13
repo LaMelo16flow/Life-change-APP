@@ -311,7 +311,7 @@ export default function InventoryManagement() {
           <p className="text-gray-600">No inventory items found</p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-x-auto">
+        <div className="bg-white rounded-lg shadow overflow-x-auto hidden md:block">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -387,6 +387,63 @@ export default function InventoryManagement() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {filteredInventory.length > 0 && (
+        <div className="md:hidden space-y-3">
+          {filteredInventory.map((item) => {
+            const available = item.quantity - item.reserved_quantity;
+            const status = getStockStatus(item);
+            return (
+              <div key={item.id} className="bg-white rounded-lg shadow p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  {item.product.image_url && (
+                    <img
+                      src={item.product.image_url}
+                      alt={getLocalizedProductName(item.product, language)}
+                      className="w-10 h-10 rounded object-cover flex-shrink-0"
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-gray-900 truncate">{getLocalizedProductName(item.product, language)}</div>
+                    <div className="text-sm text-gray-500 truncate">{item.product.product_type}</div>
+                  </div>
+                  <button
+                    onClick={() => openEditModal(item)}
+                    className="text-brand-600 hover:text-brand-800 inline-flex items-center gap-1 text-sm font-medium flex-shrink-0"
+                  >
+                    <Edit2 size={16} />
+                    Edit
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-sm border-t border-gray-100 pt-3">
+                  <div>
+                    <div className="text-xs text-gray-500">Available</div>
+                    <div className="text-gray-900">{available}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Reserved</div>
+                    <div className="text-gray-600">{item.reserved_quantity}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Max</div>
+                    <div className="text-gray-600">{item.max_quantity}</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 border-t border-gray-100 pt-3">
+                  <span className={`px-2 py-1 text-xs font-semibold rounded ${status.bg} ${status.color}`}>
+                    {status.text}
+                  </span>
+                  {available <= item.low_stock_threshold && available > 0 && (
+                    <AlertTriangle size={16} className="text-yellow-500" />
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 

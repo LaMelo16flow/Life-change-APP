@@ -180,7 +180,7 @@ export function UserManagement() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto hidden md:block">
           <table className="w-full">
             <thead className="bg-slate-50">
               <tr>
@@ -379,6 +379,170 @@ export function UserManagement() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div className="md:hidden divide-y divide-slate-200">
+          {filteredUsers.map((user) => (
+            <div key={user.id} className="p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                {user.profile_image_url ? (
+                  <img
+                    src={user.profile_image_url}
+                    alt={user.full_name}
+                    className="w-10 h-10 rounded-full object-cover border-2 border-slate-200 flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                    {user.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-slate-900 truncate">{user.full_name}</p>
+                  <p className="text-sm text-slate-600 truncate">{user.email}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <span
+                  className={`px-2 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1 ${
+                    user.role === 'admin'
+                      ? 'bg-purple-100 text-purple-700'
+                      : 'bg-slate-100 text-slate-700'
+                  }`}
+                >
+                  {user.role === 'admin' ? <Shield className="w-3 h-3" /> : <UserX className="w-3 h-3" />}
+                  {user.role === 'admin' ? 'Admin' : 'User'}
+                </span>
+                <span
+                  className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                    user.is_active
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-red-100 text-red-700'
+                  }`}
+                >
+                  {user.is_active ? 'Active' : 'Inactive'}
+                </span>
+                <span className="text-sm text-slate-600">{getCountryName(user.country_code, countryMap)}</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-green-600" />
+                <span className="text-sm font-semibold text-slate-900">{user.total_pv} PV</span>
+              </div>
+
+              <div className="flex gap-2 flex-wrap border-t border-slate-100 pt-3">
+                <button
+                  onClick={() => setEditingPV(user.id)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition text-sm font-medium"
+                >
+                  <Edit className="w-4 h-4" />
+                  PV
+                </button>
+                <button
+                  onClick={() => toggleUserRole(user.id, user.role)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition text-sm font-medium ${
+                    user.role === 'admin'
+                      ? 'bg-slate-600 text-white hover:bg-slate-700'
+                      : 'bg-purple-600 text-white hover:bg-purple-700'
+                  }`}
+                >
+                  {user.role === 'admin' ? (
+                    <>
+                      <UserX className="w-4 h-4" />
+                      Demote
+                    </>
+                  ) : (
+                    <>
+                      <Shield className="w-4 h-4" />
+                      Promote
+                    </>
+                  )}
+                </button>
+                {!user.is_master && (
+                  <button
+                    onClick={() => setDeletingUser(deletingUser === user.id ? null : user.id)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition text-sm font-medium"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete
+                  </button>
+                )}
+              </div>
+
+              {editingPV === user.id && (
+                <div className="bg-brand-50 rounded-lg p-3 space-y-2">
+                  <input
+                    type="number"
+                    value={pvAmount}
+                    onChange={(e) => setPVAmount(e.target.value)}
+                    placeholder="PV Amount (+ or -)"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
+                  />
+                  <input
+                    type="text"
+                    value={pvDescription}
+                    onChange={(e) => setPVDescription(e.target.value)}
+                    placeholder="Description"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => adjustPV(user.id)}
+                      className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium"
+                    >
+                      Apply
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingPV(null);
+                        setPVAmount('');
+                        setPVDescription('');
+                      }}
+                      className="flex-1 px-4 py-2 bg-slate-300 text-slate-700 rounded-lg hover:bg-slate-400 transition text-sm font-medium"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {deletingUser === user.id && (
+                <div className="bg-red-50 border-t border-red-100 pt-3 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                    <p className="text-sm text-red-800">
+                      Are you sure you want to permanently delete <strong>{user.full_name}</strong>'s account? This will remove all their data and cannot be undone.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleDeleteUser(user.id)}
+                      disabled={deleteLoading}
+                      className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {deleteLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="w-4 h-4" />
+                          Confirm Delete
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setDeletingUser(null)}
+                      className="flex-1 px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition text-sm font-medium"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </div>
