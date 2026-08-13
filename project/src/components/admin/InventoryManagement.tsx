@@ -19,7 +19,6 @@ interface InventoryItem {
   region: string;
   quantity: number;
   reserved_quantity: number;
-  max_quantity: number;
   low_stock_threshold: number;
   managed_by: string | null;
   product: Product;
@@ -38,14 +37,13 @@ export default function InventoryManagement() {
 
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkQuantity, setBulkQuantity] = useState(100);
-  const [bulkMaxQuantity, setBulkMaxQuantity] = useState(200);
   const [bulkUpdating, setBulkUpdating] = useState(false);
 
   const [formData, setFormData] = useState({
     product_id: '',
     region: 'CA',
     quantity: 0,
-    max_quantity: 100,
+    reserved_quantity: 0,
     low_stock_threshold: 10,
   });
 
@@ -121,7 +119,7 @@ export default function InventoryManagement() {
         product_id: '',
         region: 'CA',
         quantity: 0,
-        max_quantity: 100,
+        reserved_quantity: 0,
         low_stock_threshold: 10,
       });
       loadInventory();
@@ -136,15 +134,21 @@ export default function InventoryManagement() {
     e.preventDefault();
     if (!selectedItem) return;
 
+    if (formData.quantity - formData.reserved_quantity < 0) {
+      toast.error('Stock available cannot be less than reserved. Lower "Reserved" or raise "Stock Available" first.');
+      return;
+    }
+
     try {
       const { data: userData } = await supabase.auth.getUser();
       const quantityChange = formData.quantity - selectedItem.quantity;
+      const reservedChange = formData.reserved_quantity - selectedItem.reserved_quantity;
 
       const { error } = await supabase
         .from('product_inventory')
         .update({
           quantity: formData.quantity,
-          max_quantity: formData.max_quantity,
+          reserved_quantity: formData.reserved_quantity,
           low_stock_threshold: formData.low_stock_threshold,
         })
         .eq('id', selectedItem.id);
@@ -168,6 +172,23 @@ export default function InventoryManagement() {
         if (logError) console.error('Error logging inventory:', logError);
       }
 
+      if (reservedChange !== 0) {
+        const { error: logError } = await supabase
+          .from('inventory_logs')
+          .insert([{
+            product_id: selectedItem.product_id,
+            region: selectedItem.region,
+            action: 'adjustment',
+            quantity_change: reservedChange,
+            quantity_after: formData.reserved_quantity,
+            reference_id: selectedItem.id,
+            performed_by: userData.user?.id,
+            notes: 'Manual reserved-stock correction',
+          }]);
+
+        if (logError) console.error('Error logging inventory:', logError);
+      }
+
       setShowEditModal(false);
       setSelectedItem(null);
       loadInventory();
@@ -184,7 +205,7 @@ export default function InventoryManagement() {
       product_id: item.product_id,
       region: item.region,
       quantity: item.quantity,
-      max_quantity: item.max_quantity,
+      reserved_quantity: item.reserved_quantity,
       low_stock_threshold: item.low_stock_threshold,
     });
     setShowEditModal(true);
@@ -197,7 +218,6 @@ export default function InventoryManagement() {
         .from('product_inventory')
         .update({
           quantity: bulkQuantity,
-          max_quantity: bulkMaxQuantity,
         })
         .eq('region', 'CA');
 
@@ -228,7 +248,6 @@ export default function InventoryManagement() {
         product_id: product.id,
         region: 'CA',
         quantity: bulkQuantity,
-        max_quantity: bulkMaxQuantity,
         low_stock_threshold: 10,
       }));
 
@@ -325,9 +344,6 @@ export default function InventoryManagement() {
                   Reserved
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Max
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -361,9 +377,6 @@ export default function InventoryManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                       {item.reserved_quantity}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {item.max_quantity}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-semibold rounded ${status.bg} ${status.color}`}>
@@ -418,7 +431,7 @@ export default function InventoryManagement() {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 text-sm border-t border-gray-100 pt-3">
+                <div className="grid grid-cols-2 gap-2 text-sm border-t border-gray-100 pt-3">
                   <div>
                     <div className="text-xs text-gray-500">Available</div>
                     <div className="text-gray-900">{available}</div>
@@ -426,10 +439,6 @@ export default function InventoryManagement() {
                   <div>
                     <div className="text-xs text-gray-500">Reserved</div>
                     <div className="text-gray-600">{item.reserved_quantity}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-gray-500">Max</div>
-                    <div className="text-gray-600">{item.max_quantity}</div>
                   </div>
                 </div>
 
@@ -469,22 +478,11 @@ export default function InventoryManagement() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Initial Quantity</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Stock Available</label>
                 <input
                   type="number"
                   value={formData.quantity}
                   onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })}
-                  min="0"
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Max Quantity</label>
-                <input
-                  type="number"
-                  value={formData.max_quantity}
-                  onChange={(e) => setFormData({ ...formData, max_quantity: parseInt(e.target.value) || 0 })}
                   min="0"
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
@@ -524,40 +522,48 @@ export default function InventoryManagement() {
       {showEditModal && selectedItem && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-4">Update Inventory</h3>
+            <h3 className="text-xl font-bold mb-1">Refresh Stock</h3>
+            <p className="text-sm text-gray-500 mb-4">{getLocalizedProductName(selectedItem.product, language)}</p>
             <form onSubmit={handleUpdateInventory} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
-                <input
-                  type="text"
-                  value={getLocalizedProductName(selectedItem.product, language)}
-                  disabled
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Quantity (Reserved: {selectedItem.reserved_quantity})
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Stock Available</label>
                 <input
                   type="number"
                   value={formData.quantity}
                   onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })}
-                  min={selectedItem.reserved_quantity}
+                  min="0"
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Max Quantity</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-700">Reserved (held by pending orders)</label>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, reserved_quantity: 0 })}
+                    className="text-xs font-medium text-brand-600 hover:text-brand-800"
+                  >
+                    Reset to 0
+                  </button>
+                </div>
                 <input
                   type="number"
-                  value={formData.max_quantity}
-                  onChange={(e) => setFormData({ ...formData, max_quantity: parseInt(e.target.value) || 0 })}
+                  value={formData.reserved_quantity}
+                  onChange={(e) => setFormData({ ...formData, reserved_quantity: parseInt(e.target.value) || 0 })}
                   min="0"
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Only lower this if orders were rejected/cancelled and stock wasn't released correctly.
+                </p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3 flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">Available for sale</span>
+                <span className={`text-lg font-bold ${formData.quantity - formData.reserved_quantity < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  {formData.quantity - formData.reserved_quantity}
+                </span>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Low Stock Alert Threshold</label>
@@ -575,7 +581,7 @@ export default function InventoryManagement() {
                   type="submit"
                   className="flex-1 bg-brand-700 text-white py-2 rounded-lg hover:bg-brand-800 font-medium"
                 >
-                  Update
+                  Save
                 </button>
                 <button
                   type="button"
@@ -600,22 +606,11 @@ export default function InventoryManagement() {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Stock Quantity</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Stock Available</label>
                 <input
                   type="number"
                   value={bulkQuantity}
                   onChange={(e) => setBulkQuantity(parseInt(e.target.value) || 0)}
-                  min="0"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Max Quantity</label>
-                <input
-                  type="number"
-                  value={bulkMaxQuantity}
-                  onChange={(e) => setBulkMaxQuantity(parseInt(e.target.value) || 0)}
                   min="0"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                 />
