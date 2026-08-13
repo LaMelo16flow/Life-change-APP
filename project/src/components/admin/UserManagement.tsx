@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { supabase, Profile } from '../../lib/supabase';
 import { useToast } from '../../contexts/ToastContext';
 import { loadCountryNames, getCountryName } from '../../utils/countries';
@@ -206,8 +206,8 @@ export function UserManagement() {
             </thead>
             <tbody className="divide-y divide-slate-200">
               {filteredUsers.map((user) => (
-                <>
-                  <tr key={user.id} className="hover:bg-slate-50 transition">
+                <Fragment key={user.id}>
+                  <tr className="hover:bg-slate-50 transition">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         {user.profile_image_url ? (
@@ -375,7 +375,7 @@ export function UserManagement() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>
