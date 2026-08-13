@@ -11,6 +11,7 @@ import {
   sendPaymentVerifiedNotification,
 } from '../../utils/notifications';
 import { roundPVToMultiple } from '../../utils/pv';
+import { usePaymentProofUrl } from '../../utils/paymentProofUrl';
 
 interface OrderItem {
   id: string;
@@ -81,6 +82,7 @@ export default function OrderManagement() {
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const paymentProofSignedUrl = usePaymentProofUrl(selectedOrder?.payment_screenshot_url);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -1479,18 +1481,22 @@ export default function OrderManagement() {
                   <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4">
                     <div className="flex items-start gap-4">
                       <div className="flex-1 min-w-0">
-                        <a
-                          href={selectedOrder.payment_screenshot_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="block"
-                        >
-                          <img
-                            src={selectedOrder.payment_screenshot_url}
-                            alt="Payment proof"
-                            className="max-w-full h-auto max-h-[50vh] sm:max-h-[300px] rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition mx-auto"
-                          />
-                        </a>
+                        {paymentProofSignedUrl ? (
+                          <a
+                            href={paymentProofSignedUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block"
+                          >
+                            <img
+                              src={paymentProofSignedUrl}
+                              alt="Payment proof"
+                              className="max-w-full h-auto max-h-[50vh] sm:max-h-[300px] rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition mx-auto"
+                            />
+                          </a>
+                        ) : (
+                          <div className="text-sm text-gray-500">Loading proof...</div>
+                        )}
                         <p className="text-xs text-gray-500 mt-2">Click image to view full size</p>
                       </div>
                     </div>
@@ -1770,12 +1776,16 @@ export default function OrderManagement() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Payment Screenshot</label>
                   <div className="border-2 border-gray-300 rounded-lg p-2 bg-gray-50">
-                    <img
-                      src={selectedOrder.payment_screenshot_url}
-                      alt="Payment Proof"
-                      className="max-w-full h-auto max-h-[60vh] mx-auto rounded cursor-pointer hover:opacity-90 transition"
-                      onClick={() => window.open(selectedOrder.payment_screenshot_url!, '_blank')}
-                    />
+                    {paymentProofSignedUrl ? (
+                      <img
+                        src={paymentProofSignedUrl}
+                        alt="Payment Proof"
+                        className="max-w-full h-auto max-h-[60vh] mx-auto rounded cursor-pointer hover:opacity-90 transition"
+                        onClick={() => window.open(paymentProofSignedUrl, '_blank')}
+                      />
+                    ) : (
+                      <div className="text-sm text-gray-500 text-center py-8">Loading proof...</div>
+                    )}
                     <p className="text-xs text-gray-500 mt-2 text-center">Click image to view full size</p>
                   </div>
                 </div>

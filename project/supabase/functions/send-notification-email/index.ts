@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { isGmailConfigured, sendGmailEmail } from "../_shared/sendGmailEmail.ts";
 
 const corsHeaders = {
@@ -30,6 +31,30 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Missing authorization header" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const token = authHeader.replace("Bearer ", "");
+
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const { data: { user: caller }, error: authError } = await adminClient.auth.getUser(token);
+    if (authError || !caller) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Invalid or expired token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const emailRequest: EmailRequest = await req.json();
     const { to, subject, html, type } = emailRequest;
 
@@ -46,6 +71,22 @@ Deno.serve(async (req: Request) => {
             'Content-Type': 'application/json',
           },
         }
+      );
+    }
+
+    // Only allow sending to email addresses that belong to a real registered
+    // user of this app - this is what stops an authenticated caller from
+    // using this function as a relay to arbitrary external addresses.
+    const { data: recipientProfile } = await adminClient
+      .from("profiles")
+      .select("id")
+      .eq("email", to)
+      .maybeSingle();
+
+    if (!recipientProfile) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Recipient is not a registered user of this app" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 

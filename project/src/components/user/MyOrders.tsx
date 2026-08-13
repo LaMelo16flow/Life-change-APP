@@ -211,14 +211,10 @@ export default function MyOrders() {
 
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage
-        .from('payment-proofs')
-        .getPublicUrl(fileName);
-
       const { error: updateError } = await supabase
         .from('orders')
         .update({
-          payment_screenshot_url: urlData.publicUrl,
+          payment_screenshot_url: fileName,
           payment_submitted_at: new Date().toISOString(),
           payment_notes: paymentNotes,
         })
