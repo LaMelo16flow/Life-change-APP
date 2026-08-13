@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { Users, TrendingUp, DollarSign, CheckCircle, ShoppingBag } from 'lucide-react';
 import { AnimatedCounter } from '../AnimatedCounter';
 
-const REFRESH_INTERVAL = 30_000;
+const REFRESH_INTERVAL = 10_000;
 
 export function AdminOverview() {
   const [stats, setStats] = useState({

@@ -54,14 +54,22 @@ export function Dashboard() {
       setUnreadCount(count || 0);
     };
     loadUnread();
-    const interval = setInterval(loadUnread, 30000);
+    const interval = setInterval(loadUnread, 10000);
 
     const handleNotificationRead = () => loadUnread();
     window.addEventListener('notification-read', handleNotificationRead);
 
+    const channel = supabase
+      .channel(`notification-badge-${profile.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` }, () => {
+        loadUnread();
+      })
+      .subscribe();
+
     return () => {
       clearInterval(interval);
       window.removeEventListener('notification-read', handleNotificationRead);
+      supabase.removeChannel(channel);
     };
   }, [profile]);
 

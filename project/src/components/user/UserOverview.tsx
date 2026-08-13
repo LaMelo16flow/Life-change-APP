@@ -4,7 +4,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { TrendingUp } from 'lucide-react';
 import { AnimatedCounter } from '../AnimatedCounter';
 
-const REFRESH_INTERVAL = 30_000;
+const REFRESH_INTERVAL = 10_000;
 
 export function UserOverview() {
   const { profile, refreshProfile } = useAuth();
