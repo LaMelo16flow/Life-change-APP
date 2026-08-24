@@ -1,0 +1,20 @@
+name: Supabase Keep-Alive
+
+on:
+  schedule:
+    # Every 3 days — well under Supabase's 7-day inactivity pause window
+    - cron: '0 6 */3 * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST endpoint
+        # These are the same public project URL and anon key already embedded
+        # in the deployed client bundle (protected by Row Level Security),
+        # so hardcoding them here doesn't expose anything new.
+        run: |
+          curl -sf -o /dev/null -w "Supabase ping status: %{http_code}\n" \
+            "https://eqqfbdyjcvwmrnbtvarb.supabase.co/rest/v1/" \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVxcWZiZHlqY3Z3bXJuYnR2YXJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY3NzgwMjMsImV4cCI6MjA4MjM1NDAyM30.KujqmUru0ja7l0Lx-n8elZUqEGJSwPY1U1Twss_1bxQ"
