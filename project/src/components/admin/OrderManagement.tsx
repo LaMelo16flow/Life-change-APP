@@ -46,6 +46,7 @@ interface Order {
   admin_notes: string | null;
   admin_email: string | null;
   payment_screenshot_url: string | null;
+  payment_proof_purged?: boolean;
   payment_submitted_at: string | null;
   payment_verified_at: string | null;
   payment_notes: string | null;
@@ -1544,6 +1545,21 @@ export default function OrderManagement() {
                     )}
                     {selectedOrder.payment_verified_at && (
                       <p className="text-sm text-green-700 mt-2">
+                        {t('om.verifiedLabel')} {new Date(selectedOrder.payment_verified_at).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {!selectedOrder.payment_screenshot_url && selectedOrder.payment_proof_purged && (
+                <div className="border-t border-gray-200 pt-4 mt-4">
+                  <h4 className="text-lg font-semibold text-gray-900 mb-3">{t('om.paymentProof')}</h4>
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4 text-sm text-gray-600">
+                    A payment proof was submitted for this order. The image has since been archived to save
+                    storage; the submission itself is preserved in the payment proof log.
+                    {selectedOrder.payment_verified_at && (
+                      <p className="text-sm text-gray-500 mt-2">
                         {t('om.verifiedLabel')} {new Date(selectedOrder.payment_verified_at).toLocaleString()}
                       </p>
                     )}

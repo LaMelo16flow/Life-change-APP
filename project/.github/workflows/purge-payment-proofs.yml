@@ -1,0 +1,24 @@
+name: Purge Old Payment Proofs
+
+on:
+  schedule:
+    # Weekly - payment proofs older than the retention window (default 30
+    # days past order completion/rejection/cancellation) get their image
+    # deleted from Storage; a compact log row is kept so the audit trail
+    # survives.
+    - cron: '0 6 * * 1'
+  workflow_dispatch: {}
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call purge-old-payment-proofs edge function
+        run: |
+          curl -sf -X POST \
+            "https://eqqfbdyjcvwmrnbtvarb.supabase.co/functions/v1/purge-old-payment-proofs" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"retention_days": 30}' \
+            -w "\nHTTP status: %{http_code}\n"
