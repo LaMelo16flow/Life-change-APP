@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { supabase } from '../../lib/supabase';
-import { User, Mail, Globe, Phone, MapPin, Calendar, Save, AlertCircle, Camera, Loader2, Trash2, ShieldAlert } from 'lucide-react';
+import { User, Mail, Globe, Phone, MapPin, Calendar, Save, AlertCircle, Camera, Loader2, Trash2, ShieldAlert, Lock, Check } from 'lucide-react';
 
 interface Country {
   code: string;
@@ -24,6 +24,12 @@ export function UserProfile() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
+
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -164,6 +170,44 @@ export function UserProfile() {
       setMessage({ type: 'error', text: error.message || t('profile.failedUpdate') });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordMessage(null);
+
+    if (newPassword.length < 6) {
+      setPasswordMessage({ type: 'error', text: t('profile.passwordTooShort') });
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setPasswordMessage({ type: 'error', text: t('profile.passwordMismatch') });
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email: user!.email!,
+        password: currentPassword,
+      });
+      if (verifyError) {
+        setPasswordMessage({ type: 'error', text: t('profile.currentPasswordIncorrect') });
+        return;
+      }
+
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+      if (updateError) throw updateError;
+
+      setPasswordMessage({ type: 'success', text: t('profile.passwordUpdated') });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+    } catch (error: any) {
+      setPasswordMessage({ type: 'error', text: error.message || t('profile.failedUpdate') });
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -485,6 +529,86 @@ export function UserProfile() {
               >
                 <Save className="w-5 h-5" />
                 {saving ? t('profile.saving') : t('profile.save')}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div className="p-4 sm:p-6 border-b border-gray-200">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <Lock className="w-5 h-5" />
+            {t('profile.changePassword')}
+          </h3>
+          <p className="text-sm text-gray-600 mt-1">{t('profile.changePasswordDesc')}</p>
+        </div>
+
+        <div className="p-4 sm:p-6">
+          {passwordMessage && (
+            <div className={`p-4 rounded-lg flex items-center gap-3 mb-6 ${
+              passwordMessage.type === 'success'
+                ? 'bg-green-50 border border-green-200'
+                : 'bg-red-50 border border-red-200'
+            }`}>
+              {passwordMessage.type === 'success' ? (
+                <Check className="w-5 h-5 text-green-600" />
+              ) : (
+                <AlertCircle className="w-5 h-5 text-red-600" />
+              )}
+              <p className={passwordMessage.type === 'success' ? 'text-green-800' : 'text-red-800'}>
+                {passwordMessage.text}
+              </p>
+            </div>
+          )}
+
+          <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {t('profile.currentPassword')} *
+              </label>
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {t('profile.newPassword')} *
+              </label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                minLength={6}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {t('profile.confirmNewPassword')} *
+              </label>
+              <input
+                type="password"
+                value={confirmNewPassword}
+                onChange={(e) => setConfirmNewPassword(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                minLength={6}
+                required
+              />
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={changingPassword}
+                className="px-6 py-2.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                <Lock className="w-5 h-5" />
+                {changingPassword ? t('profile.saving') : t('profile.updatePasswordBtn')}
               </button>
             </div>
           </form>

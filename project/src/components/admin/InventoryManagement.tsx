@@ -4,6 +4,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { getLocalizedProductName, getLocalizedProductType } from '../../utils/productLocale';
 import { Package, Plus, CreditCard as Edit2, AlertTriangle, Search, RefreshCw } from 'lucide-react';
+import { maybeAlertLowStock } from '../../utils/notifications';
 
 interface Product {
   id: string;
@@ -190,6 +191,16 @@ export default function InventoryManagement() {
 
         if (logError) console.error('Error logging inventory:', logError);
       }
+
+      const oldAvailable = selectedItem.quantity - selectedItem.reserved_quantity;
+      const newAvailable = formData.quantity - formData.reserved_quantity;
+      maybeAlertLowStock(
+        getLocalizedProductName(selectedItem.product, language),
+        selectedItem.region,
+        oldAvailable,
+        newAvailable,
+        formData.low_stock_threshold
+      ).catch((err) => console.error('Error sending low stock alert:', err));
 
       setShowEditModal(false);
       setSelectedItem(null);

@@ -6,7 +6,7 @@ import { formatCurrency } from '../../utils/currency';
 import { getLocalizedProductName, getLocalizedProductType } from '../../utils/productLocale';
 import { getPromoLabel } from '../../utils/promoLocale';
 import { ShoppingCart, Trash2, Plus, Minus, AlertCircle, Check, X, Tag } from 'lucide-react';
-import { sendOrderPlacedNotification } from '../../utils/notifications';
+import { sendOrderPlacedNotification, maybeAlertLowStock } from '../../utils/notifications';
 
 interface CartItem {
   id: string;
@@ -201,7 +201,7 @@ export default function Cart() {
     try {
       let totalFreeItems = 0;
       let orderTotal = 0;
-      const itemsToReserve: { product_id: string; name: string; totalQuantity: number; freeItems: number }[] = [];
+      const itemsToReserve: { product_id: string; name: string; totalQuantity: number; freeItems: number; availableBefore: number; lowStockThreshold: number }[] = [];
 
       for (const item of cartItems) {
         const price = prices[item.product_id];
@@ -218,7 +218,7 @@ export default function Cart() {
 
         const { data: inventoryData, error: inventoryError } = await supabase
           .from('product_inventory')
-          .select('quantity, reserved_quantity')
+          .select('quantity, reserved_quantity, low_stock_threshold')
           .eq('product_id', item.product_id)
           .eq('region', 'CA')
           .maybeSingle();
@@ -238,7 +238,14 @@ export default function Cart() {
 
         orderTotal += price * item.quantity;
         totalFreeItems += freeItems;
-        itemsToReserve.push({ product_id: item.product_id, name: getLocalizedProductName(item.products, language), totalQuantity, freeItems });
+        itemsToReserve.push({
+          product_id: item.product_id,
+          name: getLocalizedProductName(item.products, language),
+          totalQuantity,
+          freeItems,
+          availableBefore: availableStock,
+          lowStockThreshold: inventoryData.low_stock_threshold,
+        });
       }
 
       const { data: orderNumberData } = await supabase.rpc('generate_order_number');
@@ -256,6 +263,14 @@ export default function Cart() {
           await rollbackReservations();
           throw new Error(t('cart.failedReserveStockFor', { name: item.name, message: reserveError.message }));
         }
+
+        maybeAlertLowStock(
+          item.name,
+          'CA',
+          item.availableBefore,
+          item.availableBefore - item.totalQuantity,
+          item.lowStockThreshold
+        ).catch((err) => console.error('Error sending low stock alert:', err));
 
         reservedSoFar.push({ product_id: item.product_id, quantity: item.totalQuantity });
       }

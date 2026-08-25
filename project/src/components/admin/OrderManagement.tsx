@@ -9,6 +9,7 @@ import {
   sendOrderApprovedNotification,
   sendOrderRejectedNotification,
   sendPaymentVerifiedNotification,
+  maybeAlertLowStock,
 } from '../../utils/notifications';
 import { roundPVToMultiple } from '../../utils/pv';
 import { usePaymentProofUrl } from '../../utils/paymentProofUrl';
@@ -333,7 +334,7 @@ export default function OrderManagement() {
 
       const { data: invData } = await supabase
         .from('product_inventory')
-        .select('quantity, reserved_quantity')
+        .select('quantity, reserved_quantity, low_stock_threshold')
         .eq('product_id', item.product_id)
         .eq('region', order.region)
         .maybeSingle();
@@ -364,6 +365,14 @@ export default function OrderManagement() {
         })
         .eq('product_id', item.product_id)
         .eq('region', order.region);
+
+      maybeAlertLowStock(
+        getLocalizedProductName(item.product, language),
+        order.region,
+        available,
+        available - freeToAdd,
+        invData.low_stock_threshold
+      ).catch((err) => console.error('Error sending low stock alert:', err));
 
       await supabase.from('notifications').insert([{
         user_id: order.user_id,
@@ -872,7 +881,16 @@ export default function OrderManagement() {
   };
 
   const handleStatusChange = async () => {
-    if (!selectedOrder || !newStatus) return;
+    if (!selectedOrder || !newStatus || newStatus === selectedOrder.status) return;
+
+    const isTerminalNonFulfillment = newStatus === 'rejected' || newStatus === 'cancelled';
+    if (!isTerminalNonFulfillment) {
+      const insufficientProduct = await getInsufficientStockProduct(selectedOrder);
+      if (insufficientProduct) {
+        toast.error(`Cannot change status: not enough stock available for ${insufficientProduct}.`);
+        return;
+      }
+    }
 
     try {
       const { error } = await supabase
@@ -883,7 +901,6 @@ export default function OrderManagement() {
       if (error) throw error;
 
       const wasHoldingReservation = selectedOrder.status === 'pending' || selectedOrder.status === 'awaiting_payment';
-      const isTerminalNonFulfillment = newStatus === 'rejected' || newStatus === 'cancelled';
       if (wasHoldingReservation && isTerminalNonFulfillment) {
         await releaseInventoryReservation(selectedOrder);
       }

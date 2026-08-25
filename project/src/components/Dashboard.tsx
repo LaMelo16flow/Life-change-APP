@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { LayoutDashboard, Users, Award, TrendingUp, Bell, LogOut, Menu, ShoppingCart, Shield, CircleUser as UserCircle, Package, ShoppingBag, UsersRound, Tag, Globe, Settings, CreditCard } from 'lucide-react';
+import { LayoutDashboard, Users, Award, TrendingUp, Bell, LogOut, Menu, ShoppingCart, Shield, CircleUser as UserCircle, Package, ShoppingBag, UsersRound, Tag, Globe, Settings, CreditCard, BarChart3 } from 'lucide-react';
 import { UserDashboard } from './user/UserDashboard';
 import { AdminDashboard } from './admin/AdminDashboard';
 import { NotificationBell } from './NotificationBell';
@@ -92,6 +92,7 @@ export function Dashboard() {
     { id: 'products', label: t('nav.products'), icon: Package, permission: 'manage_products' as const },
     { id: 'inventory', label: t('nav.inventory'), icon: TrendingUp, permission: 'manage_inventory' as const },
     { id: 'orders', label: t('nav.orderManagement'), icon: ShoppingBag, permission: 'manage_orders' as const },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3, permission: 'manage_inventory' as const },
     { id: 'promotions', label: t('nav.promotions'), icon: Award, permission: 'manage_promotions' as const },
     { id: 'deals', label: t('nav.deals'), icon: Tag, permission: 'manage_products' as const },
     { id: 'payment-settings', label: t('nav.paymentSettings'), icon: CreditCard, adminOnly: true },
@@ -160,11 +161,11 @@ export function Dashboard() {
               <div className={`flex items-center ${sidebarCollapsed && !isMobile ? 'justify-center' : 'gap-3'} mb-3`}>
                 <img
                   src={`${import.meta.env.BASE_URL}logo.webp`}
-                  alt="Life Changer Logo"
+                  alt="Life Changers Logo"
                   className={`${sidebarCollapsed && !isMobile ? 'w-10 h-10' : 'w-11 h-11'} rounded-lg object-contain transition-all duration-300`}
                 />
                 {(!sidebarCollapsed || isMobile) && (
-                  <h1 className="text-base font-bold tracking-tight text-white whitespace-nowrap">Life Changer</h1>
+                  <h1 className="text-base font-bold tracking-tight text-white whitespace-nowrap">Life Changers</h1>
                 )}
               </div>
               {(!sidebarCollapsed || isMobile) && (

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase, Profile, ManagerPermission, PermissionType } from '../lib/supabase';
 import { sendAccountApprovalRequestNotification } from '../utils/notifications';
@@ -32,6 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [permissions, setPermissions] = useState<ManagerPermission[]>([]);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+  const isSigningInRef = useRef(false);
 
   const fetchProfile = useCallback(async (userId: string) => {
     const { data, error } = await supabase
@@ -92,6 +93,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
+    // The Supabase client is constructed at module load (src/lib/supabase.ts),
+    // before this effect ever runs - with detectSessionInUrl on, it can already
+    // have parsed a `#type=recovery` link and fired the one-time PASSWORD_RECOVERY
+    // event before the onAuthStateChange listener below is attached, which would
+    // silently drop straight into the normal dashboard instead of the reset
+    // screen. Checking the URL directly here is not timing-dependent.
+    if (typeof window !== 'undefined' && window.location.hash.includes('type=recovery')) {
+      setIsPasswordRecovery(true);
+    }
+
     const initialize = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!mounted) return;
@@ -133,7 +144,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loadProfile]);
 
   useEffect(() => {
-    if (!loading && user && !profile) {
+    // Skip while signIn() is already fetching the profile itself (it needs
+    // the result synchronously to check account_status) - otherwise this
+    // fires concurrently with it the moment onAuthStateChange sets `user`,
+    // doubling every profile/permissions request on each login.
+    if (!loading && user && !profile && !isSigningInRef.current) {
       loadProfile(user.id);
     }
   }, [user, profile, loading, loadProfile]);
@@ -144,6 +159,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(`Trop de tentatives. Reessayez dans ${formatRetryTime(retryAfterMs)}.`);
     }
 
+    isSigningInRef.current = true;
+    try {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -175,6 +192,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setPermissions(perms);
         }
       }
+    }
+    } finally {
+      isSigningInRef.current = false;
     }
   };
 

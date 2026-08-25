@@ -6,7 +6,7 @@ import { formatCurrency } from '../../utils/currency';
 import { getLocalizedProductName, getLocalizedProductDescription, getLocalizedProductType } from '../../utils/productLocale';
 import { getPromoLabel, getPromoBuyGetFreeText } from '../../utils/promoLocale';
 import { ShoppingCart, Package, Check, AlertCircle, X, ShoppingBag, Minus, Plus, Gift } from 'lucide-react';
-import { sendOrderPlacedNotification } from '../../utils/notifications';
+import { sendOrderPlacedNotification, maybeAlertLowStock } from '../../utils/notifications';
 
 interface Product {
   id: string;
@@ -256,7 +256,7 @@ export default function Shop() {
     try {
       const { data: inventoryData, error: inventoryError } = await supabase
         .from('product_inventory')
-        .select('quantity, reserved_quantity')
+        .select('quantity, reserved_quantity, low_stock_threshold')
         .eq('product_id', selectedProduct.id)
         .eq('region', 'CA')
         .single();
@@ -283,6 +283,14 @@ export default function Shop() {
       if (reserveError) {
         throw new Error(t('shop.failedReserveStock', { message: reserveError.message }));
       }
+
+      maybeAlertLowStock(
+        selectedProduct.name,
+        'CA',
+        availableStock,
+        availableStock - totalQuantity,
+        inventoryData.low_stock_threshold
+      ).catch((err) => console.error('Error sending low stock alert:', err));
 
       try {
         const { data: orderData, error: orderError } = await supabase

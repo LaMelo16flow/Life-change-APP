@@ -128,7 +128,7 @@ export function AuthForm() {
             Life Changers
           </h1>
           <p className="text-gray-400 text-sm">
-            Votre voyage vers le bien-etre commence ici
+            Life changers teamwork
           </p>
         </div>
 

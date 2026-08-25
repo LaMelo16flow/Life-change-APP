@@ -452,6 +452,90 @@ export async function sendOrderRejectedNotification(
   // creating one here too would duplicate it.
 }
 
+export interface LowStockAlertData {
+  productName: string;
+  region: string;
+  available: number;
+  threshold: number;
+}
+
+export async function sendLowStockAlert(data: LowStockAlertData) {
+  const [{ data: fullAdmins }, { data: inventoryManagers }] = await Promise.all([
+    supabase.from('profiles').select('id, email').or('role.eq.admin,is_master.eq.true'),
+    supabase
+      .from('manager_permissions')
+      .select('user_id, profiles!inner(id, email)')
+      .eq('permission', 'manage_inventory'),
+  ]);
+
+  const recipients = new Map<string, string>();
+  (fullAdmins || []).forEach((a) => {
+    if (a.email) recipients.set(a.id, a.email);
+  });
+  (inventoryManagers || []).forEach((m: any) => {
+    const p = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles;
+    if (p?.email) recipients.set(p.id, p.email);
+  });
+
+  if (recipients.size === 0) return;
+
+  const dashboardUrl = `${window.location.origin}${(import.meta as any).env?.BASE_URL || '/'}`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background-color: #f59e0b; padding: 20px; border-radius: 8px 8px 0 0;">
+        <h2 style="color: #ffffff; margin: 0;">Low Stock Alert</h2>
+      </div>
+      <div style="background-color: #ffffff; padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+        <p style="color: #374151; font-size: 15px; line-height: 1.6;">
+          <strong>${data.productName}</strong> (${data.region}) has dropped to <strong>${data.available}</strong> unit${data.available === 1 ? '' : 's'} available - at or below its low-stock threshold of ${data.threshold}.
+        </p>
+        <p style="color: #374151; font-size: 14px;">
+          Please log in to the admin dashboard to restock.
+        </p>
+        <a href="${dashboardUrl}" style="display: inline-block; background-color: #f59e0b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 10px;">
+          Manage Inventory
+        </a>
+        <p style="color: #6b7280; font-size: 13px; margin-top: 24px;">
+          This is an automated notification from the LifeChangers platform.
+        </p>
+      </div>
+    </div>
+  `;
+
+  await Promise.allSettled(
+    Array.from(recipients.values()).map((to) =>
+      sendEmail({
+        to,
+        subject: `Low Stock Alert: ${data.productName} (${data.available} left)`,
+        html,
+        type: 'low_stock_alert',
+      })
+    )
+  );
+
+  await supabase.from('notifications').insert(
+    Array.from(recipients.keys()).map((userId) => ({
+      user_id: userId,
+      type: 'system',
+      title: 'Low Stock Alert',
+      message: `${data.productName} has only ${data.available} unit${data.available === 1 ? '' : 's'} left in ${data.region} (threshold: ${data.threshold}).`,
+      action_url: '/admin/inventory',
+    }))
+  );
+}
+
+export async function maybeAlertLowStock(
+  productName: string,
+  region: string,
+  previousAvailable: number,
+  newAvailable: number,
+  threshold: number
+) {
+  if (previousAvailable > threshold && newAvailable <= threshold) {
+    await sendLowStockAlert({ productName, region, available: newAvailable, threshold });
+  }
+}
+
 async function sendEmail(params: {
   to: string;
   subject: string;
