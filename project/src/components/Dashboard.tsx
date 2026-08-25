@@ -74,7 +74,6 @@ export function Dashboard() {
   }, [profile]);
 
   const userTabs = [
-    { id: 'overview', label: t('nav.overview'), icon: LayoutDashboard },
     { id: 'shop', label: t('nav.shop'), icon: ShoppingCart },
     { id: 'cart', label: t('nav.cart'), icon: ShoppingBag },
     { id: 'orders', label: t('nav.orders'), icon: Package },

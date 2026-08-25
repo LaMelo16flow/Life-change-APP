@@ -1,4 +1,3 @@
-import { UserOverview } from './UserOverview';
 import { MyTeam } from './MyTeam';
 import { PVHistory } from './PVHistory';
 import { NotificationsList } from './NotificationsList';
@@ -12,16 +11,15 @@ interface UserDashboardProps {
 }
 
 export function UserDashboard({ activeTab }: UserDashboardProps) {
-  return (
-    <div>
-      {activeTab === 'overview' && <UserOverview />}
-      {activeTab === 'team' && <MyTeam />}
-      {activeTab === 'pv' && <PVHistory />}
-      {activeTab === 'notifications' && <NotificationsList />}
-      {activeTab === 'shop' && <Shop />}
-      {activeTab === 'cart' && <Cart />}
-      {activeTab === 'orders' && <MyOrders />}
-      {activeTab === 'profile' && <UserProfile />}
-    </div>
-  );
+  if (activeTab === 'team') return <MyTeam />;
+  if (activeTab === 'pv') return <PVHistory />;
+  if (activeTab === 'notifications') return <NotificationsList />;
+  if (activeTab === 'cart') return <Cart />;
+  if (activeTab === 'orders') return <MyOrders />;
+  if (activeTab === 'profile') return <UserProfile />;
+
+  // Default landing tab - also covers a stale 'overview' value left over
+  // from Dashboard's shared activeTab state (its initial value, still
+  // valid for the admin side's own Overview tab).
+  return <Shop />;
 }
