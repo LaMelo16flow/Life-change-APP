@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { supabase, Notification } from '../../lib/supabase';
+import { resolveNotificationText } from '../../utils/notificationText';
 import { Bell, Calendar, Award, DollarSign, Users, Settings, Check, CheckCheck } from 'lucide-react';
 
 export function NotificationsList() {
@@ -164,7 +165,9 @@ export function NotificationsList() {
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {visibleNotifications.map((notification) => (
+            {visibleNotifications.map((notification) => {
+              const { title, message } = resolveNotificationText(notification, t);
+              return (
               <div
                 key={notification.id}
                 className={`group relative p-5 sm:p-6 hover:bg-slate-50 transition cursor-pointer ${
@@ -183,13 +186,13 @@ export function NotificationsList() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-3 mb-1">
                       <h4 className={`text-slate-900 ${!notification.is_read ? 'font-bold' : 'font-semibold'}`}>
-                        {notification.title}
+                        {title}
                       </h4>
                       {!notification.is_read && (
                         <span className="flex-shrink-0 mt-1.5 w-2 h-2 bg-brand-600 rounded-full"></span>
                       )}
                     </div>
-                    <p className="text-sm text-slate-600 mb-2 leading-relaxed">{notification.message}</p>
+                    <p className="text-sm text-slate-600 mb-2 leading-relaxed">{message}</p>
                     <div className="flex items-center gap-4">
                       <span className="text-xs font-medium text-slate-400">
                         {timeAgo(notification.created_at)}
@@ -207,7 +210,8 @@ export function NotificationsList() {
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

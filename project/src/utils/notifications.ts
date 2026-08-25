@@ -44,6 +44,9 @@ export async function sendAccountApprovalRequestNotification(userData: {
     type: 'approval',
     title: 'New Account Approval Request',
     message: `${userData.fullName} (${userData.email}) has registered and is waiting for approval.`,
+    titleKey: 'notif.newAccountRequestTitle',
+    messageKey: 'notif.newAccountRequestMsg',
+    messageParams: { name: userData.fullName, email: userData.email },
     action_url: '/admin/accounts',
     userRole: 'admin_and_managers',
   });
@@ -117,6 +120,9 @@ export async function sendPromotionNotification(data: {
           type: 'promotion',
           title: 'New Promotion Available',
           message: `${data.title || `Buy ${data.buyQuantity} Get ${data.freeQuantity} Free`} is now active for ${data.productName}.`,
+          titleKey: 'notif.newPromotionTitle',
+          messageKey: 'notif.newPromotionMsg',
+          messageParams: { label: data.title || `Buy ${data.buyQuantity} Get ${data.freeQuantity} Free`, product: data.productName },
           action_url: '/shop',
           userId: recipient.id,
         })
@@ -180,6 +186,9 @@ export async function sendOrderPlacedNotification(orderData: OrderNotificationDa
     type: 'approval',
     title: 'New Order Placed',
     message: `Order #${orderData.orderNumber} from ${orderData.userName} requires approval`,
+    titleKey: 'notif.newOrderPlacedTitle',
+    messageKey: 'notif.newOrderPlacedMsg',
+    messageParams: { orderNumber: orderData.orderNumber, userName: orderData.userName },
     action_url: '/admin/orders',
     userRole: 'admin_and_managers',
   });
@@ -228,13 +237,16 @@ export async function sendOrderPlacedNotification(orderData: OrderNotificationDa
       type: 'approval',
       title: 'Order Received',
       message: `Your order #${orderData.orderNumber} has been received and is pending approval.`,
+      titleKey: 'notif.orderReceivedTitle',
+      messageKey: 'notif.orderReceivedMsg',
+      messageParams: { orderNumber: orderData.orderNumber },
       action_url: '/orders',
       userId,
     });
   }
 }
 
-export async function sendOrderApprovedNotification(orderData: OrderNotificationData, userEmail: string, userId?: string) {
+export async function sendOrderApprovedNotification(orderData: OrderNotificationData, userEmail: string) {
   const paymentInstructions = await supabase
     .from('admin_settings')
     .select('value')
@@ -294,15 +306,9 @@ export async function sendOrderApprovedNotification(orderData: OrderNotification
     orderData,
   });
 
-  if (userId) {
-    await createInAppNotification({
-      type: 'payment',
-      title: 'Order Approved - Payment Required',
-      message: `Your order #${orderData.orderNumber} has been approved. Please submit payment.`,
-      action_url: '/orders',
-      userId,
-    });
-  }
+  // The in-app notification for this event is created inline by
+  // OrderManagement.handleApproveOrder (with proper translation keys) -
+  // creating one here too would duplicate it.
 }
 
 export async function sendPaymentSubmittedNotification(orderData: OrderNotificationData, adminEmail: string) {
@@ -339,12 +345,15 @@ export async function sendPaymentSubmittedNotification(orderData: OrderNotificat
     type: 'payment',
     title: 'Payment Proof Submitted',
     message: `Order #${orderData.orderNumber} - ${orderData.userName} submitted payment proof`,
+    titleKey: 'admin.paymentSubmitted',
+    messageKey: 'notif.paymentSubmittedAdminMsg',
+    messageParams: { orderNumber: orderData.orderNumber, userName: orderData.userName },
     action_url: '/admin/orders',
     userRole: 'admin',
   });
 }
 
-export async function sendPaymentVerifiedNotification(orderData: OrderNotificationData, userEmail: string, userId?: string) {
+export async function sendPaymentVerifiedNotification(orderData: OrderNotificationData, userEmail: string) {
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <div style="background-color: #10b981; padding: 20px; border-radius: 8px 8px 0 0;">
@@ -387,22 +396,15 @@ export async function sendPaymentVerifiedNotification(orderData: OrderNotificati
     orderData,
   });
 
-  if (userId) {
-    await createInAppNotification({
-      type: 'payment',
-      title: 'Payment Verified - Order Complete!',
-      message: `Your payment for order #${orderData.orderNumber} has been verified. PV points added to your account.`,
-      action_url: '/orders',
-      userId,
-    });
-  }
+  // The in-app notification for this event is created inline by
+  // OrderManagement.handleVerifyPayment (with proper translation keys) -
+  // creating one here too would duplicate it.
 }
 
 export async function sendOrderRejectedNotification(
   orderData: OrderNotificationData,
   userEmail: string,
-  reason: string,
-  userId?: string
+  reason: string
 ) {
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -445,15 +447,9 @@ export async function sendOrderRejectedNotification(
     orderData,
   });
 
-  if (userId) {
-    await createInAppNotification({
-      type: 'payment',
-      title: 'Order Rejected',
-      message: `Your order #${orderData.orderNumber} was not approved: ${reason}`,
-      action_url: '/orders',
-      userId,
-    });
-  }
+  // The in-app notification for this event is created inline by
+  // OrderManagement.handleRejectOrder (with proper translation keys) -
+  // creating one here too would duplicate it.
 }
 
 async function sendEmail(params: {
@@ -482,6 +478,9 @@ async function createInAppNotification(params: {
   type: string;
   title: string;
   message: string;
+  titleKey?: string;
+  messageKey?: string;
+  messageParams?: Record<string, string | number>;
   action_url?: string;
   userRole?: 'admin' | 'user' | 'admin_and_managers';
   userId?: string;
@@ -500,6 +499,9 @@ async function createInAppNotification(params: {
           type: params.type,
           title: params.title,
           message: params.message,
+          title_key: params.titleKey,
+          message_key: params.messageKey,
+          message_params: params.messageParams,
           action_url: params.action_url,
         }));
 
@@ -518,6 +520,9 @@ async function createInAppNotification(params: {
           type: params.type,
           title: params.title,
           message: params.message,
+          title_key: params.titleKey,
+          message_key: params.messageKey,
+          message_params: params.messageParams,
           action_url: params.action_url,
         }));
 
@@ -529,6 +534,9 @@ async function createInAppNotification(params: {
         type: params.type,
         title: params.title,
         message: params.message,
+        title_key: params.titleKey,
+        message_key: params.messageKey,
+        message_params: params.messageParams,
         action_url: params.action_url,
       });
     }

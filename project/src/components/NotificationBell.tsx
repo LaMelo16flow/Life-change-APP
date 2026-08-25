@@ -3,6 +3,7 @@ import { Bell, Calendar, Award, DollarSign, Users, Settings, Check, Loader2 } fr
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase, Notification } from '../lib/supabase';
+import { resolveNotificationText } from '../utils/notificationText';
 
 interface NotificationBellProps {
   unreadCount: number;
@@ -129,6 +130,7 @@ export function NotificationBell({ unreadCount, onViewAll }: NotificationBellPro
                 {items.map((notification) => {
                   const Icon = ICONS[notification.type] || Settings;
                   const color = COLORS[notification.type] || 'bg-slate-100 text-slate-600';
+                  const { title, message } = resolveNotificationText(notification, t);
                   return (
                     <li key={notification.id}>
                       <button
@@ -147,14 +149,14 @@ export function NotificationBell({ unreadCount, onViewAll }: NotificationBellPro
                                 !notification.is_read ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'
                               }`}
                             >
-                              {notification.title}
+                              {title}
                             </span>
                             {!notification.is_read && (
                               <span className="w-1.5 h-1.5 rounded-full bg-brand-600 flex-shrink-0" />
                             )}
                           </span>
                           <span className="block text-xs text-slate-500 line-clamp-2 mt-0.5">
-                            {notification.message}
+                            {message}
                           </span>
                           <span className="block text-[11px] text-slate-400 mt-1">
                             {timeAgo(notification.created_at)}

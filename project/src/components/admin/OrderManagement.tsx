@@ -370,6 +370,9 @@ export default function OrderManagement() {
         type: 'promotion',
         title: t('om.promotionAppliedTitle'),
         message: t('om.promotionAppliedMsg', { product: item.product.name, n: freeToAdd, orderNumber: order.order_number }),
+        title_key: 'om.promotionAppliedTitle',
+        message_key: 'om.promotionAppliedMsg',
+        message_params: { product: item.product.name, n: freeToAdd, orderNumber: order.order_number },
         action_url: '/orders',
       }]);
     }
@@ -488,6 +491,9 @@ export default function OrderManagement() {
         type: 'approval',
         title: t('om.orderApprovedTitle'),
         message: t('om.orderApprovedMsg', { orderNumber: selectedOrder.order_number, email: adminEmail }),
+        title_key: 'om.orderApprovedTitle',
+        message_key: 'om.orderApprovedMsg',
+        message_params: { orderNumber: selectedOrder.order_number, email: adminEmail },
         action_url: '/orders',
       }]);
 
@@ -500,8 +506,7 @@ export default function OrderManagement() {
           userName: selectedOrder.user.full_name,
           adminEmail: adminEmail,
         },
-        selectedOrder.user.email,
-        selectedOrder.user_id
+        selectedOrder.user.email
       );
 
       toast.success(t('om.orderApprovedToast'));
@@ -680,6 +685,9 @@ export default function OrderManagement() {
         type: 'approval',
         title: t('om.orderRejectedNotifTitle'),
         message: t('om.orderRejectedMsg', { orderNumber: selectedOrder.order_number, reason: rejectionReason }),
+        title_key: 'om.orderRejectedNotifTitle',
+        message_key: 'om.orderRejectedMsg',
+        message_params: { orderNumber: selectedOrder.order_number, reason: rejectionReason },
         action_url: '/orders',
       }]);
 
@@ -692,8 +700,7 @@ export default function OrderManagement() {
           userName: selectedOrder.user.full_name,
         },
         selectedOrder.user.email,
-        rejectionReason,
-        selectedOrder.user_id
+        rejectionReason
       );
 
       toast.success(t('om.orderRejectedToast'));
@@ -797,6 +804,9 @@ export default function OrderManagement() {
         type: 'payment',
         title: t('om.paymentVerifiedTitle'),
         message: t('om.paymentVerifiedMsg', { orderNumber: selectedOrder.order_number, pv: roundedPV }),
+        title_key: 'om.paymentVerifiedTitle',
+        message_key: 'om.paymentVerifiedMsg',
+        message_params: { orderNumber: selectedOrder.order_number, pv: roundedPV },
         action_url: '/orders',
       }]);
 
@@ -808,8 +818,7 @@ export default function OrderManagement() {
           totalAmount: `${selectedOrder.currency_code} ${selectedOrder.total_amount.toFixed(2)}`,
           userName: selectedOrder.user.full_name,
         },
-        selectedOrder.user.email,
-        selectedOrder.user_id
+        selectedOrder.user.email
       );
 
       toast.success(t('om.paymentVerifiedToast'));
@@ -844,6 +853,9 @@ export default function OrderManagement() {
         type: 'payment',
         title: t('om.paymentRejectedTitle'),
         message: t('om.paymentRejectedMsg', { orderNumber: selectedOrder.order_number, reason: paymentRejectionReason }),
+        title_key: 'om.paymentRejectedTitle',
+        message_key: 'om.paymentRejectedMsg',
+        message_params: { orderNumber: selectedOrder.order_number, reason: paymentRejectionReason },
         action_url: '/orders',
       }]);
 
@@ -881,6 +893,9 @@ export default function OrderManagement() {
         type: 'approval',
         title: t('om.statusUpdatedTitle'),
         message: t('om.statusUpdatedMsg', { orderNumber: selectedOrder.order_number, status: getStatusLabel(newStatus) }),
+        title_key: 'om.statusUpdatedTitle',
+        message_key: 'om.statusUpdatedMsg',
+        message_params: { orderNumber: selectedOrder.order_number, status: getStatusLabel(newStatus) },
         action_url: '/orders',
       }]);
 

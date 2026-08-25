@@ -227,6 +227,9 @@ export default function MyOrders() {
         type: 'payment',
         title: t('orders.paymentProofSubmitted'),
         message: t('orders.paymentProofSubmittedMsg', { orderNumber: selectedOrder.order_number }),
+        title_key: 'orders.paymentProofSubmitted',
+        message_key: 'orders.paymentProofSubmittedMsg',
+        message_params: { orderNumber: selectedOrder.order_number },
         action_url: '/orders',
       }]);
 

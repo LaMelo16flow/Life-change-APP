@@ -78,6 +78,9 @@ export interface Notification {
   type: 'meeting' | 'promotion' | 'approval' | 'payment' | 'group' | 'system';
   title: string;
   message: string;
+  title_key?: string | null;
+  message_key?: string | null;
+  message_params?: Record<string, string | number> | null;
   action_url: string | null;
   is_read: boolean;
   created_at: string;

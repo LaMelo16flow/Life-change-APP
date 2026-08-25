@@ -115,6 +115,8 @@ export default function AccountApprovals() {
           type: 'approval',
           title: t('accounts.accountApprovedTitle'),
           message: t('accounts.accountApprovedMsg'),
+          title_key: 'accounts.accountApprovedTitle',
+          message_key: 'accounts.accountApprovedMsg',
           action_url: '/',
         });
       }
@@ -153,6 +155,9 @@ export default function AccountApprovals() {
         type: 'approval',
         title: t('accounts.registrationNotApprovedTitle'),
         message: t('accounts.registrationNotApprovedMsg', { reason: rejectionReason }),
+        title_key: 'accounts.registrationNotApprovedTitle',
+        message_key: 'accounts.registrationNotApprovedMsg',
+        message_params: { reason: rejectionReason },
         action_url: '/',
       });
 
