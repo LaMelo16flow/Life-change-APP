@@ -185,14 +185,12 @@ export default function Cart() {
     setProcessing(true);
     setMessage(null);
 
-    const reservedSoFar: { product_id: string; quantity: number }[] = [];
+    const reservedSoFar: string[] = [];
 
     const rollbackReservations = async () => {
-      for (const r of reservedSoFar) {
+      for (const token of reservedSoFar) {
         await supabase.rpc('release_inventory', {
-          p_product_id: r.product_id,
-          p_region: 'CA',
-          p_quantity: r.quantity,
+          p_token: token,
           p_notes: 'Rollback: checkout failed partway through',
         });
       }
@@ -252,7 +250,7 @@ export default function Cart() {
       const orderNumber = orderNumberData || `ORD-${Date.now()}`;
 
       for (const item of itemsToReserve) {
-        const { error: reserveError } = await supabase.rpc('reserve_inventory', {
+        const { data: reservationToken, error: reserveError } = await supabase.rpc('reserve_inventory', {
           p_product_id: item.product_id,
           p_region: 'CA',
           p_quantity: item.totalQuantity,
@@ -272,7 +270,7 @@ export default function Cart() {
           item.lowStockThreshold
         ).catch((err) => console.error('Error sending low stock alert:', err));
 
-        reservedSoFar.push({ product_id: item.product_id, quantity: item.totalQuantity });
+        reservedSoFar.push(reservationToken);
       }
 
       const { data: orderData, error: orderError } = await supabase

@@ -273,7 +273,7 @@ export default function Shop() {
       const { data: orderNumberData } = await supabase.rpc('generate_order_number');
       const orderNumber = orderNumberData || `ORD-${Date.now()}`;
 
-      const { error: reserveError } = await supabase.rpc('reserve_inventory', {
+      const { data: reservationToken, error: reserveError } = await supabase.rpc('reserve_inventory', {
         p_product_id: selectedProduct.id,
         p_region: 'CA',
         p_quantity: totalQuantity,
@@ -326,9 +326,7 @@ export default function Shop() {
         if (itemError) throw itemError;
       } catch (err) {
         await supabase.rpc('release_inventory', {
-          p_product_id: selectedProduct.id,
-          p_region: 'CA',
-          p_quantity: totalQuantity,
+          p_token: reservationToken,
           p_notes: `Rollback: order creation failed after stock was reserved`,
         });
         throw err;
