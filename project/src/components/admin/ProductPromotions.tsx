@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { getLocalizedProductName } from '../../utils/productLocale';
+import { getLocalizedProductName, getLocalizedProductType } from '../../utils/productLocale';
+import { getPromoLabel } from '../../utils/promoLocale';
 import { Tag, Plus, Trash2, CreditCard as Edit2, Save, Package, Ban } from 'lucide-react';
 import { sendPromotionNotification } from '../../utils/notifications';
 
@@ -11,6 +12,7 @@ interface Product {
   name: string;
   name_en?: string | null;
   product_type: string;
+  product_type_en?: string | null;
 }
 
 interface Promotion {
@@ -29,7 +31,7 @@ interface Promotion {
 
 export default function ProductPromotions() {
   const toast = useToast();
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,9 +56,9 @@ export default function ProductPromotions() {
     const [promoRes, productsRes] = await Promise.all([
       supabase
         .from('product_promotions')
-        .select('*, product:products(id, name, name_en, product_type)')
+        .select('*, product:products(id, name, name_en, product_type, product_type_en)')
         .order('created_at', { ascending: false }),
-      supabase.from('products').select('id, name, name_en, product_type').eq('is_active', true).order('name'),
+      supabase.from('products').select('id, name, name_en, product_type, product_type_en').eq('is_active', true).order('name'),
     ]);
 
     if (promoRes.data) setPromotions(promoRes.data);
@@ -78,15 +80,16 @@ export default function ProductPromotions() {
 
   const handleAdd = async () => {
     if (!form.product_id || form.buy_quantity < 1 || form.free_quantity < 1) {
-      toast.warning('Please fill in all required fields. Buy and free quantities must be at least 1.');
+      toast.warning(t('promo.pleaseAllFields'));
       return;
     }
 
     const { data: userData } = await supabase.auth.getUser();
+    const cleanedTitle = form.title.trim();
 
     const { error } = await supabase.from('product_promotions').insert({
       product_id: form.product_id,
-      title: form.title || `Buy ${form.buy_quantity} Get ${form.free_quantity} Free`,
+      title: cleanedTitle,
       buy_quantity: form.buy_quantity,
       free_quantity: form.free_quantity,
       country_code: null,
@@ -97,22 +100,22 @@ export default function ProductPromotions() {
     });
 
     if (error) {
-      toast.error('Failed to create promotion');
+      toast.error(t('promo.failedCreate'));
       return;
     }
 
-    const productName = products.find((product) => product.id === form.product_id)?.name || 'Selected product';
+    const productName = products.find((product) => product.id === form.product_id)?.name || t('promo.selectedProductFallback');
 
     sendPromotionNotification({
       productName,
-      title: form.title || `Buy ${form.buy_quantity} Get ${form.free_quantity} Free`,
+      title: getPromoLabel({ title: cleanedTitle, buy_quantity: form.buy_quantity, free_quantity: form.free_quantity }, language),
       buyQuantity: form.buy_quantity,
       freeQuantity: form.free_quantity,
       startsAt: new Date(form.starts_at).toISOString(),
       endsAt: new Date(form.ends_at).toISOString(),
     }).catch((notifyError) => console.error('Error sending promotion notifications:', notifyError));
 
-    toast.success('Promotion created successfully');
+    toast.success(t('promo.created'));
     setShowAdd(false);
     resetForm();
     await loadData();
@@ -149,11 +152,11 @@ export default function ProductPromotions() {
       .eq('id', editingId);
 
     if (error) {
-      toast.error('Failed to update promotion');
+      toast.error(t('promo.failedUpdate'));
       return;
     }
 
-    toast.success('Promotion updated successfully');
+    toast.success(t('promo.updated'));
     setEditingId(null);
     resetForm();
     await loadData();
@@ -170,20 +173,20 @@ export default function ProductPromotions() {
       .eq('id', id);
 
     if (error) {
-      toast.error('Failed to cancel promotion');
+      toast.error(t('promo.failedCancel'));
       return;
     }
-    toast.success('Promotion cancelled and ended');
+    toast.success(t('promo.cancelled'));
     await loadData();
   };
 
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from('product_promotions').delete().eq('id', id);
     if (error) {
-      toast.error('Failed to delete promotion');
+      toast.error(t('promo.failedDelete'));
       return;
     }
-    toast.success('Promotion deleted');
+    toast.success(t('promo.deleted'));
     await loadData();
   };
 
@@ -204,32 +207,32 @@ export default function ProductPromotions() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Product Promotions</h2>
-          <p className="text-gray-600 mt-1">Create "Buy X Get Y Free" deals for products</p>
+          <h2 className="text-2xl font-bold text-gray-900">{t('promo.title')}</h2>
+          <p className="text-gray-600 mt-1">{t('admin.buyXGetYFree')}</p>
         </div>
         <button
           onClick={() => { resetForm(); setShowAdd(true); }}
           className="flex items-center gap-2 px-4 py-2 bg-brand-700 text-white rounded-lg hover:bg-brand-800 font-medium self-start sm:self-auto"
         >
           <Plus className="w-5 h-5" />
-          New Promotion
+          {t('promo.newPromotion')}
         </button>
       </div>
 
       {(showAdd || editingId) && (
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            {editingId ? 'Edit Promotion' : 'Create Promotion'}
+            {editingId ? t('admin.editPromotion') : t('admin.createPromotion')}
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('inv.product')}</label>
               <select
                 value={form.product_id}
                 onChange={(e) => setForm({ ...form, product_id: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
               >
-                <option value="">Select a product</option>
+                <option value="">{t('inv.selectProduct')}</option>
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>{getLocalizedProductName(p, language)}</option>
                 ))}
@@ -237,18 +240,18 @@ export default function ProductPromotions() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('promo.titleLabel')}</label>
               <input
                 type="text"
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
-                placeholder="e.g., Buy 3 Get 1 Free"
+                placeholder={t('promo.titlePlaceholder')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Buy Quantity</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('promo.buyQuantity')}</label>
               <input
                 type="number"
                 min="1"
@@ -256,11 +259,11 @@ export default function ProductPromotions() {
                 onChange={(e) => setForm({ ...form, buy_quantity: parseInt(e.target.value) || 1 })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
               />
-              <p className="text-xs text-gray-500 mt-1">Customer must buy this many</p>
+              <p className="text-xs text-gray-500 mt-1">{t('promo.buyQuantityHint')}</p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Free Quantity</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('promo.freeQuantity')}</label>
               <input
                 type="number"
                 min="0"
@@ -268,7 +271,7 @@ export default function ProductPromotions() {
                 onChange={(e) => setForm({ ...form, free_quantity: parseInt(e.target.value) || 0 })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
               />
-              <p className="text-xs text-gray-500 mt-1">They get this many for free</p>
+              <p className="text-xs text-gray-500 mt-1">{t('promo.freeQuantityHint')}</p>
             </div>
 
             <div className="flex items-center gap-3 pt-6">
@@ -279,11 +282,11 @@ export default function ProductPromotions() {
                 onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
                 className="w-4 h-4 text-brand-600 rounded focus:ring-brand-500"
               />
-              <label htmlFor="promo-active" className="text-sm font-medium text-gray-700">Active</label>
+              <label htmlFor="promo-active" className="text-sm font-medium text-gray-700">{t('common.active')}</label>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Starts At</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('promo.startsAt')}</label>
               <input
                 type="datetime-local"
                 value={form.starts_at}
@@ -293,7 +296,7 @@ export default function ProductPromotions() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Ends At</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('promo.endsAt')}</label>
               <input
                 type="datetime-local"
                 value={form.ends_at}
@@ -306,8 +309,7 @@ export default function ProductPromotions() {
           {form.buy_quantity > 0 && form.free_quantity > 0 && (
             <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
               <p className="text-sm text-green-800 font-medium">
-                Preview: Buy {form.buy_quantity}, get {form.free_quantity} free
-                (customer pays for {form.buy_quantity}, receives {form.buy_quantity + form.free_quantity} total)
+                {t('promo.previewText', { buy: form.buy_quantity, free: form.free_quantity, total: form.buy_quantity + form.free_quantity })}
               </p>
             </div>
           )}
@@ -318,13 +320,13 @@ export default function ProductPromotions() {
               className="flex items-center gap-2 px-4 py-2 bg-brand-700 text-white rounded-lg hover:bg-brand-800 font-medium"
             >
               <Save className="w-4 h-4" />
-              {editingId ? 'Save Changes' : 'Create Promotion'}
+              {editingId ? t('profile.save') : t('admin.createPromotion')}
             </button>
             <button
               onClick={() => { setShowAdd(false); setEditingId(null); resetForm(); }}
               className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium"
             >
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </div>
@@ -333,8 +335,8 @@ export default function ProductPromotions() {
       {promotions.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
           <Tag className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">No promotions yet</h3>
-          <p className="text-gray-500">Create your first "Buy X Get Y Free" deal</p>
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">{t('promo.noPromotionsYet')}</h3>
+          <p className="text-gray-500">{t('admin.createFirstDeal')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -355,8 +357,8 @@ export default function ProductPromotions() {
                       <Package className={`w-5 h-5 ${active ? 'text-green-600' : 'text-gray-500'}`} />
                     </div>
                     <div className="min-w-0">
-                      <h4 className="font-semibold text-gray-900 truncate">{promo.product ? getLocalizedProductName(promo.product, language) : 'Unknown Product'}</h4>
-                      <p className="text-sm text-gray-500 truncate">{promo.product?.product_type}</p>
+                      <h4 className="font-semibold text-gray-900 truncate">{promo.product ? getLocalizedProductName(promo.product, language) : t('common.unknownProduct')}</h4>
+                      <p className="text-sm text-gray-500 truncate">{promo.product ? getLocalizedProductType(promo.product, language) : ''}</p>
                     </div>
                   </div>
                   <span className={`px-2 py-1 text-xs font-semibold rounded flex-shrink-0 ${
@@ -364,26 +366,26 @@ export default function ProductPromotions() {
                     expired ? 'bg-gray-100 text-gray-500' :
                     'bg-yellow-100 text-yellow-700'
                   }`}>
-                    {active ? 'Active' : expired ? 'Expired' : 'Inactive'}
+                    {active ? t('common.active') : expired ? t('admin.expired') : t('common.inactive')}
                   </span>
                 </div>
 
                 <div className="bg-brand-50 rounded-lg p-3 mb-3">
                   <p className="text-sm font-bold text-brand-800">
-                    {promo.title || `Buy ${promo.buy_quantity} Get ${promo.free_quantity} Free`}
+                    {getPromoLabel(promo, language)}
                   </p>
                   <p className="text-xs text-brand-600 mt-1">
-                    Pay for {promo.buy_quantity}, receive {promo.buy_quantity + promo.free_quantity} total
+                    {t('promo.payReceiveTotal', { buy: promo.buy_quantity, total: promo.buy_quantity + promo.free_quantity })}
                   </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 mb-3">
                   <div>
-                    <span className="font-medium">Starts:</span>{' '}
+                    <span className="font-medium">{t('promo.starts')}</span>{' '}
                     {new Date(promo.starts_at).toLocaleDateString()}
                   </div>
                   <div>
-                    <span className="font-medium">Ends:</span>{' '}
+                    <span className="font-medium">{t('promo.ends')}</span>{' '}
                     {new Date(promo.ends_at).toLocaleDateString()}
                   </div>
                 </div>
@@ -394,7 +396,7 @@ export default function ProductPromotions() {
                     className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
-                    Edit
+                    {t('admin.edit')}
                   </button>
                   {active && (
                     <button
@@ -402,7 +404,7 @@ export default function ProductPromotions() {
                       className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100"
                     >
                       <Ban className="w-3.5 h-3.5" />
-                      Cancel
+                      {t('common.cancel')}
                     </button>
                   )}
                   <button
@@ -410,7 +412,7 @@ export default function ProductPromotions() {
                     className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium bg-red-50 text-red-600 rounded-lg hover:bg-red-100"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                    Delete
+                    {t('admin.delete')}
                   </button>
                 </div>
               </div>

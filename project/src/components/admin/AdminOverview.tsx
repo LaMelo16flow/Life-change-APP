@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { Users, TrendingUp, DollarSign, CheckCircle, ShoppingBag } from 'lucide-react';
 import { AnimatedCounter } from '../AnimatedCounter';
 
 const REFRESH_INTERVAL = 10_000;
 
 export function AdminOverview() {
+  const { t } = useLanguage();
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeUsers: 0,
@@ -72,8 +74,8 @@ export function AdminOverview() {
   return (
     <div className="space-y-4 lg:space-y-6">
       <div>
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Admin Dashboard</h2>
-        <p className="text-sm sm:text-base text-gray-500 mt-1">Platform overview and key metrics</p>
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">{t('admin.dashboard')}</h2>
+        <p className="text-sm sm:text-base text-gray-500 mt-1">{t('admin.platformOverview')}</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
@@ -83,12 +85,12 @@ export function AdminOverview() {
               <Users className="w-5 h-5 sm:w-6 sm:h-6 text-brand-600" />
             </div>
             <div className="min-w-0">
-              <p className="text-gray-500 text-xs sm:text-sm">Total Users</p>
+              <p className="text-gray-500 text-xs sm:text-sm">{t('admin.totalUsers')}</p>
               <p className="text-xl sm:text-2xl font-bold text-gray-900">
                 <AnimatedCounter value={stats.totalUsers} />
               </p>
               <p className="text-xs text-brand-600 mt-1">
-                <AnimatedCounter value={stats.activeUsers} /> active
+                <AnimatedCounter value={stats.activeUsers} /> {t('admin.active')}
               </p>
             </div>
           </div>
@@ -100,7 +102,7 @@ export function AdminOverview() {
               <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600" />
             </div>
             <div className="min-w-0">
-              <p className="text-gray-500 text-xs sm:text-sm">Total PV in System</p>
+              <p className="text-gray-500 text-xs sm:text-sm">{t('admin.totalPV')}</p>
               <p className="text-xl sm:text-2xl font-bold text-gray-900">
                 <AnimatedCounter value={stats.totalPV} />
               </p>
@@ -114,7 +116,7 @@ export function AdminOverview() {
               <ShoppingBag className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600" />
             </div>
             <div className="min-w-0">
-              <p className="text-gray-500 text-xs sm:text-sm">Pending Orders</p>
+              <p className="text-gray-500 text-xs sm:text-sm">{t('admin.pendingOrders')}</p>
               <p className="text-xl sm:text-2xl font-bold text-gray-900">
                 <AnimatedCounter value={stats.pendingOrders} />
               </p>
@@ -128,7 +130,7 @@ export function AdminOverview() {
               <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
             </div>
             <div className="min-w-0">
-              <p className="text-gray-500 text-xs sm:text-sm">Payments (Last 7 days)</p>
+              <p className="text-gray-500 text-xs sm:text-sm">{t('admin.payments')}</p>
               <p className="text-xl sm:text-2xl font-bold text-gray-900">
                 <AnimatedCounter value={stats.recentPayments} />
               </p>
@@ -142,39 +144,39 @@ export function AdminOverview() {
               <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-brand-600" />
             </div>
             <div className="min-w-0">
-              <p className="text-gray-500 text-xs sm:text-sm">System Status</p>
-              <p className="text-base sm:text-lg font-bold text-brand-600">Operational</p>
+              <p className="text-gray-500 text-xs sm:text-sm">{t('admin.systemStatus')}</p>
+              <p className="text-base sm:text-lg font-bold text-brand-600">{t('admin.operational')}</p>
             </div>
           </div>
         </div>
       </div>
 
       <div className="bg-gradient-to-r from-brand-800 to-brand-900 rounded-2xl p-6 sm:p-8 text-white">
-        <h3 className="text-xl sm:text-2xl font-bold mb-2">Welcome to the Admin Dashboard</h3>
+        <h3 className="text-xl sm:text-2xl font-bold mb-2">{t('admin.welcome')}</h3>
         <p className="text-sm sm:text-base text-brand-200 mb-6">
-          Manage your community platform, approve orders, and oversee all operations from this central hub.
+          {t('admin.welcomeDesc')}
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs sm:text-sm">
           <div>
-            <p className="text-brand-300 mb-1">Quick Actions</p>
+            <p className="text-brand-300 mb-1">{t('admin.quickActions')}</p>
             <ul className="space-y-1 text-brand-100">
-              <li>- Manage user accounts</li>
-              <li>- Upload products via Excel</li>
+              <li>- {t('admin.manageAccountsAction')}</li>
+              <li>- {t('admin.uploadProductsAction')}</li>
             </ul>
           </div>
           <div>
-            <p className="text-brand-300 mb-1">Approvals</p>
+            <p className="text-brand-300 mb-1">{t('admin.approvals')}</p>
             <ul className="space-y-1 text-brand-100">
-              <li>- Approve pending orders</li>
-              <li>- Verify payment proofs</li>
+              <li>- {t('admin.approvePendingOrdersAction')}</li>
+              <li>- {t('admin.verifyPaymentProofsAction')}</li>
             </ul>
           </div>
           <div>
-            <p className="text-brand-300 mb-1">Settings</p>
+            <p className="text-brand-300 mb-1">{t('admin.settings')}</p>
             <ul className="space-y-1 text-brand-100">
-              <li>- Configure payment methods</li>
-              <li>- Adjust system settings</li>
-              <li>- Monitor activity logs</li>
+              <li>- {t('admin.configurePaymentMethodsAction')}</li>
+              <li>- {t('admin.adjustSystemSettingsAction')}</li>
+              <li>- {t('admin.monitorActivityLogsAction')}</li>
             </ul>
           </div>
         </div>

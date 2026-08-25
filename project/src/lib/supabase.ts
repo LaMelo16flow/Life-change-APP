@@ -88,6 +88,7 @@ export interface Product {
   name: string;
   name_en?: string | null;
   product_type: string;
+  product_type_en?: string | null;
   pv_value: number;
   description: string | null;
   description_en?: string | null;

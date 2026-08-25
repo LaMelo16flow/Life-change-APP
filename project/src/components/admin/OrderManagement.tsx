@@ -74,7 +74,7 @@ interface Order {
 
 export default function OrderManagement() {
   const toast = useToast();
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const [orders, setOrders] = useState<Order[]>([]);
   const [countryNames, setCountryNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -228,7 +228,7 @@ export default function OrderManagement() {
       setUserHistoryOrders(data || []);
     } catch (error) {
       console.error('Error loading user order history:', error);
-      toast.error('Failed to load user order history');
+      toast.error(t('om.failedLoadUserHistory'));
     } finally {
       setUserHistoryLoading(false);
     }
@@ -286,7 +286,7 @@ export default function OrderManagement() {
     }
 
     return {
-      displayName: (order.product && getLocalizedProductName(order.product, language)) || 'Unknown Product',
+      displayName: (order.product && getLocalizedProductName(order.product, language)) || t('common.unknownProduct'),
       totalPV: order.product ? order.product.pv_value * order.quantity : 0,
       image: order.product?.image_url,
       itemCount: 1
@@ -368,8 +368,8 @@ export default function OrderManagement() {
       await supabase.from('notifications').insert([{
         user_id: order.user_id,
         type: 'promotion',
-        title: 'Promotion Applied!',
-        message: `You qualified for a promotion on ${item.product.name}! ${freeToAdd} free item${freeToAdd > 1 ? 's' : ''} added to order ${order.order_number}.`,
+        title: t('om.promotionAppliedTitle'),
+        message: t('om.promotionAppliedMsg', { product: item.product.name, n: freeToAdd, orderNumber: order.order_number }),
         action_url: '/orders',
       }]);
     }
@@ -402,7 +402,7 @@ export default function OrderManagement() {
       const available = inv ? inv.quantity - inv.reserved_quantity : 0;
       if (available < 0) {
         const invProduct = Array.isArray(inv?.product) ? inv.product[0] : inv?.product;
-        return invProduct?.name || 'this product';
+        return invProduct?.name || t('promo.selectedProductFallback');
       }
     }
     return null;
@@ -439,7 +439,7 @@ export default function OrderManagement() {
 
     const insufficientProduct = await getInsufficientStockProduct(selectedOrder);
     if (insufficientProduct) {
-      toast.error(`Cannot approve: not enough stock available for ${insufficientProduct}.`);
+      toast.error(t('om.cannotApproveStock', { product: insufficientProduct }));
       return;
     }
 
@@ -486,8 +486,8 @@ export default function OrderManagement() {
       await supabase.from('notifications').insert([{
         user_id: selectedOrder.user_id,
         type: 'approval',
-        title: 'Order Approved - Payment Required',
-        message: `Your order ${selectedOrder.order_number} has been approved. Please send payment to ${adminEmail} and submit your payment proof.`,
+        title: t('om.orderApprovedTitle'),
+        message: t('om.orderApprovedMsg', { orderNumber: selectedOrder.order_number, email: adminEmail }),
         action_url: '/orders',
       }]);
 
@@ -504,7 +504,7 @@ export default function OrderManagement() {
         selectedOrder.user_id
       );
 
-      toast.success('Order approved. Stock reserved. User has been notified to submit payment.');
+      toast.success(t('om.orderApprovedToast'));
       setShowApproveModal(false);
       setAdminNotes('');
       setSelectedOrder(null);
@@ -514,7 +514,7 @@ export default function OrderManagement() {
       await loadStatusCounts();
     } catch (error) {
       console.error('Error approving order:', error);
-      toast.error('Failed to approve order');
+      toast.error(t('om.failedApproveOrder'));
     }
   };
 
@@ -642,12 +642,12 @@ export default function OrderManagement() {
       setOtherPendingOrders([]);
       setSelectedMergeOrderIds(new Set());
 
-      toast.success(`${ordersToMerge.length} order${ordersToMerge.length > 1 ? 's' : ''} merged into ${selectedOrder.order_number}. Now approving...`);
+      toast.success(t('om.ordersMergedToast', { n: ordersToMerge.length, orderNumber: selectedOrder.order_number }));
 
       setTimeout(() => handleApproveOrder(), 100);
     } catch (error) {
       console.error('Error merging orders:', error);
-      toast.error('Failed to merge orders');
+      toast.error(t('om.failedMergeOrders'));
     } finally {
       setMergeLoading(false);
     }
@@ -678,8 +678,8 @@ export default function OrderManagement() {
       await supabase.from('notifications').insert([{
         user_id: selectedOrder.user_id,
         type: 'approval',
-        title: 'Order Rejected',
-        message: `Your order ${selectedOrder.order_number} has been rejected. Reason: ${rejectionReason}`,
+        title: t('om.orderRejectedNotifTitle'),
+        message: t('om.orderRejectedMsg', { orderNumber: selectedOrder.order_number, reason: rejectionReason }),
         action_url: '/orders',
       }]);
 
@@ -696,7 +696,7 @@ export default function OrderManagement() {
         selectedOrder.user_id
       );
 
-      toast.success('Order rejected. User has been notified.');
+      toast.success(t('om.orderRejectedToast'));
       setShowRejectModal(false);
       setAdminNotes('');
       setRejectionReason('');
@@ -705,7 +705,7 @@ export default function OrderManagement() {
       await loadStatusCounts();
     } catch (error) {
       console.error('Error rejecting order:', error);
-      toast.error('Failed to reject order');
+      toast.error(t('om.failedRejectOrder'));
     }
   };
 
@@ -795,8 +795,8 @@ export default function OrderManagement() {
       await supabase.from('notifications').insert([{
         user_id: selectedOrder.user_id,
         type: 'payment',
-        title: 'Payment Verified - Order Complete!',
-        message: `Your payment for order ${selectedOrder.order_number} has been verified. You earned ${roundedPV} PV!`,
+        title: t('om.paymentVerifiedTitle'),
+        message: t('om.paymentVerifiedMsg', { orderNumber: selectedOrder.order_number, pv: roundedPV }),
         action_url: '/orders',
       }]);
 
@@ -812,14 +812,14 @@ export default function OrderManagement() {
         selectedOrder.user_id
       );
 
-      toast.success('Payment verified and order completed! User has been notified.');
+      toast.success(t('om.paymentVerifiedToast'));
       setShowPaymentModal(false);
       setSelectedOrder(null);
       await loadOrders();
       await loadStatusCounts();
     } catch (error) {
       console.error('Error verifying payment:', error);
-      toast.error('Failed to verify payment');
+      toast.error(t('om.failedVerifyPayment'));
     }
   };
 
@@ -842,12 +842,12 @@ export default function OrderManagement() {
       await supabase.from('notifications').insert([{
         user_id: selectedOrder.user_id,
         type: 'payment',
-        title: 'Payment Proof Rejected',
-        message: `Your payment proof for order ${selectedOrder.order_number} was rejected. Reason: ${paymentRejectionReason}. Please submit a new payment proof.`,
+        title: t('om.paymentRejectedTitle'),
+        message: t('om.paymentRejectedMsg', { orderNumber: selectedOrder.order_number, reason: paymentRejectionReason }),
         action_url: '/orders',
       }]);
 
-      toast.success('Payment proof rejected. User has been notified to resubmit.');
+      toast.success(t('om.paymentRejectedToast'));
       setShowRejectPaymentModal(false);
       setPaymentRejectionReason('');
       setSelectedOrder(null);
@@ -855,7 +855,7 @@ export default function OrderManagement() {
       await loadStatusCounts();
     } catch (error) {
       console.error('Error rejecting payment:', error);
-      toast.error('Failed to reject payment');
+      toast.error(t('om.failedRejectPayment'));
     }
   };
 
@@ -879,12 +879,12 @@ export default function OrderManagement() {
       await supabase.from('notifications').insert([{
         user_id: selectedOrder.user_id,
         type: 'approval',
-        title: 'Order Status Updated',
-        message: `Your order ${selectedOrder.order_number} status has been changed to: ${getStatusLabel(newStatus)}.`,
+        title: t('om.statusUpdatedTitle'),
+        message: t('om.statusUpdatedMsg', { orderNumber: selectedOrder.order_number, status: getStatusLabel(newStatus) }),
         action_url: '/orders',
       }]);
 
-      toast.success(`Order status changed to "${getStatusLabel(newStatus)}".`);
+      toast.success(t('om.statusChangedToast', { status: getStatusLabel(newStatus) }));
       setShowStatusChangeModal(false);
       setNewStatus('');
       setSelectedOrder(null);
@@ -892,7 +892,7 @@ export default function OrderManagement() {
       await loadStatusCounts();
     } catch (error) {
       console.error('Error changing order status:', error);
-      toast.error('Failed to change status');
+      toast.error(t('om.failedChangeStatus'));
     }
   };
 
@@ -919,25 +919,25 @@ export default function OrderManagement() {
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
-      pending: 'Pending',
-      approved: 'Approved',
-      awaiting_payment: 'Awaiting Payment',
-      rejected: 'Rejected',
-      completed: 'Completed',
-      cancelled: 'Cancelled',
+      pending: t('orders.pending'),
+      approved: t('orders.statusApproved'),
+      awaiting_payment: t('orders.awaitingPayment'),
+      rejected: t('orders.rejected'),
+      completed: t('orders.completed'),
+      cancelled: t('orders.cancelled'),
     };
     return labels[status] || status;
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading orders...</div>;
+    return <div className="flex items-center justify-center h-64">{t('admin.loadingOrders')}</div>;
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">Order Management</h2>
-        <p className="text-gray-600">Review and approve customer orders</p>
+        <h2 className="text-2xl font-bold text-gray-900">{t('om.title')}</h2>
+        <p className="text-gray-600">{t('om.subtitle')}</p>
       </div>
 
       {statusFilter !== 'awaiting_payment' && (statusCounts.awaiting_payment || 0) > 0 && (
@@ -948,52 +948,52 @@ export default function OrderManagement() {
           <div className="flex items-center gap-3">
             <ImageIcon className="text-orange-600 flex-shrink-0" size={20} />
             <p className="text-sm text-orange-900">
-              <strong>{statusCounts.awaiting_payment}</strong> order{statusCounts.awaiting_payment === 1 ? '' : 's'} awaiting payment confirmation
-              {statusFilter === 'pending' && ' (not shown in the current "Pending" filter)'}.
+              <strong>{t('om.awaitingConfirmationBanner', { n: statusCounts.awaiting_payment })}</strong>
+              {statusFilter === 'pending' && t('om.notShownInPendingFilter')}.
             </p>
           </div>
-          <span className="text-sm font-semibold text-orange-700 flex-shrink-0">View &rarr;</span>
+          <span className="text-sm font-semibold text-orange-700 flex-shrink-0">{t('om.viewArrow')} &rarr;</span>
         </button>
       )}
 
       <div className="bg-gradient-to-r from-brand-50 to-brand-100 border border-brand-200 rounded-xl p-6">
-        <h3 className="font-bold text-brand-900 mb-3 text-lg">Order Processing Workflow</h3>
+        <h3 className="font-bold text-brand-900 mb-3 text-lg">{t('om.workflowTitle')}</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-white rounded-lg p-4 shadow-sm">
             <div className="w-8 h-8 bg-yellow-500 text-white rounded-full flex items-center justify-center font-bold mb-2">1</div>
-            <h4 className="font-semibold text-gray-900 mb-1">Pending</h4>
-            <p className="text-sm text-gray-600">User submits order. Review stock and approve/reject.</p>
+            <h4 className="font-semibold text-gray-900 mb-1">{t('orders.pending')}</h4>
+            <p className="text-sm text-gray-600">{t('om.step1Desc')}</p>
           </div>
           <div className="bg-white rounded-lg p-4 shadow-sm">
             <div className="w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center font-bold mb-2">2</div>
-            <h4 className="font-semibold text-gray-900 mb-1">Awaiting Payment</h4>
-            <p className="text-sm text-gray-600">Stock reserved. User sends payment to admin email.</p>
+            <h4 className="font-semibold text-gray-900 mb-1">{t('orders.awaitingPayment')}</h4>
+            <p className="text-sm text-gray-600">{t('om.step2Desc')}</p>
           </div>
           <div className="bg-white rounded-lg p-4 shadow-sm">
             <div className="w-8 h-8 bg-brand-600 text-white rounded-full flex items-center justify-center font-bold mb-2">3</div>
-            <h4 className="font-semibold text-gray-900 mb-1">Payment Submitted</h4>
-            <p className="text-sm text-gray-600">Verify payment proof. Confirm or reject.</p>
+            <h4 className="font-semibold text-gray-900 mb-1">{t('admin.paymentSubmitted')}</h4>
+            <p className="text-sm text-gray-600">{t('admin.verifyPayment')}</p>
           </div>
           <div className="bg-white rounded-lg p-4 shadow-sm">
             <div className="w-8 h-8 bg-brand-800 text-white rounded-full flex items-center justify-center font-bold mb-2">4</div>
-            <h4 className="font-semibold text-gray-900 mb-1">Completed</h4>
-            <p className="text-sm text-gray-600">Payment verified. PVs allocated to user.</p>
+            <h4 className="font-semibold text-gray-900 mb-1">{t('orders.completed')}</h4>
+            <p className="text-sm text-gray-600">{t('om.step4Desc')}</p>
           </div>
         </div>
         <p className="text-sm text-brand-800 mt-4 bg-white/50 rounded-lg p-3">
-          <strong>Important:</strong> Approving an order reserves stock and sends your email as the payment address. PVs are ONLY allocated when you verify payment.
+          {t('om.workflowImportantNote')}
         </p>
       </div>
 
       {orders.length === 0 && !loading && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
           <ShoppingCart className="w-12 h-12 text-blue-400 mx-auto mb-3" />
-          <h3 className="font-semibold text-blue-900 mb-2">No Orders Found</h3>
+          <h3 className="font-semibold text-blue-900 mb-2">{t('om.noOrdersFoundTitle')}</h3>
           <p className="text-sm text-blue-700">
-            {statusFilter === 'pending' ? 'No pending orders at the moment.' :
-             statusFilter === 'awaiting_payment' ? 'No orders awaiting payment.' :
-             statusFilter === 'completed' ? 'No completed orders yet.' :
-             'No orders in the system yet. Orders will appear here once users start shopping.'}
+            {statusFilter === 'pending' ? t('om.noPendingOrders') :
+             statusFilter === 'awaiting_payment' ? t('om.noAwaitingPaymentOrders') :
+             statusFilter === 'completed' ? t('om.noCompletedOrders') :
+             t('om.noOrdersSystem')}
           </p>
         </div>
       )}
@@ -1003,7 +1003,7 @@ export default function OrderManagement() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
           <input
             type="text"
-            placeholder="Search orders..."
+            placeholder={t('om.searchOrdersPlaceholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
@@ -1014,18 +1014,18 @@ export default function OrderManagement() {
           onChange={(e) => setStatusFilter(e.target.value)}
           className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
         >
-          <option value="all">All Status ({Object.values(statusCounts).reduce((a, b) => a + b, 0)})</option>
-          <option value="pending">Pending ({statusCounts.pending || 0})</option>
-          <option value="awaiting_payment">Awaiting Payment ({statusCounts.awaiting_payment || 0})</option>
-          <option value="rejected">Rejected ({statusCounts.rejected || 0})</option>
-          <option value="completed">Completed ({statusCounts.completed || 0})</option>
+          <option value="all">{t('om.allStatus', { n: Object.values(statusCounts).reduce((a, b) => a + b, 0) })}</option>
+          <option value="pending">{t('orders.pending')} ({statusCounts.pending || 0})</option>
+          <option value="awaiting_payment">{t('orders.awaitingPayment')} ({statusCounts.awaiting_payment || 0})</option>
+          <option value="rejected">{t('orders.rejected')} ({statusCounts.rejected || 0})</option>
+          <option value="completed">{t('orders.completed')} ({statusCounts.completed || 0})</option>
         </select>
       </div>
 
       {filteredOrders.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-lg">
           <ShoppingCart size={48} className="mx-auto text-gray-400 mb-4" />
-          <p className="text-gray-600">No orders found</p>
+          <p className="text-gray-600">{t('om.noOrdersFoundSimple')}</p>
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow overflow-x-auto hidden md:block">
@@ -1033,25 +1033,25 @@ export default function OrderManagement() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Order #
+                  {t('om.orderNumberCol')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Customer
+                  {t('om.customer')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Products
+                  {t('om.products')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Total
+                  {t('cart.total')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                  {t('common.status')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
+                  {t('orders.date')}
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
+                  {t('common.actions')}
                 </th>
               </tr>
             </thead>
@@ -1067,7 +1067,7 @@ export default function OrderManagement() {
                       <button
                         onClick={() => loadUserOrderHistory(order.user_id, order.user.full_name)}
                         className="flex items-center gap-3 group text-left"
-                        title="View all orders from this user"
+                        title={t('om.viewAllOrdersFromUser')}
                       >
                         {order.user.profile_image_url ? (
                           <img
@@ -1103,7 +1103,7 @@ export default function OrderManagement() {
                           {itemCount > 1 && (
                             <div className="text-xs text-brand-600 font-medium flex items-center gap-1">
                               <Package size={12} />
-                              {itemCount} items
+                              {t('orders.itemsCountLabel', { n: itemCount })}
                             </div>
                           )}
                         </div>
@@ -1120,7 +1120,7 @@ export default function OrderManagement() {
                         {order.status === 'awaiting_payment' && order.payment_screenshot_url && (
                           <span className="px-2 py-1 text-xs font-semibold rounded bg-green-100 text-green-700 flex items-center gap-1">
                             <ImageIcon size={12} />
-                            Proof
+                            {t('om.proof')}
                           </span>
                         )}
                       </div>
@@ -1137,7 +1137,7 @@ export default function OrderManagement() {
                         className="text-brand-600 hover:text-brand-900 inline-flex items-center gap-1"
                       >
                         <Eye size={16} />
-                        View
+                        {t('om.view')}
                       </button>
                       {order.status === 'pending' && (
                         <>
@@ -1146,7 +1146,7 @@ export default function OrderManagement() {
                             className="text-green-600 hover:text-green-900 inline-flex items-center gap-1"
                           >
                             <Check size={16} />
-                            Approve
+                            {t('accounts.approve')}
                           </button>
                           <button
                             onClick={() => {
@@ -1156,7 +1156,7 @@ export default function OrderManagement() {
                             className="text-red-600 hover:text-red-900 inline-flex items-center gap-1"
                           >
                             <X size={16} />
-                            Reject
+                            {t('accounts.reject')}
                           </button>
                         </>
                       )}
@@ -1170,7 +1170,7 @@ export default function OrderManagement() {
                             className="text-green-600 hover:text-green-900 inline-flex items-center gap-1"
                           >
                             <CreditCard size={16} />
-                            Verify
+                            {t('om.verify')}
                           </button>
                           <button
                             onClick={() => {
@@ -1180,7 +1180,7 @@ export default function OrderManagement() {
                             className="text-red-600 hover:text-red-900 inline-flex items-center gap-1"
                           >
                             <X size={16} />
-                            Reject
+                            {t('accounts.reject')}
                           </button>
                         </>
                       )}
@@ -1191,7 +1191,7 @@ export default function OrderManagement() {
                           setShowStatusChangeModal(true);
                         }}
                         className="text-gray-500 hover:text-gray-800 inline-flex items-center gap-1"
-                        title="Change Status"
+                        title={t('om.changeStatus')}
                       >
                         <RefreshCw size={14} />
                       </button>
@@ -1238,7 +1238,7 @@ export default function OrderManagement() {
                     {order.status === 'awaiting_payment' && order.payment_screenshot_url && (
                       <span className="px-2 py-1 text-xs font-semibold rounded bg-green-100 text-green-700 flex items-center gap-1">
                         <ImageIcon size={12} />
-                        Proof
+                        {t('om.proof')}
                       </span>
                     )}
                   </div>
@@ -1253,7 +1253,7 @@ export default function OrderManagement() {
                     {itemCount > 1 && (
                       <div className="text-xs text-brand-600 font-medium flex items-center gap-1">
                         <Package size={12} />
-                        {itemCount} items
+                        {t('orders.itemsCountLabel', { n: itemCount })}
                       </div>
                     )}
                   </div>
@@ -1274,7 +1274,7 @@ export default function OrderManagement() {
                     className="text-brand-600 hover:text-brand-900 inline-flex items-center gap-1"
                   >
                     <Eye size={16} />
-                    View
+                    {t('om.view')}
                   </button>
                   {order.status === 'pending' && (
                     <>
@@ -1283,7 +1283,7 @@ export default function OrderManagement() {
                         className="text-green-600 hover:text-green-900 inline-flex items-center gap-1"
                       >
                         <Check size={16} />
-                        Approve
+                        {t('accounts.approve')}
                       </button>
                       <button
                         onClick={() => {
@@ -1293,7 +1293,7 @@ export default function OrderManagement() {
                         className="text-red-600 hover:text-red-900 inline-flex items-center gap-1"
                       >
                         <X size={16} />
-                        Reject
+                        {t('accounts.reject')}
                       </button>
                     </>
                   )}
@@ -1307,7 +1307,7 @@ export default function OrderManagement() {
                         className="text-green-600 hover:text-green-900 inline-flex items-center gap-1"
                       >
                         <CreditCard size={16} />
-                        Verify
+                        {t('om.verify')}
                       </button>
                       <button
                         onClick={() => {
@@ -1317,7 +1317,7 @@ export default function OrderManagement() {
                         className="text-red-600 hover:text-red-900 inline-flex items-center gap-1"
                       >
                         <X size={16} />
-                        Reject
+                        {t('accounts.reject')}
                       </button>
                     </>
                   )}
@@ -1328,7 +1328,7 @@ export default function OrderManagement() {
                       setShowStatusChangeModal(true);
                     }}
                     className="text-gray-500 hover:text-gray-800 inline-flex items-center gap-1"
-                    title="Change Status"
+                    title={t('om.changeStatus')}
                   >
                     <RefreshCw size={14} />
                   </button>
@@ -1342,23 +1342,23 @@ export default function OrderManagement() {
       {showDetailsModal && selectedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-4 sm:p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-4">Order Details</h3>
+            <h3 className="text-xl font-bold mb-4">{t('om.orderDetailsTitle')}</h3>
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Order Number</label>
+                  <label className="text-sm font-medium text-gray-700">{t('om.orderNumberLabel')}</label>
                   <p className="text-gray-900">{selectedOrder.order_number}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Status</label>
+                  <label className="text-sm font-medium text-gray-700">{t('common.status')}</label>
                   <p>
                     <span className={`px-2 py-1 text-xs font-semibold rounded ${getStatusBadge(selectedOrder.status)}`}>
-                      {selectedOrder.status}
+                      {getStatusLabel(selectedOrder.status)}
                     </span>
                   </p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Customer</label>
+                  <label className="text-sm font-medium text-gray-700">{t('om.customer')}</label>
                   <div className="flex items-center gap-3 mt-1">
                     {selectedOrder.user.profile_image_url ? (
                       <img
@@ -1378,13 +1378,13 @@ export default function OrderManagement() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Country</label>
+                  <label className="text-sm font-medium text-gray-700">{t('profile.country')}</label>
                   <p className="text-gray-900">{getCountryLabel(selectedOrder.region)}</p>
                 </div>
               </div>
 
               <div className="border-t pt-4">
-                <h4 className="text-lg font-semibold text-gray-900 mb-3">Order Items</h4>
+                <h4 className="text-lg font-semibold text-gray-900 mb-3">{t('om.orderItems')}</h4>
                 {selectedOrder.order_items && selectedOrder.order_items.length > 0 ? (
                   <div className="space-y-3">
                     {selectedOrder.order_items.map((item) => (
@@ -1399,7 +1399,7 @@ export default function OrderManagement() {
                         <div className="flex-1">
                           <p className="font-medium text-gray-900">{getLocalizedProductName(item.product, language)}</p>
                           <div className="flex gap-4 text-sm text-gray-600">
-                            <span>Qty: {item.quantity}{item.free_quantity > 0 && ` (+${item.free_quantity} free)`}</span>
+                            <span>{t('orders.qtyLabel', { n: item.quantity })}{item.free_quantity > 0 && t('orders.freeSuffix', { n: item.free_quantity })}</span>
                             <span>@ {selectedOrder.currency_code} {item.unit_price.toFixed(2)}</span>
                             <span className="text-orange-600">{item.pv_value * (item.quantity + item.free_quantity)} PV</span>
                           </div>
@@ -1422,7 +1422,7 @@ export default function OrderManagement() {
                     <div className="flex-1">
                       <p className="font-medium text-gray-900">{getLocalizedProductName(selectedOrder.product, language)}</p>
                       <div className="flex gap-4 text-sm text-gray-600">
-                        <span>Qty: {selectedOrder.quantity}</span>
+                        <span>{t('orders.qtyLabel', { n: selectedOrder.quantity })}</span>
                         <span>@ {selectedOrder.currency_code} {selectedOrder.unit_price.toFixed(2)}</span>
                         <span className="text-orange-600">{selectedOrder.product.pv_value * selectedOrder.quantity} PV</span>
                       </div>
@@ -1434,22 +1434,22 @@ export default function OrderManagement() {
                 ) : null}
 
                 <div className="mt-4 pt-4 border-t flex justify-between text-lg font-bold">
-                  <span>Total Amount</span>
+                  <span>{t('shop.totalAmount')}</span>
                   <span>{selectedOrder.currency_code} {selectedOrder.total_amount.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-orange-600">
-                  <span>Total PV</span>
+                  <span>{t('pv.total')}</span>
                   <span>{getOrderDisplayInfo(selectedOrder).totalPV} PV</span>
                 </div>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700">Order Date</label>
+                <label className="text-sm font-medium text-gray-700">{t('om.orderDateLabel')}</label>
                 <p className="text-gray-900">{new Date(selectedOrder.created_at).toLocaleString()}</p>
               </div>
 
               <div className="border-t border-gray-200 pt-4 mt-4">
-                <h4 className="text-lg font-semibold text-gray-900 mb-3">Delivery Address</h4>
+                <h4 className="text-lg font-semibold text-gray-900 mb-3">{t('profile.deliveryAddress')}</h4>
                 {selectedOrder.user.address_line1 ? (
                   <div className="bg-gray-50 rounded-lg p-4">
                     <p className="text-gray-900 font-medium">{selectedOrder.user.full_name}</p>
@@ -1468,8 +1468,7 @@ export default function OrderManagement() {
                 ) : (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                     <p className="text-yellow-800 text-sm">
-                      <strong>Warning:</strong> Customer has not provided a delivery address yet.
-                      Please contact them to update their profile before shipping.
+                      {t('om.noAddressWarning')}
                     </p>
                   </div>
                 )}
@@ -1477,7 +1476,7 @@ export default function OrderManagement() {
 
               {selectedOrder.payment_screenshot_url && (
                 <div className="border-t border-gray-200 pt-4 mt-4">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Payment Proof</h4>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-3">{t('om.paymentProof')}</h4>
                   <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4">
                     <div className="flex items-start gap-4">
                       <div className="flex-1 min-w-0">
@@ -1495,25 +1494,25 @@ export default function OrderManagement() {
                             />
                           </a>
                         ) : (
-                          <div className="text-sm text-gray-500">Loading proof...</div>
+                          <div className="text-sm text-gray-500">{t('om.loadingProof')}</div>
                         )}
-                        <p className="text-xs text-gray-500 mt-2">Click image to view full size</p>
+                        <p className="text-xs text-gray-500 mt-2">{t('om.clickToViewFull')}</p>
                       </div>
                     </div>
                     {selectedOrder.payment_submitted_at && (
                       <p className="text-sm text-green-700 mt-3">
-                        Submitted: {new Date(selectedOrder.payment_submitted_at).toLocaleString()}
+                        {t('om.submittedLabel')} {new Date(selectedOrder.payment_submitted_at).toLocaleString()}
                       </p>
                     )}
                     {selectedOrder.payment_notes && (
                       <div className="mt-3 pt-3 border-t border-green-200">
-                        <label className="text-sm font-medium text-green-800">Customer Notes:</label>
+                        <label className="text-sm font-medium text-green-800">{t('om.customerNotesLabel')}</label>
                         <p className="text-sm text-green-700 mt-1">{selectedOrder.payment_notes}</p>
                       </div>
                     )}
                     {selectedOrder.payment_verified_at && (
                       <p className="text-sm text-green-700 mt-2">
-                        Verified: {new Date(selectedOrder.payment_verified_at).toLocaleString()}
+                        {t('om.verifiedLabel')} {new Date(selectedOrder.payment_verified_at).toLocaleString()}
                       </p>
                     )}
                   </div>
@@ -1522,13 +1521,13 @@ export default function OrderManagement() {
 
               {selectedOrder.admin_notes && (
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Admin Notes</label>
+                  <label className="text-sm font-medium text-gray-700">{t('orders.adminNotes')}</label>
                   <p className="text-gray-900 mt-1">{selectedOrder.admin_notes}</p>
                 </div>
               )}
               {selectedOrder.rejection_reason && (
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Rejection Reason</label>
+                  <label className="text-sm font-medium text-gray-700">{t('om.rejectionReasonLabel')}</label>
                   <p className="text-red-600 mt-1">{selectedOrder.rejection_reason}</p>
                 </div>
               )}
@@ -1538,7 +1537,7 @@ export default function OrderManagement() {
                 onClick={() => setShowDetailsModal(false)}
                 className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
               >
-                Close
+                {t('common.close')}
               </button>
             </div>
           </div>
@@ -1548,9 +1547,9 @@ export default function OrderManagement() {
       {showApproveModal && selectedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-1">Approve Order</h3>
+            <h3 className="text-xl font-bold mb-1">{t('om.approveOrderTitle')}</h3>
             <p className="text-gray-600 mb-4">
-              Order <strong>{selectedOrder.order_number}</strong> from <strong>{selectedOrder.user.full_name}</strong>
+              {t('om.orderWord')} <strong>{selectedOrder.order_number}</strong> {t('om.fromWord')} <strong>{selectedOrder.user.full_name}</strong>
               {' '}({selectedOrder.currency_code} {selectedOrder.total_amount.toFixed(2)})
             </p>
 
@@ -1559,11 +1558,11 @@ export default function OrderManagement() {
                 <div className="flex items-center gap-2 mb-3">
                   <Merge className="w-5 h-5 text-amber-700" />
                   <h4 className="font-semibold text-amber-900">
-                    {otherPendingOrders.length} other pending order{otherPendingOrders.length > 1 ? 's' : ''} from this user
+                    {t('om.otherPendingOrdersHeading', { n: otherPendingOrders.length })}
                   </h4>
                 </div>
                 <p className="text-sm text-amber-800 mb-3">
-                  Select orders below to merge them into a single combined order before approving.
+                  {t('om.selectOrdersToMerge')}
                 </p>
 
                 <div className="space-y-2">
@@ -1595,7 +1594,7 @@ export default function OrderManagement() {
                             <span className="text-sm font-semibold text-gray-900">{o.order_number}</span>
                             {itemCount > 1 && (
                               <span className="text-xs text-brand-600 font-medium flex items-center gap-0.5">
-                                <Package size={10} /> {itemCount} items
+                                <Package size={10} /> {t('orders.itemsCountLabel', { n: itemCount })}
                               </span>
                             )}
                           </div>
@@ -1613,7 +1612,7 @@ export default function OrderManagement() {
                 {selectedMergeOrderIds.size > 0 && (
                   <div className="mt-3 pt-3 border-t border-amber-200">
                     <div className="flex justify-between text-sm">
-                      <span className="text-amber-900 font-medium">Combined total after merge:</span>
+                      <span className="text-amber-900 font-medium">{t('om.combinedTotalAfterMerge')}</span>
                       <span className="font-bold text-gray-900">
                         {selectedOrder.currency_code}{' '}
                         {(
@@ -1636,19 +1635,19 @@ export default function OrderManagement() {
                   }}
                   className="mt-2 text-xs text-amber-700 hover:text-amber-900 font-medium underline"
                 >
-                  {selectedMergeOrderIds.size === otherPendingOrders.length ? 'Deselect all' : 'Select all'}
+                  {selectedMergeOrderIds.size === otherPendingOrders.length ? t('om.deselectAll') : t('om.selectAll')}
                 </button>
               </div>
             )}
 
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Admin Notes (Optional)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{t('om.adminNotesOptional')}</label>
               <textarea
                 value={adminNotes}
                 onChange={(e) => setAdminNotes(e.target.value)}
                 rows={2}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                placeholder="Add any notes about this approval..."
+                placeholder={t('om.addNotesApprovalPlaceholder')}
               />
             </div>
             <div className="flex gap-3">
@@ -1663,14 +1662,14 @@ export default function OrderManagement() {
                   ) : (
                     <Merge size={18} />
                   )}
-                  Merge ({selectedMergeOrderIds.size + 1} orders) & Approve
+                  {t('om.mergeAndApprove', { n: selectedMergeOrderIds.size + 1 })}
                 </button>
               ) : (
                 <button
                   onClick={handleApproveOrder}
                   className="flex-1 bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 font-medium"
                 >
-                  Approve This Order Only
+                  {t('om.approveThisOrderOnly')}
                 </button>
               )}
               <button
@@ -1682,7 +1681,7 @@ export default function OrderManagement() {
                 }}
                 className="flex-1 bg-gray-200 text-gray-800 py-2.5 rounded-lg hover:bg-gray-300 font-medium"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -1692,29 +1691,29 @@ export default function OrderManagement() {
       {showRejectModal && selectedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-4">Reject Order</h3>
+            <h3 className="text-xl font-bold mb-4">{t('om.rejectOrderTitle')}</h3>
             <p className="text-gray-600 mb-4">
-              Please provide a reason for rejecting order <strong>{selectedOrder.order_number}</strong>:
+              {t('om.rejectReasonPromptPrefix')} <strong>{selectedOrder.order_number}</strong>:
             </p>
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Rejection Reason*</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{t('accounts.rejectionReasonLabel')}</label>
               <textarea
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
                 rows={3}
                 required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                placeholder="Explain why this order is being rejected..."
+                placeholder={t('om.rejectReasonPlaceholder')}
               />
             </div>
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Admin Notes (Optional)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{t('om.adminNotesOptional')}</label>
               <textarea
                 value={adminNotes}
                 onChange={(e) => setAdminNotes(e.target.value)}
                 rows={2}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                placeholder="Add any internal notes..."
+                placeholder={t('om.internalNotesPlaceholder')}
               />
             </div>
             <div className="flex gap-3">
@@ -1723,7 +1722,7 @@ export default function OrderManagement() {
                 disabled={!rejectionReason.trim()}
                 className="flex-1 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
-                Confirm Rejection
+                {t('admin.confirmRejection')}
               </button>
               <button
                 onClick={() => {
@@ -1733,7 +1732,7 @@ export default function OrderManagement() {
                 }}
                 className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300 font-medium"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -1743,38 +1742,38 @@ export default function OrderManagement() {
       {showPaymentModal && selectedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-4 sm:p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-4">Verify Payment</h3>
+            <h3 className="text-xl font-bold mb-4">{t('om.verifyPaymentTitle')}</h3>
 
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Order Number</label>
+                  <label className="text-sm font-medium text-gray-700">{t('om.orderNumberLabel')}</label>
                   <p className="text-gray-900">{selectedOrder.order_number}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Customer</label>
+                  <label className="text-sm font-medium text-gray-700">{t('om.customer')}</label>
                   <p className="text-gray-900">{selectedOrder.user.full_name}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Total Amount</label>
+                  <label className="text-sm font-medium text-gray-700">{t('shop.totalAmount')}</label>
                   <p className="text-gray-900 font-bold">{selectedOrder.currency_code} {selectedOrder.total_amount.toFixed(2)}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700">PV Value</label>
+                  <label className="text-sm font-medium text-gray-700">{t('orders.pvValue')}</label>
                   <p className="text-gray-900">{getOrderDisplayInfo(selectedOrder).totalPV} PV</p>
                 </div>
               </div>
 
               {selectedOrder.payment_notes && (
                 <div className="p-4 bg-brand-50 rounded-lg">
-                  <label className="text-sm font-medium text-brand-900">Payment Notes from Customer</label>
+                  <label className="text-sm font-medium text-brand-900">{t('om.paymentNotesFromCustomer')}</label>
                   <p className="text-brand-800 mt-1">{selectedOrder.payment_notes}</p>
                 </div>
               )}
 
               {selectedOrder.payment_screenshot_url && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Payment Screenshot</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t('om.paymentScreenshotPlain')}</label>
                   <div className="border-2 border-gray-300 rounded-lg p-2 bg-gray-50">
                     {paymentProofSignedUrl ? (
                       <img
@@ -1784,16 +1783,16 @@ export default function OrderManagement() {
                         onClick={() => window.open(paymentProofSignedUrl, '_blank')}
                       />
                     ) : (
-                      <div className="text-sm text-gray-500 text-center py-8">Loading proof...</div>
+                      <div className="text-sm text-gray-500 text-center py-8">{t('om.loadingProof')}</div>
                     )}
-                    <p className="text-xs text-gray-500 mt-2 text-center">Click image to view full size</p>
+                    <p className="text-xs text-gray-500 mt-2 text-center">{t('om.clickToViewFull')}</p>
                   </div>
                 </div>
               )}
 
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <p className="text-sm text-yellow-800">
-                  <strong>Important:</strong> Please verify that the payment amount matches the order total and that the payment has been received before confirming.
+                  {t('om.verifyImportantNote')}
                 </p>
               </div>
             </div>
@@ -1804,7 +1803,7 @@ export default function OrderManagement() {
                 className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-medium flex items-center justify-center gap-2"
               >
                 <Check size={18} />
-                Verify Payment & Complete Order
+                {t('om.verifyAndComplete')}
               </button>
               <button
                 onClick={() => {
@@ -1813,7 +1812,7 @@ export default function OrderManagement() {
                 }}
                 className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300 font-medium"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -1823,19 +1822,19 @@ export default function OrderManagement() {
       {showRejectPaymentModal && selectedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-4">Reject Payment Proof</h3>
+            <h3 className="text-xl font-bold mb-4">{t('om.rejectPaymentProofTitle')}</h3>
             <p className="text-gray-600 mb-4">
-              Please provide a reason for rejecting the payment proof for order <strong>{selectedOrder.order_number}</strong>:
+              {t('om.rejectPaymentReasonPrompt')} <strong>{selectedOrder.order_number}</strong>:
             </p>
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Rejection Reason*</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{t('accounts.rejectionReasonLabel')}</label>
               <textarea
                 value={paymentRejectionReason}
                 onChange={(e) => setPaymentRejectionReason(e.target.value)}
                 rows={4}
                 required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                placeholder="Example: Payment screenshot is unclear, amount doesn't match, payment not received..."
+                placeholder={t('om.rejectPaymentPlaceholder')}
               />
             </div>
             <div className="flex gap-3">
@@ -1844,7 +1843,7 @@ export default function OrderManagement() {
                 disabled={!paymentRejectionReason.trim()}
                 className="flex-1 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
-                Reject Payment Proof
+                {t('om.rejectPaymentProofBtn')}
               </button>
               <button
                 onClick={() => {
@@ -1853,7 +1852,7 @@ export default function OrderManagement() {
                 }}
                 className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300 font-medium"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -1863,20 +1862,20 @@ export default function OrderManagement() {
       {showStatusChangeModal && selectedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-2">Change Order Status</h3>
+            <h3 className="text-xl font-bold mb-2">{t('om.changeOrderStatusTitle')}</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Order <strong>{selectedOrder.order_number}</strong>
+              {t('om.orderWord')} <strong>{selectedOrder.order_number}</strong>
             </p>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Current Status</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{t('om.currentStatus')}</label>
               <span className={`px-3 py-1 text-sm font-semibold rounded ${getStatusBadge(selectedOrder.status)}`}>
                 {getStatusLabel(selectedOrder.status)}
               </span>
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">New Status</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{t('om.newStatus')}</label>
               <select
                 value={newStatus}
                 onChange={(e) => setNewStatus(e.target.value)}
@@ -1890,7 +1889,7 @@ export default function OrderManagement() {
 
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
               <p className="text-sm text-yellow-800">
-                <strong>Note:</strong> Manually changing status will not trigger stock or PV adjustments. Use the normal approve/verify workflow for those.
+                {t('om.statusChangeNote')}
               </p>
             </div>
 
@@ -1900,7 +1899,7 @@ export default function OrderManagement() {
                 disabled={newStatus === selectedOrder.status}
                 className="flex-1 bg-brand-700 text-white py-2 rounded-lg hover:bg-brand-800 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
-                Update Status
+                {t('om.updateStatusBtn')}
               </button>
               <button
                 onClick={() => {
@@ -1910,7 +1909,7 @@ export default function OrderManagement() {
                 }}
                 className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300 font-medium"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -1961,7 +1960,7 @@ function UserOrderHistoryModal({
   getCountryLabel: (code: string) => string;
   onClose: () => void;
 }) {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const statusCounts = orders.reduce((acc, o) => {
     acc[o.status] = (acc[o.status] || 0) + 1;
     return acc;
@@ -1981,10 +1980,10 @@ function UserOrderHistoryModal({
             <div>
               <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                 <History className="w-5 h-5 text-brand-600" />
-                Order History - {userName}
+                {t('om.orderHistoryTitle', { name: userName })}
               </h3>
               <p className="text-sm text-gray-500 mt-1">
-                {orders.length} total order{orders.length !== 1 ? 's' : ''}
+                {t('om.totalOrdersCount', { n: orders.length })}
               </p>
             </div>
             <button
@@ -2007,7 +2006,7 @@ function UserOrderHistoryModal({
               ))}
               {totalSpent > 0 && (
                 <span className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-green-100 text-green-800">
-                  Total Spent: {currency} {totalSpent.toFixed(2)}
+                  {t('om.totalSpentLabel', { currency, amount: totalSpent.toFixed(2) })}
                 </span>
               )}
             </div>
@@ -2022,7 +2021,7 @@ function UserOrderHistoryModal({
           ) : orders.length === 0 ? (
             <div className="text-center py-16">
               <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">No orders found for this user</p>
+              <p className="text-gray-500">{t('om.noOrdersForUser')}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -2050,7 +2049,7 @@ function UserOrderHistoryModal({
                           </span>
                           {order.payment_screenshot_url && order.status === 'awaiting_payment' && (
                             <span className="px-2 py-0.5 text-xs font-semibold rounded bg-green-100 text-green-700 flex items-center gap-1">
-                              <ImageIcon size={10} /> Proof
+                              <ImageIcon size={10} /> {t('om.proof')}
                             </span>
                           )}
                         </div>
@@ -2058,7 +2057,7 @@ function UserOrderHistoryModal({
                           <span className="truncate max-w-[200px]">{displayName}</span>
                           {itemCount > 1 && (
                             <span className="flex items-center gap-0.5 text-brand-600 font-medium">
-                              <Package size={10} /> {itemCount} items
+                              <Package size={10} /> {t('orders.itemsCountLabel', { n: itemCount })}
                             </span>
                           )}
                         </div>
@@ -2093,7 +2092,7 @@ function UserOrderHistoryModal({
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-medium text-gray-900 truncate">{getLocalizedProductName(item.product, language)}</p>
                                   <p className="text-xs text-gray-500">
-                                    Qty: {item.quantity}{item.free_quantity > 0 && ` (+${item.free_quantity} free)`}
+                                    {t('orders.qtyLabel', { n: item.quantity })}{item.free_quantity > 0 && t('orders.freeSuffix', { n: item.free_quantity })}
                                     {' '} @ {order.currency_code} {item.unit_price.toFixed(2)}
                                   </p>
                                 </div>
@@ -2110,7 +2109,7 @@ function UserOrderHistoryModal({
                               )}
                               <div className="flex-1">
                                 <p className="text-sm font-medium text-gray-900">{getLocalizedProductName(order.product, language)}</p>
-                                <p className="text-xs text-gray-500">Qty: {order.quantity}</p>
+                                <p className="text-xs text-gray-500">{t('orders.qtyLabel', { n: order.quantity })}</p>
                               </div>
                               <p className="text-sm font-semibold">{order.currency_code} {order.total_amount.toFixed(2)}</p>
                             </div>
@@ -2118,16 +2117,16 @@ function UserOrderHistoryModal({
 
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                             <div>
-                              <p className="text-xs text-gray-500">Country</p>
+                              <p className="text-xs text-gray-500">{t('profile.country')}</p>
                               <p className="text-sm font-medium">{getCountryLabel(order.region)}</p>
                             </div>
                             <div>
-                              <p className="text-xs text-gray-500">Date</p>
+                              <p className="text-xs text-gray-500">{t('orders.date')}</p>
                               <p className="text-sm font-medium">{new Date(order.created_at).toLocaleString()}</p>
                             </div>
                             {order.payment_verified_at && (
                               <div>
-                                <p className="text-xs text-gray-500">Paid</p>
+                                <p className="text-xs text-gray-500">{t('om.paidLabel')}</p>
                                 <p className="text-sm font-medium">{new Date(order.payment_verified_at).toLocaleDateString()}</p>
                               </div>
                             )}
@@ -2135,13 +2134,13 @@ function UserOrderHistoryModal({
 
                           {order.rejection_reason && (
                             <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                              <p className="text-xs font-medium text-red-700">Rejection Reason</p>
+                              <p className="text-xs font-medium text-red-700">{t('om.rejectionReasonLabel')}</p>
                               <p className="text-sm text-red-600 mt-0.5">{order.rejection_reason}</p>
                             </div>
                           )}
                           {order.admin_notes && (
                             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                              <p className="text-xs font-medium text-blue-700">Admin Notes</p>
+                              <p className="text-xs font-medium text-blue-700">{t('orders.adminNotes')}</p>
                               <p className="text-sm text-blue-600 mt-0.5">{order.admin_notes}</p>
                             </div>
                           )}
@@ -2160,7 +2159,7 @@ function UserOrderHistoryModal({
             onClick={onClose}
             className="w-full bg-gray-200 text-gray-800 py-2.5 rounded-lg hover:bg-gray-300 font-medium transition"
           >
-            Close
+            {t('common.close')}
           </button>
         </div>
       </div>

@@ -67,7 +67,7 @@ interface Order {
 export default function MyOrders() {
   const { user } = useAuth();
   const toast = useToast();
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -177,7 +177,7 @@ export default function MyOrders() {
     }
 
     return {
-      displayName: order.product ? getLocalizedProductName(order.product, language) : 'Unknown Product',
+      displayName: order.product ? getLocalizedProductName(order.product, language) : t('common.unknownProduct'),
       totalPV: order.product ? order.product.pv_value * order.quantity : 0,
       image: order.product?.image_url,
       itemCount: 1
@@ -225,8 +225,8 @@ export default function MyOrders() {
       await supabase.from('notifications').insert([{
         user_id: user.id,
         type: 'payment',
-        title: 'Payment Proof Submitted',
-        message: `Your payment proof for order ${selectedOrder.order_number} has been submitted and is awaiting verification.`,
+        title: t('orders.paymentProofSubmitted'),
+        message: t('orders.paymentProofSubmittedMsg', { orderNumber: selectedOrder.order_number }),
         action_url: '/orders',
       }]);
 
@@ -245,7 +245,7 @@ export default function MyOrders() {
         adminEmailToUse
       );
 
-      toast.success('Payment proof submitted successfully! You will be notified once it is verified.');
+      toast.success(t('orders.paymentSubmittedToast'));
       setShowPaymentModal(false);
       setPaymentNotes('');
       setPaymentScreenshot(null);
@@ -253,7 +253,7 @@ export default function MyOrders() {
       loadOrders();
     } catch (error) {
       console.error('Error submitting payment:', error);
-      toast.error('Failed to submit payment proof');
+      toast.error(t('orders.failedSubmitPayment'));
     } finally {
       setUploadingPayment(false);
     }
@@ -261,12 +261,12 @@ export default function MyOrders() {
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, { bg: string; text: string; icon: typeof Clock; label: string }> = {
-      pending: { bg: 'bg-yellow-100', text: 'text-yellow-800', icon: Clock, label: 'Pending' },
-      approved: { bg: 'bg-green-100', text: 'text-green-800', icon: Check, label: 'Approved' },
-      awaiting_payment: { bg: 'bg-orange-100', text: 'text-orange-800', icon: CreditCard, label: 'Awaiting Payment' },
-      rejected: { bg: 'bg-red-100', text: 'text-red-800', icon: X, label: 'Rejected' },
-      completed: { bg: 'bg-brand-100', text: 'text-brand-800', icon: Package, label: 'Completed' },
-      cancelled: { bg: 'bg-gray-100', text: 'text-gray-800', icon: X, label: 'Cancelled' },
+      pending: { bg: 'bg-yellow-100', text: 'text-yellow-800', icon: Clock, label: t('orders.pending') },
+      approved: { bg: 'bg-green-100', text: 'text-green-800', icon: Check, label: t('orders.statusApproved') },
+      awaiting_payment: { bg: 'bg-orange-100', text: 'text-orange-800', icon: CreditCard, label: t('orders.awaitingPayment') },
+      rejected: { bg: 'bg-red-100', text: 'text-red-800', icon: X, label: t('orders.rejected') },
+      completed: { bg: 'bg-brand-100', text: 'text-brand-800', icon: Package, label: t('orders.completed') },
+      cancelled: { bg: 'bg-gray-100', text: 'text-gray-800', icon: X, label: t('orders.cancelled') },
     };
     return styles[status] || styles.pending;
   };
@@ -279,7 +279,7 @@ export default function MyOrders() {
   const awaitingPaymentCount = orders.filter(o => o.status === 'awaiting_payment').length;
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading orders...</div>;
+    return <div className="flex items-center justify-center h-64">{t('admin.loadingOrders')}</div>;
   }
 
   return (
@@ -287,16 +287,16 @@ export default function MyOrders() {
       <div>
         <h2 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
           <ShoppingBag className="w-6 h-6 sm:w-7 sm:h-7 text-brand-600" />
-          My Orders
+          {t('orders.title')}
         </h2>
-        <p className="text-sm sm:text-base text-gray-600 mt-1">Track your order status and history</p>
+        <p className="text-sm sm:text-base text-gray-600 mt-1">{t('orders.subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-xs sm:text-sm text-yellow-600 font-medium">Pending</div>
+              <div className="text-xs sm:text-sm text-yellow-600 font-medium">{t('orders.pending')}</div>
               <div className="text-xl sm:text-2xl font-bold text-yellow-800">{pendingCount}</div>
             </div>
             <Clock className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-600" />
@@ -305,7 +305,7 @@ export default function MyOrders() {
         <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-xs sm:text-sm text-orange-600 font-medium">Awaiting Payment</div>
+              <div className="text-xs sm:text-sm text-orange-600 font-medium">{t('orders.awaitingPayment')}</div>
               <div className="text-xl sm:text-2xl font-bold text-orange-800">{awaitingPaymentCount}</div>
             </div>
             <CreditCard className="w-6 h-6 sm:w-8 sm:h-8 text-orange-600" />
@@ -314,7 +314,7 @@ export default function MyOrders() {
         <div className="bg-brand-50 border border-brand-200 rounded-lg p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-xs sm:text-sm text-brand-600 font-medium">Total Orders</div>
+              <div className="text-xs sm:text-sm text-brand-600 font-medium">{t('orders.totalOrders')}</div>
               <div className="text-xl sm:text-2xl font-bold text-brand-800">{orders.length}</div>
             </div>
             <ShoppingBag className="w-6 h-6 sm:w-8 sm:h-8 text-brand-600" />
@@ -324,11 +324,11 @@ export default function MyOrders() {
 
       <div className="flex gap-2 flex-wrap overflow-x-auto pb-2 -mx-1 px-1">
         {[
-          { value: 'all', label: 'All' },
-          { value: 'pending', label: 'Pending' },
-          { value: 'awaiting_payment', label: 'Awaiting' },
-          { value: 'completed', label: 'Completed' },
-          { value: 'rejected', label: 'Rejected' },
+          { value: 'all', label: t('orders.filterAll') },
+          { value: 'pending', label: t('orders.pending') },
+          { value: 'awaiting_payment', label: t('orders.filterAwaiting') },
+          { value: 'completed', label: t('orders.completed') },
+          { value: 'rejected', label: t('orders.rejected') },
         ].map(({ value, label }) => (
           <button
             key={value}
@@ -348,7 +348,7 @@ export default function MyOrders() {
         <div className="text-center py-12 bg-gray-50 rounded-lg">
           <ShoppingBag size={48} className="mx-auto text-gray-400 mb-4" />
           <p className="text-gray-600">
-            {statusFilter === 'all' ? 'No orders yet' : `No ${statusFilter} orders`}
+            {statusFilter === 'all' ? t('orders.noOrders') : t('orders.noStatusOrders', { status: statusFilter })}
           </p>
         </div>
       ) : (
@@ -379,14 +379,14 @@ export default function MyOrders() {
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
                       <div className="min-w-0">
                         <h3 className="font-bold text-base sm:text-lg text-gray-900 truncate">{displayName}</h3>
-                        <p className="text-xs sm:text-sm text-gray-500">Order #{order.order_number}</p>
+                        <p className="text-xs sm:text-sm text-gray-500">{t('orders.orderNumberLabel', { number: order.order_number })}</p>
                         {itemCount > 1 && (
                           <button
                             onClick={() => toggleOrderExpand(order.id)}
                             className="text-sm text-brand-600 font-medium flex items-center gap-1 mt-1 hover:text-brand-700"
                           >
                             <Package size={14} />
-                            {itemCount} items
+                            {t('orders.itemsCountLabel', { n: itemCount })}
                             {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                           </button>
                         )}
@@ -411,9 +411,9 @@ export default function MyOrders() {
                             <div className="flex-1">
                               <p className="font-medium text-gray-900 text-sm">{getLocalizedProductName(item.product, language)}</p>
                               <p className="text-xs text-gray-600">
-                                Qty: {item.quantity}{item.free_quantity > 0 && ` (+${item.free_quantity} free)`}
+                                {t('orders.qtyLabel', { n: item.quantity })}{item.free_quantity > 0 && t('orders.freeSuffix', { n: item.free_quantity })}
                                 <span className="mx-2">|</span>
-                                {formatCurrency(item.unit_price)} each
+                                {formatCurrency(item.unit_price)} {t('orders.each')}
                               </p>
                             </div>
                             <div className="text-right">
@@ -427,21 +427,21 @@ export default function MyOrders() {
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 text-xs sm:text-sm">
                       <div>
-                        <div className="text-gray-600">Items</div>
+                        <div className="text-gray-600">{t('orders.items')}</div>
                         <div className="font-medium text-gray-900">{itemCount}</div>
                       </div>
                       <div>
-                        <div className="text-gray-600">Total Amount</div>
+                        <div className="text-gray-600">{t('orders.totalAmount')}</div>
                         <div className="font-medium text-gray-900">
                           {formatCurrency(order.total_amount)}
                         </div>
                       </div>
                       <div>
-                        <div className="text-gray-600">PV Value</div>
+                        <div className="text-gray-600">{t('orders.pvValue')}</div>
                         <div className="font-medium text-orange-600">{totalPV} PV</div>
                       </div>
                       <div>
-                        <div className="text-gray-600">Date</div>
+                        <div className="text-gray-600">{t('orders.date')}</div>
                         <div className="font-medium text-gray-900">
                           {new Date(order.created_at).toLocaleDateString()}
                         </div>
@@ -450,14 +450,14 @@ export default function MyOrders() {
 
                     {order.rejection_reason && (
                       <div className="bg-red-50 border border-red-200 rounded-lg p-3 mt-2">
-                        <div className="text-sm font-medium text-red-800 mb-1">Rejection Reason:</div>
+                        <div className="text-sm font-medium text-red-800 mb-1">{t('orders.rejectionReason')}</div>
                         <div className="text-sm text-red-700">{order.rejection_reason}</div>
                       </div>
                     )}
 
                     {order.admin_notes && order.status !== 'rejected' && (
                       <div className="bg-brand-50 border border-brand-200 rounded-lg p-3 mt-2">
-                        <div className="text-sm font-medium text-brand-800 mb-1">Admin Notes:</div>
+                        <div className="text-sm font-medium text-brand-800 mb-1">{t('orders.adminNotes')}:</div>
                         <div className="text-sm text-brand-700">{order.admin_notes}</div>
                       </div>
                     )}
@@ -466,7 +466,7 @@ export default function MyOrders() {
                       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-2">
                         <div className="text-sm text-yellow-800 flex items-center gap-2">
                           <Clock size={16} />
-                          <span>Your order is pending approval by the stockist.</span>
+                          <span>{t('orders.pendingApprovalMsg')}</span>
                         </div>
                       </div>
                     )}
@@ -475,10 +475,10 @@ export default function MyOrders() {
                       <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mt-2">
                         <div className="text-sm font-medium text-orange-800 mb-2 flex items-center gap-2">
                           <CreditCard size={16} />
-                          Awaiting Payment
+                          {t('orders.awaitingPayment')}
                         </div>
                         <p className="text-sm text-orange-700 mb-2">
-                          Your order has been approved and stock has been reserved. Please send payment and submit proof.
+                          {t('orders.approvedReserveMsg')}
                         </p>
                         {countryPaymentInfos.length > 0 ? (
                           <div className="space-y-2 mb-3">
@@ -494,15 +494,15 @@ export default function MyOrders() {
                                 {info.payment_instructions && (
                                   <p className="text-xs text-gray-500 mt-1">{info.payment_instructions}</p>
                                 )}
-                                <p className="text-xs text-gray-400 mt-1">Ref: Order #{order.order_number}</p>
+                                <p className="text-xs text-gray-400 mt-1">{t('orders.refOrderNumber', { number: order.order_number })}</p>
                               </div>
                             ))}
                           </div>
                         ) : order.admin_email ? (
                           <div className="bg-white rounded-lg p-3 mb-3 border border-orange-200">
-                            <p className="text-xs text-gray-500 uppercase font-medium tracking-wide">Send payment to</p>
+                            <p className="text-xs text-gray-500 uppercase font-medium tracking-wide">{t('orders.sendPaymentTo')}</p>
                             <p className="text-lg font-bold text-brand-700 mt-1">{order.admin_email}</p>
-                            <p className="text-xs text-gray-500 mt-1">Reference: Order #{order.order_number}</p>
+                            <p className="text-xs text-gray-500 mt-1">{t('orders.referenceOrderNumber', { number: order.order_number })}</p>
                           </div>
                         ) : null}
                         <button
@@ -513,20 +513,20 @@ export default function MyOrders() {
                           className="w-full bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition font-medium flex items-center justify-center gap-2"
                         >
                           <Upload size={18} />
-                          Submit Payment Proof
+                          {t('orders.submitPaymentProof')}
                         </button>
                       </div>
                     )}
 
                     {order.status === 'awaiting_payment' && order.payment_screenshot_url && (
                       <div className="bg-brand-50 border border-brand-200 rounded-lg p-4 mt-2">
-                        <div className="text-sm font-medium text-brand-800 mb-2">Payment Proof Submitted</div>
+                        <div className="text-sm font-medium text-brand-800 mb-2">{t('orders.paymentProofSubmitted')}</div>
                         <p className="text-sm text-brand-700">
-                          Your payment proof has been submitted and is being verified by the admin.
+                          {t('orders.paymentBeingVerifiedMsg')}
                         </p>
                         {order.payment_submitted_at && (
                           <p className="text-xs text-brand-600 mt-1">
-                            Submitted on {new Date(order.payment_submitted_at).toLocaleString()}
+                            {t('orders.submittedOn', { date: new Date(order.payment_submitted_at).toLocaleString() })}
                           </p>
                         )}
                       </div>
@@ -536,10 +536,10 @@ export default function MyOrders() {
                       <div className="bg-green-50 border border-green-200 rounded-lg p-3 mt-2">
                         <div className="text-sm font-medium text-green-800 mb-1 flex items-center gap-2">
                           <Package size={16} />
-                          Order Complete!
+                          {t('orders.orderComplete')}
                         </div>
                         <p className="text-sm text-green-700">
-                          Your payment has been verified and your PV points have been added to your account.
+                          {t('orders.paymentVerifiedMsg')}
                         </p>
                       </div>
                     )}
@@ -554,35 +554,35 @@ export default function MyOrders() {
       {showPaymentModal && selectedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-4 sm:p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl sm:text-2xl font-bold mb-4">Submit Payment Proof</h3>
+            <h3 className="text-xl sm:text-2xl font-bold mb-4">{t('orders.submitPaymentProof')}</h3>
 
             <div className="space-y-4">
               <div className="bg-brand-50 border border-brand-200 rounded-lg p-4">
-                <h4 className="font-semibold text-brand-900 mb-2">Order Summary</h4>
+                <h4 className="font-semibold text-brand-900 mb-2">{t('cart.orderSummary')}</h4>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
-                    <span className="text-brand-700">Order Number:</span>
+                    <span className="text-brand-700">{t('orders.orderNumberColon')}</span>
                     <span className="font-bold text-brand-900 ml-2">{selectedOrder.order_number}</span>
                   </div>
                   <div>
-                    <span className="text-brand-700">Items:</span>
+                    <span className="text-brand-700">{t('orders.itemsColon')}</span>
                     <span className="font-medium text-brand-900 ml-2">{getOrderDisplayInfo(selectedOrder).itemCount}</span>
                   </div>
                   <div>
-                    <span className="text-brand-700">Total Amount:</span>
+                    <span className="text-brand-700">{t('shop.totalAmount')}:</span>
                     <span className="font-bold text-brand-900 ml-2">
                       {formatCurrency(selectedOrder.total_amount)}
                     </span>
                   </div>
                   <div>
-                    <span className="text-brand-700">Total PV:</span>
+                    <span className="text-brand-700">{t('shop.totalPVLabel')}</span>
                     <span className="font-medium text-brand-900 ml-2">{getOrderDisplayInfo(selectedOrder).totalPV}</span>
                   </div>
                 </div>
               </div>
 
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <h4 className="font-semibold text-yellow-900 mb-2">Payment Instructions</h4>
+                <h4 className="font-semibold text-yellow-900 mb-2">{t('orders.paymentInstructionsTitle')}</h4>
                 <p className="text-sm text-yellow-800 mb-2">{paymentInstructions}</p>
                 {countryPaymentInfos.length > 0 ? (
                   <div className="space-y-2 mt-3">
@@ -606,17 +606,17 @@ export default function MyOrders() {
                           <p className="text-xs text-gray-500 mt-1">{info.payment_instructions}</p>
                         )}
                         <p className="text-xs text-gray-400 mt-1">
-                          Reference: Order #{selectedOrder.order_number}
+                          {t('orders.referenceOrderNumber', { number: selectedOrder.order_number })}
                         </p>
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="bg-white rounded p-2 mt-2">
-                    <p className="text-sm font-medium text-gray-700">Send payment to:</p>
+                    <p className="text-sm font-medium text-gray-700">{t('orders.sendPaymentTo')}:</p>
                     <p className="text-lg font-bold text-brand-600">{selectedOrder.admin_email || adminEmail}</p>
                     <p className="text-xs text-gray-600 mt-1">
-                      Reference: Order #{selectedOrder.order_number}
+                      {t('orders.referenceOrderNumber', { number: selectedOrder.order_number })}
                     </p>
                   </div>
                 )}
@@ -624,20 +624,20 @@ export default function MyOrders() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Transaction Details / Notes (Optional)
+                  {t('orders.transactionDetailsLabel')}
                 </label>
                 <textarea
                   value={paymentNotes}
                   onChange={(e) => setPaymentNotes(e.target.value)}
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                  placeholder="Enter transaction ID, confirmation number, or any other notes..."
+                  placeholder={t('orders.transactionPlaceholder')}
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Payment Screenshot *
+                  {t('orders.paymentScreenshotLabel')}
                 </label>
                 <input
                   ref={fileInputRef}
@@ -654,7 +654,7 @@ export default function MyOrders() {
                   >
                     <Upload size={20} className="text-gray-500" />
                     <span className="text-gray-700">
-                      {paymentScreenshot ? 'Change Screenshot' : 'Upload Payment Screenshot'}
+                      {paymentScreenshot ? t('orders.changeScreenshot') : t('orders.uploadScreenshot')}
                     </span>
                   </button>
                   {paymentScreenshot && (
@@ -665,7 +665,7 @@ export default function MyOrders() {
                   )}
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  Please upload a clear screenshot of your e-transfer confirmation
+                  {t('orders.uploadScreenshotHint')}
                 </p>
               </div>
             </div>
@@ -679,12 +679,12 @@ export default function MyOrders() {
                 {uploadingPayment ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                    Uploading...
+                    {t('common.uploading')}
                   </>
                 ) : (
                   <>
                     <Upload size={18} />
-                    Submit Payment Proof
+                    {t('orders.submitPaymentProof')}
                   </>
                 )}
               </button>
@@ -698,7 +698,7 @@ export default function MyOrders() {
                 disabled={uploadingPayment}
                 className="flex-1 bg-gray-200 text-gray-800 py-3 rounded-lg hover:bg-gray-300 font-medium disabled:opacity-50"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>

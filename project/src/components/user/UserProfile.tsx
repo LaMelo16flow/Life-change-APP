@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { supabase } from '../../lib/supabase';
 import { User, Mail, Globe, Phone, MapPin, Calendar, Save, AlertCircle, Camera, Loader2, Trash2, ShieldAlert } from 'lucide-react';
 
@@ -12,6 +13,7 @@ interface Country {
 
 export function UserProfile() {
   const { user, profile, signOut } = useAuth();
+  const { t } = useLanguage();
   const [countries, setCountries] = useState<Country[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -80,12 +82,12 @@ export function UserProfile() {
     if (!file || !user) return;
 
     if (!file.type.startsWith('image/')) {
-      setMessage({ type: 'error', text: 'Please select an image file' });
+      setMessage({ type: 'error', text: t('profile.selectImageFile') });
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      setMessage({ type: 'error', text: 'Image must be less than 5MB' });
+      setMessage({ type: 'error', text: t('profile.imageTooLarge') });
       return;
     }
 
@@ -121,10 +123,10 @@ export function UserProfile() {
       if (updateError) throw updateError;
 
       setProfileImageUrl(urlData.publicUrl);
-      setMessage({ type: 'success', text: 'Profile photo updated!' });
+      setMessage({ type: 'success', text: t('profile.photoUpdated') });
     } catch (error: any) {
       console.error('Error uploading image:', error);
-      setMessage({ type: 'error', text: error.message || 'Failed to upload image' });
+      setMessage({ type: 'error', text: error.message || t('profile.failedUploadImage') });
     } finally {
       setUploadingImage(false);
     }
@@ -152,14 +154,14 @@ export function UserProfile() {
 
       if (error) throw error;
 
-      setMessage({ type: 'success', text: 'Profile updated successfully!' });
+      setMessage({ type: 'success', text: t('profile.updateSuccess') });
 
       setTimeout(() => {
         window.location.reload();
       }, 1500);
     } catch (error: any) {
       console.error('Error updating profile:', error);
-      setMessage({ type: 'error', text: error.message || 'Failed to update profile' });
+      setMessage({ type: 'error', text: error.message || t('profile.failedUpdate') });
     } finally {
       setSaving(false);
     }
@@ -172,7 +174,7 @@ export function UserProfile() {
 
     try {
       const { data: { session: currentSession } } = await supabase.auth.getSession();
-      if (!currentSession) throw new Error('Not authenticated');
+      if (!currentSession) throw new Error(t('profile.notAuthenticated'));
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-account`,
@@ -192,7 +194,7 @@ export function UserProfile() {
 
       await signOut();
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.message || 'Failed to delete account' });
+      setMessage({ type: 'error', text: error.message || t('profile.failedDeleteAccount') });
       setDeleting(false);
     }
   };
@@ -219,8 +221,8 @@ export function UserProfile() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Profile Settings</h2>
-        <p className="text-sm sm:text-base text-gray-600 mt-1">Manage your personal information and preferences</p>
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">{t('profile.pageTitle')}</h2>
+        <p className="text-sm sm:text-base text-gray-600 mt-1">{t('profile.subtitle')}</p>
       </div>
 
       {message && (
@@ -242,7 +244,7 @@ export function UserProfile() {
         <div className="p-4 sm:p-6 border-b border-gray-200">
           <h3 className="text-base sm:text-lg font-semibold text-gray-900 flex items-center gap-2">
             <User className="w-5 h-5" />
-            Account Information
+            {t('profile.accountInfo')}
           </h3>
         </div>
 
@@ -281,34 +283,34 @@ export function UserProfile() {
                   className="hidden"
                 />
               </div>
-              <p className="text-xs sm:text-sm text-gray-500 mt-2">Click camera to upload</p>
-              <p className="text-xs text-gray-400">Max 5MB, JPG/PNG/GIF</p>
+              <p className="text-xs sm:text-sm text-gray-500 mt-2">{t('profile.uploadPhoto')}</p>
+              <p className="text-xs text-gray-400">{t('profile.maxSize')}</p>
             </div>
 
             <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
                   <Mail className="w-4 h-4" />
-                  Email
+                  {t('profile.email')}
                 </div>
                 <p className="font-semibold text-gray-900">{user?.email}</p>
-                <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
+                <p className="text-xs text-gray-500 mt-1">{t('profile.emailCantChange')}</p>
               </div>
 
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
                   <Calendar className="w-4 h-4" />
-                  Member Since
+                  {t('profile.memberSince')}
                 </div>
                 <p className="font-semibold text-gray-900">
-                  {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'N/A'}
+                  {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : t('common.na')}
                 </p>
               </div>
 
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
                   <User className="w-4 h-4" />
-                  Total PV
+                  {t('user.totalPV')}
                 </div>
                 <p className="font-semibold text-gray-900">{profile?.total_pv || 0} PV</p>
               </div>
@@ -318,7 +320,7 @@ export function UserProfile() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Full Name *
+                {t('profile.fullName')} *
               </label>
               <input
                 type="text"
@@ -331,7 +333,7 @@ export function UserProfile() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Phone Number
+                {t('profile.phoneNumber')}
               </label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -347,7 +349,7 @@ export function UserProfile() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Country *
+                {t('profile.country')} *
               </label>
               <div className="relative">
                 <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -357,7 +359,7 @@ export function UserProfile() {
                   className="w-full pl-11 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 appearance-none bg-white"
                   required
                 >
-                  <option value="">Select a country</option>
+                  <option value="">{t('profile.selectCountry')}</option>
                   {countries.map((country) => (
                     <option key={country.code} value={country.code}>
                       {country.name}
@@ -368,13 +370,13 @@ export function UserProfile() {
               {selectedCountry && (
                 <div className="mt-2 p-3 bg-brand-50 rounded-lg border border-brand-200">
                   <p className="text-sm text-brand-800">
-                    <strong>Country:</strong> {selectedCountry.name}
+                    <strong>{t('profile.countryColon')}</strong> {selectedCountry.name}
                   </p>
                   <p className="text-sm text-brand-800">
-                    <strong>Currency:</strong> {selectedCountry.currency_code} ({selectedCountry.currency_symbol})
+                    <strong>{t('profile.currencyColon')}</strong> {selectedCountry.currency_code} ({selectedCountry.currency_symbol})
                   </p>
                   <p className="text-xs text-brand-600 mt-1">
-                    Products will be shown in this currency and you'll order from this country's inventory.
+                    {t('profile.currencyNote')}
                   </p>
                 </div>
               )}
@@ -383,16 +385,16 @@ export function UserProfile() {
             <div className="border-t border-gray-200 pt-6 mt-6">
               <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <MapPin className="w-5 h-5" />
-                Delivery Address
+                {t('profile.deliveryAddress')}
               </h4>
               <p className="text-sm text-gray-600 mb-4">
-                This address will be used for product delivery when you place orders.
+                {t('profile.deliveryAddressDesc')}
               </p>
 
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Street Address *
+                    {t('profile.streetAddress')} *
                   </label>
                   <input
                     type="text"
@@ -406,7 +408,7 @@ export function UserProfile() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Apartment, Suite, etc. (Optional)
+                    {t('profile.apartment')}
                   </label>
                   <input
                     type="text"
@@ -420,7 +422,7 @@ export function UserProfile() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      City *
+                      {t('profile.city')} *
                     </label>
                     <input
                       type="text"
@@ -434,7 +436,7 @@ export function UserProfile() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      State / Province *
+                      {t('profile.stateProvince')} *
                     </label>
                     <input
                       type="text"
@@ -449,7 +451,7 @@ export function UserProfile() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Postal Code *
+                    {t('profile.postalCode')} *
                   </label>
                   <input
                     type="text"
@@ -467,10 +469,9 @@ export function UserProfile() {
               <div className="flex items-start gap-3">
                 <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
                 <div className="text-sm text-yellow-800">
-                  <p className="font-semibold mb-1">Important Note:</p>
+                  <p className="font-semibold mb-1">{t('profile.importantNote')}</p>
                   <p>
-                    Changing your country will affect which products you can order and the currency used for transactions.
-                    This is useful if you travel or relocate to a different country.
+                    {t('profile.countryChangeWarning')}
                   </p>
                 </div>
               </div>
@@ -483,7 +484,7 @@ export function UserProfile() {
                 className="px-6 py-2.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
                 <Save className="w-5 h-5" />
-                {saving ? 'Saving...' : 'Save Changes'}
+                {saving ? t('profile.saving') : t('profile.save')}
               </button>
             </div>
           </form>
@@ -494,15 +495,15 @@ export function UserProfile() {
         <div className="p-6 border-b border-red-100">
           <h3 className="text-lg font-semibold text-red-700 flex items-center gap-2">
             <ShieldAlert className="w-5 h-5" />
-            Danger Zone
+            {t('profile.dangerZone')}
           </h3>
         </div>
         <div className="p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <p className="font-semibold text-gray-900">Delete your account</p>
+              <p className="font-semibold text-gray-900">{t('profile.deleteAccountTitle')}</p>
               <p className="text-sm text-gray-600 mt-1">
-                Permanently remove your account and all associated data. This action cannot be undone.
+                {t('profile.deleteAccountDesc')}
               </p>
             </div>
             {!showDeleteConfirm ? (
@@ -511,7 +512,7 @@ export function UserProfile() {
                 className="px-5 py-2.5 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 font-medium flex items-center gap-2 transition flex-shrink-0"
               >
                 <Trash2 className="w-4 h-4" />
-                Delete Account
+                {t('profile.deleteAccountBtn')}
               </button>
             ) : (
               <button
@@ -521,7 +522,7 @@ export function UserProfile() {
                 }}
                 className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition flex-shrink-0"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             )}
           </div>
@@ -531,25 +532,25 @@ export function UserProfile() {
               <div className="flex items-start gap-3 mb-4">
                 <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                 <div className="text-sm text-red-800">
-                  <p className="font-semibold mb-2">Are you absolutely sure?</p>
+                  <p className="font-semibold mb-2">{t('profile.areYouSure')}</p>
                   <ul className="list-disc list-inside space-y-1 text-red-700">
-                    <li>Your profile and PV history will be permanently deleted</li>
-                    <li>Your team members will be unlinked from your account</li>
-                    <li>Any pending orders will be affected</li>
-                    <li>This action is irreversible</li>
+                    <li>{t('profile.deleteWarning1')}</li>
+                    <li>{t('profile.deleteWarning2')}</li>
+                    <li>{t('profile.deleteWarning3')}</li>
+                    <li>{t('profile.deleteWarning4')}</li>
                   </ul>
                 </div>
               </div>
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium text-red-800 mb-1.5">
-                    Type <span className="font-bold bg-red-100 px-1.5 py-0.5 rounded">DELETE</span> to confirm
+                    {t('profile.typeConfirmPrefix')} <span className="font-bold bg-red-100 px-1.5 py-0.5 rounded">DELETE</span> {t('profile.typeConfirmSuffix')}
                   </label>
                   <input
                     type="text"
                     value={deleteConfirmText}
                     onChange={(e) => setDeleteConfirmText(e.target.value)}
-                    placeholder="Type DELETE here..."
+                    placeholder={t('profile.deletePlaceholder')}
                     className="w-full px-4 py-2.5 border border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-white text-gray-900 placeholder-gray-400"
                   />
                 </div>
@@ -561,12 +562,12 @@ export function UserProfile() {
                   {deleting ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Deleting account...
+                      {t('profile.deletingAccount')}
                     </>
                   ) : (
                     <>
                       <Trash2 className="w-4 h-4" />
-                      Permanently delete my account
+                      {t('profile.permanentlyDelete')}
                     </>
                   )}
                 </button>

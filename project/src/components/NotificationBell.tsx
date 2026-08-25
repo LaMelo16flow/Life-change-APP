@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bell, Calendar, Award, DollarSign, Users, Settings, Check, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { supabase, Notification } from '../lib/supabase';
 
 interface NotificationBellProps {
@@ -24,20 +25,21 @@ const COLORS: Record<string, string> = {
   approval: 'bg-yellow-100 text-yellow-600',
 };
 
-function timeAgo(dateStr: string) {
-  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-  if (seconds < 60) return 'Just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString();
-}
-
 export function NotificationBell({ unreadCount, onViewAll }: NotificationBellProps) {
   const { profile } = useAuth();
+  const { t } = useLanguage();
+
+  function timeAgo(dateStr: string) {
+    const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+    if (seconds < 60) return t('common.justNow');
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return t('common.minutesAgo', { n: minutes });
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return t('common.hoursAgo', { n: hours });
+    const days = Math.floor(hours / 24);
+    if (days < 7) return t('common.daysAgo', { n: days });
+    return new Date(dateStr).toLocaleDateString();
+  }
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
@@ -104,10 +106,10 @@ export function NotificationBell({ unreadCount, onViewAll }: NotificationBellPro
       {open && (
         <div className="fixed left-4 right-4 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 w-auto sm:w-96 bg-white rounded-2xl shadow-2xl ring-1 ring-black/5 border border-slate-100 overflow-hidden z-50 animate-dropdown-in origin-top-right">
           <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-100 bg-slate-50/60">
-            <h3 className="text-sm font-semibold text-slate-900">Notifications</h3>
+            <h3 className="text-sm font-semibold text-slate-900">{t('notifications.title')}</h3>
             {unreadCount > 0 && (
               <span className="text-xs font-semibold text-brand-700 bg-brand-100 px-2 py-0.5 rounded-full">
-                {unreadCount} new
+                {t('notifications.newBadge', { n: unreadCount })}
               </span>
             )}
           </div>
@@ -120,7 +122,7 @@ export function NotificationBell({ unreadCount, onViewAll }: NotificationBellPro
             ) : items.length === 0 ? (
               <div className="p-10 text-center">
                 <Bell className="w-9 h-9 text-slate-200 mx-auto mb-2" />
-                <p className="text-sm text-slate-500">You're all caught up</p>
+                <p className="text-sm text-slate-500">{t('notifications.youreAllCaughtUp')}</p>
               </div>
             ) : (
               <ul className="divide-y divide-slate-100">
@@ -173,7 +175,7 @@ export function NotificationBell({ unreadCount, onViewAll }: NotificationBellPro
             }}
             className="w-full text-center text-sm font-semibold text-brand-700 hover:bg-brand-50 py-3 border-t border-slate-100 transition"
           >
-            View all notifications
+            {t('notifications.viewAll')}
           </button>
         </div>
       )}

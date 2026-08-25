@@ -1,7 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase, Product } from '../../lib/supabase';
 import { useToast } from '../../contexts/ToastContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { formatCurrency } from '../../utils/currency';
+import { getLocalizedProductType } from '../../utils/productLocale';
 import { Upload, Plus, CreditCard as Edit2, Save, X, Image } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -82,7 +84,7 @@ const chooseBestProductImage = (values: Array<string | null | undefined>) => {
 const mergeProductData = (existing: Partial<Product>, incoming: Partial<Product>) => {
   const merged: Partial<Product> = { ...existing };
 
-  const fields: Array<keyof Product> = ['name', 'name_en', 'product_type', 'description', 'description_en', 'image_url', 'pv_value', 'is_active'];
+  const fields: Array<keyof Product> = ['name', 'name_en', 'product_type', 'product_type_en', 'description', 'description_en', 'image_url', 'pv_value', 'is_active'];
 
   for (const field of fields) {
     const existingValue = existing[field];
@@ -183,6 +185,7 @@ const mergeDuplicateProducts = (items: Product[]) => {
 
 export function ProductManagement() {
   const toast = useToast();
+  const { language, t } = useLanguage();
   const [products, setProducts] = useState<Product[]>([]);
   const [productPrices, setProductPrices] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -199,6 +202,7 @@ export function ProductManagement() {
     name: '',
     name_en: '',
     product_type: '',
+    product_type_en: '',
     pv_value: 0,
     price: 0,
     description: '',
@@ -264,6 +268,7 @@ export function ProductManagement() {
       name: product.name,
       name_en: product.name_en || '',
       product_type: product.product_type,
+      product_type_en: product.product_type_en || '',
       pv_value: product.pv_value,
       description: product.description || '',
       description_en: product.description_en || '',
@@ -322,9 +327,9 @@ export function ProductManagement() {
     await fetchProducts();
 
     if (failedCount === 0) {
-      toast.success(`${deletedCount} product${deletedCount === 1 ? '' : 's'} deleted`);
+      toast.success(t('admin.productsDeleted', { n: deletedCount }));
     } else {
-      toast.error(`${failedCount} failed, ${deletedCount} deleted`);
+      toast.error(t('admin.productsDeleteFailed', { failed: failedCount, deleted: deletedCount }));
     }
   };
 
@@ -341,6 +346,7 @@ export function ProductManagement() {
         name: editForm.name,
         name_en: editForm.name_en || null,
         product_type: editForm.product_type,
+        product_type_en: editForm.product_type_en || null,
         pv_value: parseFloat(editForm.pv_value),
         description: editForm.description,
         description_en: editForm.description_en || null,
@@ -350,7 +356,7 @@ export function ProductManagement() {
       .eq('id', editingId);
 
     if (productError) {
-      toast.error('Failed to update product');
+      toast.error(t('admin.failedUpdateProduct'));
       return;
     }
 
@@ -364,7 +370,7 @@ export function ProductManagement() {
         onConflict: 'product_id,country_code',
       });
 
-    toast.success('Product updated successfully');
+    toast.success(t('admin.productUpdated'));
     setEditingId(null);
     setEditForm(null);
     await fetchProducts();
@@ -391,7 +397,7 @@ export function ProductManagement() {
       return data.publicUrl;
     } catch (error) {
       console.error('Error uploading image:', error);
-      toast.error('Failed to upload image');
+      toast.error(t('profile.failedUploadImage'));
       return null;
     }
   };
@@ -433,7 +439,7 @@ export function ProductManagement() {
   const handleAddProduct = async () => {
     const cleanedName = newProduct.name.trim();
     if (!cleanedName) {
-      toast.error('Product name is required');
+      toast.error(t('admin.productNameRequired'));
       return;
     }
 
@@ -452,6 +458,7 @@ export function ProductManagement() {
         name: cleanedName,
         name_en: newProduct.name_en || matchedProduct.name_en,
         product_type: newProduct.product_type || matchedProduct.product_type,
+        product_type_en: newProduct.product_type_en || matchedProduct.product_type_en,
         pv_value: Number(newProduct.pv_value) || matchedProduct.pv_value,
         description: newProduct.description || matchedProduct.description,
         description_en: newProduct.description_en || matchedProduct.description_en,
@@ -465,6 +472,7 @@ export function ProductManagement() {
           name: merged.name || matchedProduct.name,
           name_en: merged.name_en ?? matchedProduct.name_en ?? null,
           product_type: merged.product_type || matchedProduct.product_type,
+          product_type_en: merged.product_type_en ?? matchedProduct.product_type_en ?? null,
           pv_value: Number(merged.pv_value ?? matchedProduct.pv_value),
           description: merged.description ?? matchedProduct.description,
           description_en: merged.description_en ?? matchedProduct.description_en ?? null,
@@ -474,7 +482,7 @@ export function ProductManagement() {
         .eq('id', matchedProduct.id);
 
       if (error) {
-        toast.error('Failed to update matching product');
+        toast.error(t('admin.failedUpdateMatchingProduct'));
         return;
       }
 
@@ -488,9 +496,9 @@ export function ProductManagement() {
           onConflict: 'product_id,country_code',
         });
 
-      toast.success('Product updated with latest information');
+      toast.success(t('admin.productUpdatedLatest'));
       setShowAdd(false);
-      setNewProduct({ name: '', name_en: '', product_type: '', pv_value: 0, price: 0, description: '', description_en: '', image_url: '' });
+      setNewProduct({ name: '', name_en: '', product_type: '', product_type_en: '', pv_value: 0, price: 0, description: '', description_en: '', image_url: '' });
       await fetchProducts();
       return;
     }
@@ -501,6 +509,7 @@ export function ProductManagement() {
         name: cleanedName,
         name_en: newProduct.name_en || null,
         product_type: newProduct.product_type,
+        product_type_en: newProduct.product_type_en || null,
         pv_value: parseFloat(newProduct.pv_value.toString()),
         description: newProduct.description,
         description_en: newProduct.description_en || null,
@@ -511,7 +520,7 @@ export function ProductManagement() {
       .single();
 
     if (error || !createdProduct) {
-      toast.error('Failed to add product');
+      toast.error(t('admin.failedAddProduct'));
       return;
     }
 
@@ -525,9 +534,9 @@ export function ProductManagement() {
         onConflict: 'product_id,country_code',
       });
 
-    toast.success('Product added successfully');
+    toast.success(t('admin.productAdded'));
     setShowAdd(false);
-    setNewProduct({ name: '', name_en: '', product_type: '', pv_value: 0, price: 0, description: '', description_en: '', image_url: '' });
+    setNewProduct({ name: '', name_en: '', product_type: '', product_type_en: '', pv_value: 0, price: 0, description: '', description_en: '', image_url: '' });
     await fetchProducts();
   };
 
@@ -552,6 +561,7 @@ export function ProductManagement() {
         name: row['Product Name'] || row['name'] || row['Name'] || row['PRODUCT NAME'] || '',
         name_en: row['Product Name (English)'] || row['name_en'] || row['English Name'] || row['NAME_EN'] || row['Name EN'] || '',
         product_type: row['Type'] || row['type'] || row['Product Type'] || row['CATEGORY'] || 'General',
+        product_type_en: row['Type (English)'] || row['product_type_en'] || row['English Type'] || row['Category (English)'] || row['TYPE_EN'] || '',
         pv_value: parseFloat(row['PV'] || row['pv'] || row['PV Value'] || row['pv_value'] || row['PV VALUE'] || 0),
         description: row['Description'] || row['description'] || row['DESCRIPTION'] || '',
         description_en: row['Description (English)'] || row['description_en'] || row['English Description'] || row['DESCRIPTION_EN'] || '',
@@ -559,12 +569,12 @@ export function ProductManagement() {
       })).filter((product) => product.name && String(product.name).trim());
 
       if (rawProducts.length === 0) {
-        toast.warning('No valid products found in Excel file. Please ensure columns are named: Product Name, Type, PV, Description');
+        toast.warning(t('admin.noValidProductsExcel'));
         setImporting(false);
         return;
       }
 
-      const dedupedProducts: Array<{ name: string; name_en: string; product_type: string; pv_value: number; description: string; description_en: string; is_active: boolean }> = [];
+      const dedupedProducts: Array<{ name: string; name_en: string; product_type: string; product_type_en: string; pv_value: number; description: string; description_en: string; is_active: boolean }> = [];
       const seenProductKeys = new Set<string>();
 
       for (const row of rawProducts) {
@@ -579,6 +589,7 @@ export function ProductManagement() {
             name: String(merged.name || existing.name),
             name_en: String(merged.name_en ?? existing.name_en ?? ''),
             product_type: String(merged.product_type || existing.product_type),
+            product_type_en: String(merged.product_type_en ?? existing.product_type_en ?? ''),
             pv_value: Number(merged.pv_value ?? existing.pv_value),
             description: String(merged.description ?? existing.description),
             description_en: String(merged.description_en ?? existing.description_en ?? ''),
@@ -592,6 +603,7 @@ export function ProductManagement() {
           name: String(row.name).trim(),
           name_en: String(row.name_en || '').trim(),
           product_type: String(row.product_type || 'General'),
+          product_type_en: String(row.product_type_en || '').trim(),
           pv_value: Number(row.pv_value) || 0,
           description: String(row.description || ''),
           description_en: String(row.description_en || ''),
@@ -615,6 +627,7 @@ export function ProductManagement() {
               name: String(merged.name || matchedProduct.name),
               name_en: merged.name_en ?? matchedProduct.name_en ?? null,
               product_type: String(merged.product_type || matchedProduct.product_type),
+              product_type_en: merged.product_type_en ?? matchedProduct.product_type_en ?? null,
               pv_value: Number(merged.pv_value ?? matchedProduct.pv_value),
               description: String(merged.description ?? matchedProduct.description),
               description_en: merged.description_en ?? matchedProduct.description_en ?? null,
@@ -637,6 +650,7 @@ export function ProductManagement() {
             name: product.name,
             name_en: product.name_en || null,
             product_type: product.product_type,
+            product_type_en: product.product_type_en || null,
             pv_value: product.pv_value,
             description: product.description,
             description_en: product.description_en || null,
@@ -651,11 +665,11 @@ export function ProductManagement() {
         importedCount += 1;
       }
 
-      toast.success(`Processed ${importedCount} product${importedCount === 1 ? '' : 's'} with duplicate matching and update logic`);
+      toast.success(t('admin.processedProducts', { n: importedCount }));
       await fetchProducts();
     } catch (error) {
       console.error(error);
-      toast.error('Error processing Excel file');
+      toast.error(t('admin.errorProcessingExcel'));
     } finally {
       setImporting(false);
       if (fileInputRef.current) {
@@ -676,8 +690,8 @@ export function ProductManagement() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Product Management</h2>
-          <p className="text-slate-600 mt-1">Manage products and PV values</p>
+          <h2 className="text-2xl font-bold text-slate-900">{t('admin.productManagementTitle')}</h2>
+          <p className="text-slate-600 mt-1">{t('admin.productManagementSubtitle')}</p>
         </div>
         <div className="flex gap-3 flex-wrap sm:justify-end">
           <input
@@ -693,14 +707,14 @@ export function ProductManagement() {
             className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium disabled:bg-green-400 disabled:cursor-not-allowed"
           >
             <Upload className="w-5 h-5" />
-            {importing ? 'Importing...' : 'Import Excel'}
+            {importing ? t('admin.importing') : t('admin.importExcel')}
           </button>
           <button
             onClick={() => setShowAdd(true)}
             className="flex items-center gap-2 px-4 py-2 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition font-medium"
           >
             <Plus className="w-5 h-5" />
-            Add Product
+            {t('admin.addProduct')}
           </button>
           <button
             onClick={deleteSelectedProducts}
@@ -708,25 +722,25 @@ export function ProductManagement() {
             className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium disabled:bg-red-300 disabled:cursor-not-allowed"
           >
             <X className="w-5 h-5" />
-            Delete Selected ({selectedProductIds.length})
+            {t('admin.deleteSelected', { n: selectedProductIds.length })}
           </button>
         </div>
       </div>
 
       {showAdd && (
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Add New Product</h3>
+          <h3 className="text-lg font-semibold text-slate-900 mb-4">{t('admin.addProduct')}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <input
               type="text"
-              placeholder="Product Name"
+              placeholder={t('admin.productName')}
               value={newProduct.name}
               onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
               className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
             />
             <input
               type="text"
-              placeholder="Product Type"
+              placeholder={t('admin.productType')}
               value={newProduct.product_type}
               onChange={(e) => setNewProduct({ ...newProduct, product_type: e.target.value })}
               className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
@@ -734,7 +748,7 @@ export function ProductManagement() {
             <input
               type="number"
               step="0.01"
-              placeholder="PV Value"
+              placeholder={t('admin.pvValue')}
               value={newProduct.pv_value || ''}
               onChange={(e) => setNewProduct({ ...newProduct, pv_value: parseFloat(e.target.value) || 0 })}
               className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
@@ -742,13 +756,13 @@ export function ProductManagement() {
             <input
               type="number"
               step="0.01"
-              placeholder="Price (CAD)"
+              placeholder={t('admin.priceCAD')}
               value={newProduct.price || ''}
               onChange={(e) => setNewProduct({ ...newProduct, price: parseFloat(e.target.value) || 0 })}
               className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
             />
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Product Image</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">{t('admin.productImage')}</label>
               <div className="flex gap-3">
                 <input
                   ref={imageInputRef}
@@ -764,12 +778,12 @@ export function ProductManagement() {
                   className="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition font-medium disabled:bg-slate-400"
                 >
                   <Upload className="w-4 h-4" />
-                  {uploadingImage ? 'Uploading...' : 'Upload Image'}
+                  {uploadingImage ? t('common.uploading') : t('admin.uploadImage')}
                 </button>
-                <span className="text-slate-500 self-center">or</span>
+                <span className="text-slate-500 self-center">{t('admin.or')}</span>
                 <input
                   type="text"
-                  placeholder="Enter Image URL"
+                  placeholder={t('admin.enterImageUrl')}
                   value={newProduct.image_url}
                   onChange={(e) => setNewProduct({ ...newProduct, image_url: e.target.value })}
                   className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
@@ -778,34 +792,41 @@ export function ProductManagement() {
             </div>
             <input
               type="text"
-              placeholder="Description"
+              placeholder={t('admin.description')}
               value={newProduct.description}
               onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
               className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent col-span-2"
             />
             <div className="col-span-2 border-t border-slate-200 pt-3 mt-1">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">English translation (optional)</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t('admin.englishTranslationOptional')}</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <input
                   type="text"
-                  placeholder="Product Name (English) — optional"
+                  placeholder={`${t('admin.productNameEnglish')} — ${t('admin.optional').toLowerCase()}`}
                   value={newProduct.name_en}
                   onChange={(e) => setNewProduct({ ...newProduct, name_en: e.target.value })}
                   className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                 />
                 <input
                   type="text"
-                  placeholder="Description (English) — optional"
+                  placeholder={`${t('admin.productTypeEnglish')} — ${t('admin.optional').toLowerCase()}`}
+                  value={newProduct.product_type_en}
+                  onChange={(e) => setNewProduct({ ...newProduct, product_type_en: e.target.value })}
+                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                />
+                <input
+                  type="text"
+                  placeholder={`${t('admin.descriptionEnglish')} — ${t('admin.optional').toLowerCase()}`}
                   value={newProduct.description_en}
                   onChange={(e) => setNewProduct({ ...newProduct, description_en: e.target.value })}
-                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent col-span-1 sm:col-span-2"
                 />
               </div>
             </div>
           </div>
           {newProduct.image_url && (
             <div className="mt-4">
-              <p className="text-sm text-slate-600 mb-2">Image Preview:</p>
+              <p className="text-sm text-slate-600 mb-2">{t('admin.imagePreview')}</p>
               <img
                 src={newProduct.image_url}
                 alt="Preview"
@@ -821,13 +842,13 @@ export function ProductManagement() {
               onClick={handleAddProduct}
               className="px-4 py-2 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition font-medium"
             >
-              Add Product
+              {t('admin.addProduct')}
             </button>
             <button
               onClick={() => setShowAdd(false)}
               className="px-4 py-2 bg-slate-300 text-slate-700 rounded-lg hover:bg-slate-400 transition font-medium"
             >
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </div>
@@ -841,11 +862,11 @@ export function ProductManagement() {
           if (isEditing && editForm) {
             return (
               <div key={product.id} className="bg-white p-6 rounded-xl border-2 border-brand-500 shadow-lg">
-                <h3 className="text-lg font-semibold text-slate-900 mb-4">Edit Product</h3>
+                <h3 className="text-lg font-semibold text-slate-900 mb-4">{t('admin.editProduct')}</h3>
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Product Name</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">{t('admin.productName')}</label>
                       <input
                         type="text"
                         value={editForm.name}
@@ -854,7 +875,7 @@ export function ProductManagement() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Product Type</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">{t('admin.productType')}</label>
                       <input
                         type="text"
                         value={editForm.product_type}
@@ -865,7 +886,7 @@ export function ProductManagement() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">PV Value</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{t('admin.pvValue')}</label>
                     <input
                       type="number"
                       step="0.01"
@@ -876,7 +897,7 @@ export function ProductManagement() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Product Image</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{t('admin.productImage')}</label>
                     <div className="flex gap-2 mb-2">
                       <input
                         ref={editImageInputRef}
@@ -892,12 +913,12 @@ export function ProductManagement() {
                         className="flex items-center gap-2 px-3 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition text-sm font-medium disabled:bg-slate-400"
                       >
                         <Upload className="w-4 h-4" />
-                        {uploadingImage ? 'Uploading...' : 'Upload'}
+                        {uploadingImage ? t('common.uploading') : t('admin.uploadImage')}
                       </button>
-                      <span className="text-slate-500 self-center text-sm">or</span>
+                      <span className="text-slate-500 self-center text-sm">{t('admin.or')}</span>
                       <input
                         type="text"
-                        placeholder="Enter URL"
+                        placeholder={t('admin.enterImageUrl')}
                         value={editForm.image_url}
                         onChange={(e) => setEditForm({ ...editForm, image_url: e.target.value })}
                         className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
@@ -916,7 +937,7 @@ export function ProductManagement() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{t('admin.description')}</label>
                     <textarea
                       value={editForm.description}
                       onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
@@ -926,22 +947,32 @@ export function ProductManagement() {
                   </div>
 
                   <div className="border-t border-slate-200 pt-3">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">English translation (optional)</p>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t('admin.englishTranslationOptional')}</p>
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Product Name (English)</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">{t('admin.productNameEnglish')}</label>
                         <input
                           type="text"
-                          placeholder="Optional"
+                          placeholder={t('admin.optional')}
                           value={editForm.name_en}
                           onChange={(e) => setEditForm({ ...editForm, name_en: e.target.value })}
                           className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Description (English)</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">{t('admin.productTypeEnglish')}</label>
+                        <input
+                          type="text"
+                          placeholder={t('admin.optional')}
+                          value={editForm.product_type_en}
+                          onChange={(e) => setEditForm({ ...editForm, product_type_en: e.target.value })}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">{t('admin.descriptionEnglish')}</label>
                         <textarea
-                          placeholder="Optional"
+                          placeholder={t('admin.optional')}
                           value={editForm.description_en}
                           onChange={(e) => setEditForm({ ...editForm, description_en: e.target.value })}
                           rows={2}
@@ -952,7 +983,7 @@ export function ProductManagement() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Price (CAD)</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{t('admin.priceCAD')}</label>
                     <input
                       type="number"
                       step="0.01"
@@ -972,7 +1003,7 @@ export function ProductManagement() {
                       className="w-4 h-4 text-brand-600 rounded focus:ring-brand-500"
                     />
                     <label htmlFor={`active-${product.id}`} className="text-sm font-medium text-slate-700">
-                      Active Product
+                      {t('admin.activeProduct')}
                     </label>
                   </div>
 
@@ -982,7 +1013,7 @@ export function ProductManagement() {
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
                     >
                       <Save className="w-4 h-4" />
-                      Save Changes
+                      {t('profile.save')}
                     </button>
                     <button
                       onClick={cancelEdit}
@@ -1024,7 +1055,7 @@ export function ProductManagement() {
                     {product.name_en && (
                       <p className="text-xs text-slate-400">EN: {product.name_en}</p>
                     )}
-                    <p className="text-sm text-slate-600">{product.product_type}</p>
+                    <p className="text-sm text-slate-600">{getLocalizedProductType(product, language)}</p>
                     <div className="mt-2">
                       <span className="text-lg font-bold text-green-600">{product.pv_value} PV</span>
                     </div>
@@ -1037,7 +1068,7 @@ export function ProductManagement() {
                     onChange={() => toggleProductSelection(product.id)}
                     className="w-4 h-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
                   />
-                  Select
+                  {t('admin.select')}
                 </label>
               </div>
 
@@ -1062,7 +1093,7 @@ export function ProductManagement() {
                       : 'bg-red-100 text-red-700'
                   }`}
                 >
-                  {product.is_active ? 'Active' : 'Inactive'}
+                  {product.is_active ? t('common.active') : t('common.inactive')}
                 </span>
                 <div className="flex items-center gap-2">
                   <button
@@ -1070,24 +1101,24 @@ export function ProductManagement() {
                     className="flex items-center gap-1 px-3 py-1.5 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition text-sm font-medium"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
-                    Edit
+                    {t('admin.edit')}
                   </button>
                   <button
                     onClick={async () => {
                       const success = await deleteProduct(product.id);
 
                       if (!success) {
-                        toast.error('Failed to delete product');
+                        toast.error(t('admin.failedDeleteProduct'));
                         return;
                       }
 
-                      toast.success('Product deleted');
+                      toast.success(t('admin.productDeleted'));
                       await fetchProducts();
                     }}
                     className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium"
                   >
                     <X className="w-3.5 h-3.5" />
-                    Delete
+                    {t('admin.delete')}
                   </button>
                 </div>
               </div>

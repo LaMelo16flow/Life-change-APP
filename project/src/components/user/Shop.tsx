@@ -3,7 +3,8 @@ import { supabase, Profile } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { formatCurrency } from '../../utils/currency';
-import { getLocalizedProductName, getLocalizedProductDescription } from '../../utils/productLocale';
+import { getLocalizedProductName, getLocalizedProductDescription, getLocalizedProductType } from '../../utils/productLocale';
+import { getPromoLabel, getPromoBuyGetFreeText } from '../../utils/promoLocale';
 import { ShoppingCart, Package, Check, AlertCircle, X, ShoppingBag, Minus, Plus, Gift } from 'lucide-react';
 import { sendOrderPlacedNotification } from '../../utils/notifications';
 
@@ -12,6 +13,7 @@ interface Product {
   name: string;
   name_en?: string | null;
   product_type: string;
+  product_type_en?: string | null;
   pv_value: number;
   description: string;
   description_en?: string | null;
@@ -58,7 +60,7 @@ function getPromoBonusInfo(promo: ActivePromotion, quantity: number) {
 
 export default function Shop() {
   const { user } = useAuth();
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const [products, setProducts] = useState<Product[]>([]);
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [promotions, setPromotions] = useState<Record<string, ActivePromotion>>({});
@@ -220,13 +222,13 @@ export default function Shop() {
       setCardQuantities(prev => ({ ...prev, [product.id]: 1 }));
       setMessage({
         type: 'success',
-        text: `${qty}x ${product.name} added to cart!`
+        text: t('shop.addedToCart', { qty, name: getLocalizedProductName(product, language) })
       });
 
       setTimeout(() => setMessage(null), 3000);
     } catch (error: any) {
       console.error('Error adding to cart:', error);
-      setMessage({ type: 'error', text: error.message || 'Failed to add to cart' });
+      setMessage({ type: 'error', text: error.message || t('shop.failedAddToCart') });
     } finally {
       setAddingToCart(null);
     }
@@ -237,7 +239,7 @@ export default function Shop() {
 
     const originalPrice = prices[selectedProduct.id];
     if (!originalPrice) {
-      setMessage({ type: 'error', text: 'Price not available for your country' });
+      setMessage({ type: 'error', text: t('shop.priceNotAvailable') });
       return;
     }
 
@@ -260,46 +262,16 @@ export default function Shop() {
         .single();
 
       if (inventoryError || !inventoryData) {
-        throw new Error('Product not available in your country');
+        throw new Error(t('shop.productNotAvailableCountry'));
       }
 
       const availableStock = inventoryData.quantity - inventoryData.reserved_quantity;
       if (availableStock < totalQuantity) {
-        throw new Error(`Only ${availableStock} units available (need ${totalQuantity} including ${freeItems} free)`);
+        throw new Error(t('shop.onlyUnitsAvailable', { available: availableStock, needed: totalQuantity, free: freeItems }));
       }
 
       const { data: orderNumberData } = await supabase.rpc('generate_order_number');
       const orderNumber = orderNumberData || `ORD-${Date.now()}`;
-
-      const { data: orderData, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          order_number: orderNumber,
-          user_id: user?.id,
-          product_id: selectedProduct.id,
-          quantity: totalQuantity,
-          unit_price: originalPrice,
-          total_amount: totalPrice,
-          currency_code: 'CAD',
-          region: 'CA',
-          status: 'pending',
-          items_count: 1,
-        })
-        .select()
-        .single();
-
-      if (orderError || !orderData) throw orderError || new Error('Failed to create order');
-
-      await supabase.from('order_items').insert({
-        order_id: orderData.id,
-        product_id: selectedProduct.id,
-        quantity: orderQuantity,
-        free_quantity: freeItems,
-        unit_price: originalPrice,
-        subtotal: totalPrice,
-        pv_value: selectedProduct.pv_value,
-        promotion_id: promo?.id || null,
-      });
 
       const { error: reserveError } = await supabase.rpc('reserve_inventory', {
         p_product_id: selectedProduct.id,
@@ -309,7 +281,49 @@ export default function Shop() {
       });
 
       if (reserveError) {
-        throw new Error(`Failed to reserve stock: ${reserveError.message}`);
+        throw new Error(t('shop.failedReserveStock', { message: reserveError.message }));
+      }
+
+      try {
+        const { data: orderData, error: orderError } = await supabase
+          .from('orders')
+          .insert({
+            order_number: orderNumber,
+            user_id: user?.id,
+            product_id: selectedProduct.id,
+            quantity: totalQuantity,
+            unit_price: originalPrice,
+            total_amount: totalPrice,
+            currency_code: 'CAD',
+            region: 'CA',
+            status: 'pending',
+            items_count: 1,
+          })
+          .select()
+          .single();
+
+        if (orderError || !orderData) throw orderError || new Error('Failed to create order');
+
+        const { error: itemError } = await supabase.from('order_items').insert({
+          order_id: orderData.id,
+          product_id: selectedProduct.id,
+          quantity: orderQuantity,
+          free_quantity: freeItems,
+          unit_price: originalPrice,
+          subtotal: totalPrice,
+          pv_value: selectedProduct.pv_value,
+          promotion_id: promo?.id || null,
+        });
+
+        if (itemError) throw itemError;
+      } catch (err) {
+        await supabase.rpc('release_inventory', {
+          p_product_id: selectedProduct.id,
+          p_region: 'CA',
+          p_quantity: totalQuantity,
+          p_notes: `Rollback: order creation failed after stock was reserved`,
+        });
+        throw err;
       }
 
       await sendOrderPlacedNotification({
@@ -325,13 +339,13 @@ export default function Shop() {
       setSelectedProduct(null);
       setMessage({
         type: 'success',
-        text: `Order placed successfully! Order #${orderNumber} is pending approval.${freeItems > 0 ? ` (${freeItems} free items included!)` : ''}`
+        text: t('shop.orderPlacedSuccess', { orderNumber }) + (freeItems > 0 ? t('shop.freeItemsIncludedSuffix', { n: freeItems }) : '')
       });
 
       setTimeout(() => setMessage(null), 5000);
     } catch (error: any) {
       console.error('Order error:', error);
-      setMessage({ type: 'error', text: error.message || 'Failed to place order' });
+      setMessage({ type: 'error', text: error.message || t('shop.failedPlaceOrder') });
     } finally {
       setPurchasing(null);
     }
@@ -344,15 +358,15 @@ export default function Shop() {
 
   const getStockStatus = (productId: string) => {
     const inv = inventory[productId];
-    if (!inv) return { available: 0, status: 'unavailable', text: 'Not available', color: 'text-gray-500', bg: 'bg-gray-100' };
+    if (!inv) return { available: 0, status: 'unavailable', text: t('shop.notAvailable'), color: 'text-gray-500', bg: 'bg-gray-100' };
     const available = inv.quantity - inv.reserved_quantity;
-    if (available <= 0) return { available: 0, status: 'out', text: 'Out of Stock', color: 'text-red-600', bg: 'bg-red-100' };
-    if (available <= inv.low_stock_threshold) return { available, status: 'low', text: `Only ${available} left`, color: 'text-yellow-600', bg: 'bg-yellow-100' };
-    return { available, status: 'in', text: 'In Stock', color: 'text-green-600', bg: 'bg-green-100' };
+    if (available <= 0) return { available: 0, status: 'out', text: t('shop.outOfStock'), color: 'text-red-600', bg: 'bg-red-100' };
+    if (available <= inv.low_stock_threshold) return { available, status: 'low', text: t('shop.onlyLeft', { n: available }), color: 'text-yellow-600', bg: 'bg-yellow-100' };
+    return { available, status: 'in', text: t('common.inStock'), color: 'text-green-600', bg: 'bg-green-100' };
   };
 
   if (loading) {
-    return <div className="text-center py-8">Loading products...</div>;
+    return <div className="text-center py-8">{t('shop.loading')}</div>;
   }
 
   return (
@@ -361,9 +375,9 @@ export default function Shop() {
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
             <ShoppingCart className="w-6 h-6 sm:w-7 sm:h-7 text-brand-600" />
-            Shop
+            {t('shop.title')}
           </h2>
-          <p className="text-sm sm:text-base text-gray-600 mt-1">Purchase products and earn PV points</p>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">{t('shop.subtitle')}</p>
         </div>
       </div>
 
@@ -383,19 +397,25 @@ export default function Shop() {
       )}
 
       <div className="flex gap-2 flex-wrap overflow-x-auto pb-2 -mx-1 px-1">
-        {productTypes.map(type => (
-          <button
-            key={type}
-            onClick={() => setSelectedType(type)}
-            className={`px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-sm sm:text-base whitespace-nowrap flex-shrink-0 ${
-              selectedType === type
-                ? 'bg-brand-700 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            {type}
-          </button>
-        ))}
+        {productTypes.map(type => {
+          const productOfType = products.find(p => p.product_type === type);
+          const label = type === 'All'
+            ? t('shop.allCategories')
+            : productOfType ? getLocalizedProductType(productOfType, language) : type;
+          return (
+            <button
+              key={type}
+              onClick={() => setSelectedType(type)}
+              className={`px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-sm sm:text-base whitespace-nowrap flex-shrink-0 ${
+                selectedType === type
+                  ? 'bg-brand-700 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -412,7 +432,7 @@ export default function Shop() {
               {promo && (
                 <div className="absolute top-3 left-3 z-10 flex items-center gap-1 bg-red-600 text-white px-2.5 py-1 rounded-lg text-xs font-bold shadow-sm">
                   <Gift className="w-3 h-3" />
-                  Buy {promo.buy_quantity} Get {promo.free_quantity} Free
+                  {getPromoBuyGetFreeText(promo.buy_quantity, promo.free_quantity, language)}
                 </div>
               )}
 
@@ -438,7 +458,7 @@ export default function Shop() {
                   <div className="flex items-center gap-2">
                     <Package className="w-4 h-4 text-brand-600 hidden sm:block" />
                     <span className="text-xs font-medium text-brand-600 bg-brand-50 px-2 py-1 rounded">
-                      {product.product_type}
+                      {getLocalizedProductType(product, language)}
                     </span>
                   </div>
                 </div>
@@ -449,7 +469,7 @@ export default function Shop() {
                 {promo && (
                   <div className="mb-3 px-3 py-2 bg-red-50 border border-red-100 rounded-lg">
                     <p className="text-xs font-semibold text-red-700">
-                      {promo.title || `Buy ${promo.buy_quantity} Get ${promo.free_quantity} Free`}
+                      {getPromoLabel(promo, language)}
                     </p>
                   </div>
                 )}
@@ -461,7 +481,7 @@ export default function Shop() {
                         {formatCurrency(originalPrice)}
                       </div>
                     ) : (
-                      <div className="text-sm text-gray-500">Price not set</div>
+                      <div className="text-sm text-gray-500">{t('shop.priceNotSet')}</div>
                     )}
                   </div>
 
@@ -498,13 +518,13 @@ export default function Shop() {
                       </div>
                       {promo && cardQty < promo.buy_quantity && (
                         <p className="text-xs text-amber-600 font-medium mt-1.5">
-                          Add {promo.buy_quantity - cardQty} more to get {promo.free_quantity} free!
+                          {t('shop.addMoreToGetFree', { n: promo.buy_quantity - cardQty, free: promo.free_quantity })}
                         </p>
                       )}
                       {freeItems > 0 && (
                         <p className="text-xs text-green-600 font-medium mt-1.5 flex items-center gap-1">
                           <Gift className="w-3 h-3" />
-                          +{freeItems} free item{freeItems > 1 ? 's' : ''} included!
+                          {t('shop.freeItemsIncluded', { n: freeItems })}
                         </p>
                       )}
                     </div>
@@ -521,7 +541,7 @@ export default function Shop() {
                       }`}
                     >
                       <ShoppingBag className="w-4 h-4" />
-                      {addingToCart === product.id ? 'Adding...' : 'Add to Cart'}
+                      {addingToCart === product.id ? t('common.adding') : t('shop.addToCart')}
                     </button>
                     <button
                       onClick={() => openOrderModal(product)}
@@ -532,7 +552,7 @@ export default function Shop() {
                           : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       }`}
                     >
-                      {purchasing === product.id ? 'Processing...' : stock.status === 'out' ? 'Out of Stock' : 'Order Now'}
+                      {purchasing === product.id ? t('common.processing') : stock.status === 'out' ? t('shop.outOfStock') : t('common.orderNow')}
                     </button>
                   </div>
                 </div>
@@ -545,7 +565,7 @@ export default function Shop() {
       {filteredProducts.length === 0 && (
         <div className="text-center py-12 text-gray-500">
           <Package className="w-16 h-16 mx-auto mb-4 opacity-50" />
-          <p>No products available in this category</p>
+          <p>{t('shop.noProducts')}</p>
         </div>
       )}
 
@@ -555,6 +575,7 @@ export default function Shop() {
           originalPrice={prices[selectedProduct.id]}
           promo={promotions[selectedProduct.id]}
           quantity={orderQuantity}
+          maxStock={getStockStatus(selectedProduct.id).available}
           onQuantityChange={setOrderQuantity}
           purchasing={purchasing === selectedProduct.id}
           onPlaceOrder={handlePlaceOrder}
@@ -570,6 +591,7 @@ function OrderModal({
   originalPrice,
   promo,
   quantity,
+  maxStock,
   onQuantityChange,
   purchasing,
   onPlaceOrder,
@@ -579,12 +601,13 @@ function OrderModal({
   originalPrice: number;
   promo?: ActivePromotion;
   quantity: number;
+  maxStock: number;
   onQuantityChange: (q: number) => void;
   purchasing: boolean;
   onPlaceOrder: () => void;
   onClose: () => void;
 }) {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const { freeItems } = promo
     ? getPromoBonusInfo(promo, quantity)
     : { freeItems: 0 };
@@ -595,7 +618,7 @@ function OrderModal({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-bold">Place Order</h3>
+          <h3 className="text-xl font-bold">{t('common.placeOrder')}</h3>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
             <X size={24} />
           </button>
@@ -604,7 +627,7 @@ function OrderModal({
         <div className="space-y-4">
           <div>
             <h4 className="font-semibold text-lg">{getLocalizedProductName(product, language)}</h4>
-            <p className="text-sm text-gray-600">{product.product_type}</p>
+            <p className="text-sm text-gray-600">{getLocalizedProductType(product, language)}</p>
           </div>
 
           <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
@@ -620,11 +643,11 @@ function OrderModal({
               />
             )}
             <div>
-              <div className="text-sm text-gray-600">Unit Price</div>
+              <div className="text-sm text-gray-600">{t('shop.unitPrice')}</div>
               <div className="text-xl font-bold">
                 {formatCurrency(originalPrice)}
               </div>
-              <div className="text-sm text-orange-600 font-medium">{product.pv_value} PV per unit</div>
+              <div className="text-sm text-orange-600 font-medium">{t('shop.pvPerUnit', { pv: product.pv_value })}</div>
             </div>
           </div>
 
@@ -632,26 +655,28 @@ function OrderModal({
             <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-100 rounded-lg">
               <Gift className="w-4 h-4 text-red-600" />
               <span className="text-sm font-medium text-red-700">
-                {promo.title || `Buy ${promo.buy_quantity} Get ${promo.free_quantity} Free`}
+                {getPromoLabel(promo, language)}
               </span>
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t('shop.quantity')}</label>
             <input
               type="number"
               min="1"
+              max={maxStock}
               value={quantity}
-              onChange={(e) => onQuantityChange(Math.max(1, parseInt(e.target.value) || 1))}
+              onChange={(e) => onQuantityChange(Math.max(1, Math.min(maxStock, parseInt(e.target.value) || 1)))}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
             />
+            <p className="text-xs text-gray-500 mt-1">{t('shop.available', { n: maxStock })}</p>
           </div>
 
           {promo && quantity < promo.buy_quantity && (
             <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
               <p className="text-xs text-amber-700 font-medium">
-                Add {promo.buy_quantity - quantity} more to get {promo.free_quantity} free!
+                {t('shop.addMoreToGetFree', { n: promo.buy_quantity - quantity, free: promo.free_quantity })}
               </p>
             </div>
           )}
@@ -660,34 +685,34 @@ function OrderModal({
             <div className="px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
               <p className="text-sm text-green-700 font-medium flex items-center gap-1">
                 <Gift className="w-4 h-4" />
-                +{freeItems} free item{freeItems > 1 ? 's' : ''} included! (Total: {quantity + freeItems})
+                {t('shop.freeItemsIncluded', { n: freeItems })} ({t('orders.total')}: {quantity + freeItems})
               </p>
             </div>
           )}
 
           <div className="border-t pt-4">
             <div className="flex justify-between mb-2">
-              <span className="text-gray-600">Total Amount:</span>
+              <span className="text-gray-600">{t('shop.totalAmount')}:</span>
               <span className="font-bold text-lg">
                 {formatCurrency(totalPrice)}
               </span>
             </div>
             <div className="flex justify-between mb-2">
-              <span className="text-gray-600">Total PV:</span>
+              <span className="text-gray-600">{t('shop.totalPVLabel')}</span>
               <span className="font-bold text-orange-600">
                 {totalPV} PV
               </span>
             </div>
             {freeItems > 0 && (
               <div className="flex justify-between mb-2">
-                <span className="text-gray-600">Free items:</span>
+                <span className="text-gray-600">{t('shop.freeItemsLabel')}</span>
                 <span className="font-bold text-green-600">
                   +{freeItems}
                 </span>
               </div>
             )}
             <p className="text-xs text-gray-500 mt-2">
-              Your order will be pending until approved by the stockist.
+              {t('shop.orderPending')}
             </p>
           </div>
 
@@ -697,13 +722,13 @@ function OrderModal({
               disabled={purchasing}
               className="flex-1 bg-brand-700 text-white py-3 rounded-lg hover:bg-brand-800 font-medium disabled:bg-gray-400"
             >
-              {purchasing ? 'Processing...' : 'Place Order'}
+              {purchasing ? t('common.processing') : t('common.placeOrder')}
             </button>
             <button
               onClick={onClose}
               className="flex-1 bg-gray-200 text-gray-800 py-3 rounded-lg hover:bg-gray-300 font-medium"
             >
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </div>

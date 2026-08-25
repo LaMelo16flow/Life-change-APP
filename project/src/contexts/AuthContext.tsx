@@ -17,6 +17,10 @@ interface AuthContextType {
   signUp: (email: string, password: string, fullName: string, countryCode: string, referredBy?: string) => Promise<{ requiresApproval: boolean }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  isPasswordRecovery: boolean;
+  sendPasswordResetEmail: (email: string) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
+  cancelPasswordRecovery: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [permissions, setPermissions] = useState<ManagerPermission[]>([]);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   const fetchProfile = useCallback(async (userId: string) => {
     const { data, error } = await supabase
@@ -102,8 +107,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initialize();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!mounted) return;
+
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true);
+      }
 
       if (!newSession?.user) {
         setSession(null);
@@ -246,6 +255,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { requiresApproval };
   };
 
+  const sendPasswordResetEmail = async (email: string) => {
+    const { allowed, retryAfterMs } = checkRateLimit('resetPassword', 3, 120_000);
+    if (!allowed) {
+      throw new Error(`Trop de tentatives. Reessayez dans ${formatRetryTime(retryAfterMs)}.`);
+    }
+
+    const redirectTo = `${window.location.origin}${import.meta.env.BASE_URL}`;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) throw error;
+  };
+
+  const updatePassword = async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+
+    setIsPasswordRecovery(false);
+
+    const { data: { session: refreshedSession } } = await supabase.auth.getSession();
+    if (refreshedSession?.user) {
+      setSession(refreshedSession);
+      setUser(refreshedSession.user);
+      await loadProfile(refreshedSession.user.id);
+    }
+  };
+
+  const cancelPasswordRecovery = async () => {
+    setIsPasswordRecovery(false);
+    await signOut();
+  };
+
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error && error.message !== 'Auth session missing!' && !error.message.includes('session_not_found')) {
@@ -272,6 +311,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signUp,
         signOut,
         refreshProfile,
+        isPasswordRecovery,
+        sendPasswordResetEmail,
+        updatePassword,
+        cancelPasswordRecovery,
       }}
     >
       {children}

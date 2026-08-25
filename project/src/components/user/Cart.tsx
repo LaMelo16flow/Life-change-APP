@@ -3,7 +3,8 @@ import { supabase, Profile } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { formatCurrency } from '../../utils/currency';
-import { getLocalizedProductName } from '../../utils/productLocale';
+import { getLocalizedProductName, getLocalizedProductType } from '../../utils/productLocale';
+import { getPromoLabel } from '../../utils/promoLocale';
 import { ShoppingCart, Trash2, Plus, Minus, AlertCircle, Check, X, Tag } from 'lucide-react';
 import { sendOrderPlacedNotification } from '../../utils/notifications';
 
@@ -16,6 +17,7 @@ interface CartItem {
     name: string;
     name_en?: string | null;
     product_type: string;
+    product_type_en?: string | null;
     pv_value: number;
     description: string;
     description_en?: string | null;
@@ -39,7 +41,7 @@ interface ProductPromotion {
 
 export default function Cart() {
   const { user } = useAuth();
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [promotions, setPromotions] = useState<ProductPromotion[]>([]);
@@ -149,7 +151,7 @@ export default function Cart() {
       );
     } catch (error) {
       console.error('Error updating quantity:', error);
-      setMessage({ type: 'error', text: 'Failed to update quantity' });
+      setMessage({ type: 'error', text: t('cart.failedUpdateQty') });
     } finally {
       setUpdating(null);
     }
@@ -167,11 +169,11 @@ export default function Cart() {
       if (error) throw error;
 
       setCartItems(items => items.filter(item => item.id !== itemId));
-      setMessage({ type: 'success', text: 'Item removed from cart' });
+      setMessage({ type: 'success', text: t('cart.itemRemoved') });
       setTimeout(() => setMessage(null), 3000);
     } catch (error) {
       console.error('Error removing item:', error);
-      setMessage({ type: 'error', text: 'Failed to remove item' });
+      setMessage({ type: 'error', text: t('cart.failedRemoveItem') });
     } finally {
       setUpdating(null);
     }
@@ -183,14 +185,28 @@ export default function Cart() {
     setProcessing(true);
     setMessage(null);
 
+    const reservedSoFar: { product_id: string; quantity: number }[] = [];
+
+    const rollbackReservations = async () => {
+      for (const r of reservedSoFar) {
+        await supabase.rpc('release_inventory', {
+          p_product_id: r.product_id,
+          p_region: 'CA',
+          p_quantity: r.quantity,
+          p_notes: 'Rollback: checkout failed partway through',
+        });
+      }
+    };
+
     try {
       let totalFreeItems = 0;
       let orderTotal = 0;
+      const itemsToReserve: { product_id: string; name: string; totalQuantity: number; freeItems: number }[] = [];
 
       for (const item of cartItems) {
         const price = prices[item.product_id];
         if (!price) {
-          throw new Error(`Price not available for ${item.products.name}`);
+          throw new Error(t('cart.priceNotAvailableFor', { name: getLocalizedProductName(item.products, language) }));
         }
 
         const promo = getPromoForProduct(item.product_id);
@@ -208,24 +224,41 @@ export default function Cart() {
           .maybeSingle();
 
         if (inventoryError) {
-          throw new Error(`Error checking inventory for ${item.products.name}`);
+          throw new Error(t('cart.errorCheckingInventory', { name: getLocalizedProductName(item.products, language) }));
         }
 
         if (!inventoryData) {
-          throw new Error(`${item.products.name} not available in your region`);
+          throw new Error(t('cart.notAvailableRegion', { name: getLocalizedProductName(item.products, language) }));
         }
 
         const availableStock = inventoryData.quantity - inventoryData.reserved_quantity;
         if (availableStock < totalQuantity) {
-          throw new Error(`Only ${availableStock} units of ${item.products.name} available`);
+          throw new Error(t('cart.onlyUnitsOfAvailable', { available: availableStock, name: getLocalizedProductName(item.products, language) }));
         }
 
         orderTotal += price * item.quantity;
         totalFreeItems += freeItems;
+        itemsToReserve.push({ product_id: item.product_id, name: getLocalizedProductName(item.products, language), totalQuantity, freeItems });
       }
 
       const { data: orderNumberData } = await supabase.rpc('generate_order_number');
       const orderNumber = orderNumberData || `ORD-${Date.now()}`;
+
+      for (const item of itemsToReserve) {
+        const { error: reserveError } = await supabase.rpc('reserve_inventory', {
+          p_product_id: item.product_id,
+          p_region: 'CA',
+          p_quantity: item.totalQuantity,
+          p_notes: `Order ${orderNumber} - pending approval${item.freeItems > 0 ? ` (includes ${item.freeItems} free)` : ''}`,
+        });
+
+        if (reserveError) {
+          await rollbackReservations();
+          throw new Error(t('cart.failedReserveStockFor', { name: item.name, message: reserveError.message }));
+        }
+
+        reservedSoFar.push({ product_id: item.product_id, quantity: item.totalQuantity });
+      }
 
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
@@ -249,7 +282,10 @@ export default function Cart() {
         .select()
         .single();
 
-      if (orderError || !orderData) throw orderError || new Error('Failed to create order');
+      if (orderError || !orderData) {
+        await rollbackReservations();
+        throw orderError || new Error('Failed to create order');
+      }
 
       const orderItems = [];
       const productNames: string[] = [];
@@ -273,18 +309,7 @@ export default function Cart() {
           promotion_id: promo?.id || null,
         });
 
-        productNames.push(`${item.products.name} x${totalQuantity}`);
-
-        const { error: reserveError } = await supabase.rpc('reserve_inventory', {
-          p_product_id: item.product_id,
-          p_region: 'CA',
-          p_quantity: totalQuantity,
-          p_notes: `Order ${orderNumber} - pending approval${freeItems > 0 ? ` (includes ${freeItems} free)` : ''}`,
-        });
-
-        if (reserveError) {
-          throw new Error(`Failed to reserve stock for ${item.products.name}: ${reserveError.message}`);
-        }
+        productNames.push(`${getLocalizedProductName(item.products, language)} x${totalQuantity}`);
       }
 
       const { error: itemsError } = await supabase
@@ -292,7 +317,8 @@ export default function Cart() {
         .insert(orderItems);
 
       if (itemsError) {
-        console.error('Error inserting order items:', itemsError);
+        await rollbackReservations();
+        throw new Error(t('cart.failedSaveOrderItems', { message: itemsError.message }));
       }
 
       await sendOrderPlacedNotification({
@@ -319,13 +345,13 @@ export default function Cart() {
       setShowCheckoutModal(false);
       setMessage({
         type: 'success',
-        text: `Order ${orderNumber} placed successfully!${totalFreeItems > 0 ? ` (${totalFreeItems} free items included!)` : ''}`
+        text: t('cart.orderPlacedSuccessSimple', { orderNumber }) + (totalFreeItems > 0 ? t('shop.freeItemsIncludedSuffix', { n: totalFreeItems }) : '')
       });
 
       setTimeout(() => setMessage(null), 5000);
     } catch (error: any) {
       console.error('Checkout error:', error);
-      setMessage({ type: 'error', text: error.message || 'Failed to place order' });
+      setMessage({ type: 'error', text: error.message || t('shop.failedPlaceOrder') });
     } finally {
       setProcessing(false);
     }
@@ -350,7 +376,7 @@ export default function Cart() {
   }, 0);
 
   if (loading) {
-    return <div className="text-center py-8">Loading cart...</div>;
+    return <div className="text-center py-8">{t('cart.loading')}</div>;
   }
 
   return (
@@ -359,9 +385,9 @@ export default function Cart() {
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
             <ShoppingCart className="w-6 h-6 sm:w-7 sm:h-7 text-brand-600" />
-            Shopping Cart
+            {t('cart.title')}
           </h2>
-          <p className="text-sm sm:text-base text-gray-600 mt-1">Review and checkout your selected items</p>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">{t('cart.subtitle')}</p>
         </div>
       </div>
 
@@ -383,8 +409,8 @@ export default function Cart() {
       {cartItems.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
           <ShoppingCart className="w-20 h-20 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-700 mb-2">Your cart is empty</h3>
-          <p className="text-gray-500">Start shopping to add products to your cart</p>
+          <h3 className="text-xl font-semibold text-gray-700 mb-2">{t('cart.empty')}</h3>
+          <p className="text-gray-500">{t('cart.emptySubtitle')}</p>
         </div>
       ) : (
         <>
@@ -413,12 +439,12 @@ export default function Cart() {
                         <div className="flex justify-between items-start mb-2 gap-2">
                           <div className="min-w-0">
                             <h3 className="font-bold text-base sm:text-lg text-gray-900 truncate">{getLocalizedProductName(item.products, language)}</h3>
-                            <p className="text-xs sm:text-sm text-gray-600">{item.products.product_type}</p>
+                            <p className="text-xs sm:text-sm text-gray-600">{getLocalizedProductType(item.products, language)}</p>
                             {promo && (
                               <div className="flex items-center gap-1 mt-1">
                                 <Tag className="w-3.5 h-3.5 text-red-600 flex-shrink-0" />
                                 <span className="text-xs font-bold text-red-600">
-                                  {promo.title || `Buy ${promo.buy_quantity} Get ${promo.free_quantity} Free`}
+                                  {getPromoLabel(promo, language)}
                                 </span>
                               </div>
                             )}
@@ -435,7 +461,7 @@ export default function Cart() {
                         {promo && item.quantity < promo.buy_quantity && (
                           <div className="mb-2 px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded-lg">
                             <p className="text-xs text-amber-700 font-medium">
-                              Add {promo.buy_quantity - item.quantity} more to get {promo.free_quantity} free!
+                              {t('shop.addMoreToGetFree', { n: promo.buy_quantity - item.quantity, free: promo.free_quantity })}
                             </p>
                           </div>
                         )}
@@ -443,7 +469,7 @@ export default function Cart() {
                         {freeItems > 0 && (
                           <div className="mb-2 px-2.5 py-1.5 bg-green-50 border border-green-200 rounded-lg">
                             <p className="text-xs text-green-700 font-medium">
-                              +{freeItems} free item{freeItems > 1 ? 's' : ''} included! (Total: {item.quantity + freeItems})
+                              {t('shop.freeItemsIncluded', { n: freeItems })} {t('cart.totalCount', { n: item.quantity + freeItems })}
                             </p>
                           </div>
                         )}
@@ -471,16 +497,16 @@ export default function Cart() {
                             </div>
 
                             <div className="text-xs sm:text-sm">
-                              <span className="text-gray-600">Unit: </span>
+                              <span className="text-gray-600">{t('cart.unitLabel')} </span>
                               <span className="font-semibold">
-                                {price ? formatCurrency(price) : 'N/A'}
+                                {price ? formatCurrency(price) : t('common.na')}
                               </span>
                               <span className="text-orange-600 ml-2">{item.products.pv_value} PV</span>
                             </div>
                           </div>
 
                           <div className="text-left sm:text-right pt-3 sm:pt-0 border-t sm:border-0 border-gray-200">
-                            <div className="text-xs sm:text-sm text-gray-600">Subtotal</div>
+                            <div className="text-xs sm:text-sm text-gray-600">{t('cart.subtotal')}</div>
                             <div className="text-lg sm:text-xl font-bold text-gray-900">
                               {formatCurrency(subtotal)}
                             </div>
@@ -498,11 +524,11 @@ export default function Cart() {
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
-            <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-4">Order Summary</h3>
+            <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-4">{t('cart.orderSummary')}</h3>
 
             <div className="space-y-3 mb-6">
               <div className="flex justify-between text-gray-600">
-                <span>Items ({cartItems.length})</span>
+                <span>{t('cart.itemsCount', { n: cartItems.length })}</span>
                 <span className="font-semibold text-gray-900">
                   {formatCurrency(cartTotal)}
                 </span>
@@ -511,17 +537,17 @@ export default function Cart() {
                 <div className="flex justify-between text-green-700">
                   <span className="font-medium flex items-center gap-1">
                     <Tag className="w-4 h-4" />
-                    Free Items
+                    {t('cart.freeItems')}
                   </span>
                   <span className="font-bold">+{totalFreeItemsInCart}</span>
                 </div>
               )}
               <div className="flex justify-between text-gray-600">
-                <span>Total PV</span>
+                <span>{t('pv.total')}</span>
                 <span className="font-semibold text-orange-600">{totalPV} PV</span>
               </div>
               <div className="border-t pt-3 flex justify-between text-lg font-bold">
-                <span>Total</span>
+                <span>{t('cart.total')}</span>
                 <span className="text-brand-600">
                   {formatCurrency(cartTotal)}
                 </span>
@@ -533,7 +559,7 @@ export default function Cart() {
               disabled={processing || cartItems.length === 0}
               className="w-full bg-brand-700 text-white py-4 rounded-lg hover:bg-brand-800 font-semibold text-lg transition-colors disabled:bg-gray-400"
             >
-              Proceed to Checkout
+              {t('cart.proceedCheckout')}
             </button>
           </div>
         </>
@@ -543,7 +569,7 @@ export default function Cart() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold">Checkout</h3>
+              <h3 className="text-xl font-bold">{t('cart.checkoutModalTitle')}</h3>
               <button
                 onClick={() => setShowCheckoutModal(false)}
                 className="text-gray-500 hover:text-gray-700"
@@ -554,7 +580,7 @@ export default function Cart() {
 
             <div className="space-y-4">
               <div className="bg-gray-50 rounded-lg p-4">
-                <h4 className="font-semibold mb-3">Order Summary ({cartItems.length} items)</h4>
+                <h4 className="font-semibold mb-3">{t('cart.orderSummaryWithCount', { n: cartItems.length })}</h4>
                 <div className="space-y-2 text-sm">
                   {cartItems.map(item => {
                     const promo = getPromoForProduct(item.product_id);
@@ -571,8 +597,8 @@ export default function Cart() {
                         </div>
                         {freeItems > 0 && (
                           <div className="flex justify-between text-green-600 ml-2">
-                            <span className="text-xs">+{freeItems} free</span>
-                            <span className="text-xs font-medium">({item.quantity + freeItems} total)</span>
+                            <span className="text-xs">{t('cart.freeShort', { n: freeItems })}</span>
+                            <span className="text-xs font-medium">{t('cart.totalCount', { n: item.quantity + freeItems })}</span>
                           </div>
                         )}
                       </div>
@@ -583,13 +609,13 @@ export default function Cart() {
 
               <div className="border-t pt-4">
                 <div className="flex justify-between mb-2">
-                  <span className="font-semibold">Total Amount:</span>
+                  <span className="font-semibold">{t('shop.totalAmount')}:</span>
                   <span className="font-bold text-lg text-brand-600">
                     {formatCurrency(cartTotal)}
                   </span>
                 </div>
                 <div className="flex justify-between mb-2">
-                  <span className="font-semibold">Total PV:</span>
+                  <span className="font-semibold">{t('shop.totalPVLabel')}</span>
                   <span className="font-bold text-orange-600">{totalPV} PV</span>
                 </div>
               </div>
@@ -600,13 +626,13 @@ export default function Cart() {
                   disabled={processing}
                   className="flex-1 bg-brand-700 text-white py-3 rounded-lg hover:bg-brand-800 font-semibold disabled:bg-gray-400"
                 >
-                  {processing ? 'Processing...' : 'Place Order'}
+                  {processing ? t('common.processing') : t('common.placeOrder')}
                 </button>
                 <button
                   onClick={() => setShowCheckoutModal(false)}
                   className="flex-1 bg-gray-200 text-gray-800 py-3 rounded-lg hover:bg-gray-300 font-semibold"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>

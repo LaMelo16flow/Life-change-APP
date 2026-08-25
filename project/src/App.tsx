@@ -2,10 +2,11 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { AuthForm } from './components/AuthForm';
+import { ResetPasswordForm } from './components/ResetPasswordForm';
 import { Dashboard } from './components/Dashboard';
 
 function AppContent() {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, isPasswordRecovery } = useAuth();
 
   if (loading) {
     return (
@@ -13,6 +14,10 @@ function AppContent() {
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
       </div>
     );
+  }
+
+  if (isPasswordRecovery) {
+    return <ResetPasswordForm />;
   }
 
   if (!user || !profile || profile.account_status !== 'approved') {

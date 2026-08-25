@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../../contexts/ToastContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { loadCountryNames, getCountryName } from '../../utils/countries';
 import {
   CreditCard,
@@ -67,6 +68,7 @@ const PAYMENT_METHOD_PRESETS: Record<string, { label: string; icon: typeof Mail 
 
 export default function PaymentSettings() {
   const toast = useToast();
+  const { t } = useLanguage();
   const [countries, setCountries] = useState<CountryWithContinent[]>([]);
   const [countryNames, setCountryNames] = useState<Record<string, string>>({});
   const [paymentInfos, setPaymentInfos] = useState<PaymentInfo[]>([]);
@@ -104,7 +106,7 @@ export default function PaymentSettings() {
       }
     } catch (error) {
       console.error('Error loading data:', error);
-      toast.error('Failed to load payment settings');
+      toast.error(t('ps.failedLoad'));
     } finally {
       setLoading(false);
     }
@@ -161,10 +163,10 @@ export default function PaymentSettings() {
 
       if (error) throw error;
       setPaymentInfos(prev => prev.filter(p => p.id !== info.id));
-      toast.success('Payment method removed');
+      toast.success(t('ps.paymentMethodRemoved'));
     } catch (error) {
       console.error('Error removing payment method:', error);
-      toast.error('Failed to remove payment method');
+      toast.error(t('ps.failedRemovePaymentMethod'));
     }
   };
 
@@ -178,7 +180,7 @@ export default function PaymentSettings() {
     const existing = getCountryPaymentInfos(countryCode);
     const alreadyExists = existing.some(p => p.payment_label === presetLabel);
     if (alreadyExists) {
-      toast.error(`"${presetLabel}" already exists for this country`);
+      toast.error(t('ps.presetExists', { label: presetLabel }));
       return;
     }
 
@@ -208,7 +210,7 @@ export default function PaymentSettings() {
 
       for (const info of countryInfos) {
         if (!info.payment_label.trim()) {
-          toast.error('Payment label is required for all methods');
+          toast.error(t('ps.paymentLabelRequired'));
           setSaving(false);
           return;
         }
@@ -246,10 +248,10 @@ export default function PaymentSettings() {
         }
       }
 
-      toast.success(`Payment settings saved for ${getCountryName(countryCode, countryNames)}`);
+      toast.success(t('ps.settingsSavedFor', { country: getCountryName(countryCode, countryNames) }));
     } catch (error) {
       console.error('Error saving payment info:', error);
-      toast.error('Failed to save payment settings');
+      toast.error(t('ps.failedSaveSettings'));
     } finally {
       setSaving(false);
     }
@@ -269,10 +271,10 @@ export default function PaymentSettings() {
           .eq('key', 'payment_instructions'),
       ]);
 
-      toast.success('Global payment settings saved');
+      toast.success(t('ps.globalSettingsSaved'));
     } catch (error) {
       console.error('Error saving global settings:', error);
-      toast.error('Failed to save global settings');
+      toast.error(t('ps.failedSaveGlobalSettings'));
     } finally {
       setSavingGlobal(false);
     }
@@ -288,7 +290,7 @@ export default function PaymentSettings() {
   });
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading payment settings...</div>;
+    return <div className="flex items-center justify-center h-64">{t('ps.loadingSettings')}</div>;
   }
 
   return (
@@ -296,23 +298,23 @@ export default function PaymentSettings() {
       <div>
         <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <CreditCard className="w-7 h-7 text-brand-600" />
-          Payment Settings
+          {t('ps.title')}
         </h2>
-        <p className="text-gray-600 mt-1">Configure payment methods and contact info for each country</p>
+        <p className="text-gray-600 mt-1">{t('ps.subtitle')}</p>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
         <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <Globe className="w-5 h-5 text-gray-500" />
-          Global Default Settings
+          {t('ps.globalDefaults')}
         </h3>
         <p className="text-sm text-gray-500">
-          These are used as fallback when no country-specific payment info is configured.
+          {t('ps.globalDefaultsDesc')}
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Default Admin Email</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('ps.defaultAdminEmail')}</label>
             <input
               type="email"
               value={adminEmail}
@@ -322,13 +324,13 @@ export default function PaymentSettings() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Default Payment Instructions</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('ps.defaultPaymentInstructions')}</label>
             <textarea
               value={globalInstructions}
               onChange={(e) => setGlobalInstructions(e.target.value)}
               rows={2}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-              placeholder="General payment instructions..."
+              placeholder={t('ps.generalInstructionsPlaceholder')}
             />
           </div>
         </div>
@@ -340,19 +342,19 @@ export default function PaymentSettings() {
             className="px-4 py-2 bg-brand-700 text-white rounded-lg hover:bg-brand-800 font-medium disabled:bg-gray-400 flex items-center gap-2"
           >
             <Save size={16} />
-            {savingGlobal ? 'Saving...' : 'Save Global Settings'}
+            {savingGlobal ? t('profile.saving') : t('ps.saveGlobalSettings')}
           </button>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-3 items-center">
-        <span className="text-sm font-medium text-gray-700">Filter by continent:</span>
+        <span className="text-sm font-medium text-gray-700">{t('ps.filterByContinent')}</span>
         <select
           value={regionFilter}
           onChange={(e) => setRegionFilter(e.target.value)}
           className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
         >
-          <option value="all">All Countries ({countries.length})</option>
+          <option value="all">{t('ps.allCountries', { n: countries.length })}</option>
           {allContinents.map(continent => (
             <option key={continent} value={continent}>
               {continent} ({countries.filter(c => c.continent === continent).length})
@@ -399,11 +401,11 @@ export default function PaymentSettings() {
                   </span>
                   {countryPayments.length > 0 ? (
                     <span className="text-xs font-medium bg-brand-100 text-brand-800 px-2.5 py-1 rounded-full">
-                      {activeCount} active method{activeCount !== 1 ? 's' : ''}
+                      {t('ps.activeMethods', { n: activeCount })}
                     </span>
                   ) : (
                     <span className="text-xs font-medium bg-gray-100 text-gray-500 px-2.5 py-1 rounded-full">
-                      No methods
+                      {t('ps.noMethods')}
                     </span>
                   )}
                 </div>
@@ -412,7 +414,7 @@ export default function PaymentSettings() {
               {isExpanded && (
                 <div className="border-t border-gray-200 px-5 py-4 space-y-4 bg-gray-50/50">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium text-gray-600">Quick add:</span>
+                    <span className="text-sm font-medium text-gray-600">{t('ps.quickAdd')}</span>
                     {presets.map((preset) => {
                       const PresetIcon = preset.icon;
                       return (
@@ -431,7 +433,7 @@ export default function PaymentSettings() {
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-700 text-white rounded-lg text-sm font-medium hover:bg-brand-800 transition"
                     >
                       <Plus size={14} />
-                      Custom
+                      {t('ps.custom')}
                     </button>
                   </div>
 
@@ -439,7 +441,7 @@ export default function PaymentSettings() {
                     <div className="text-center py-8 bg-white rounded-lg border border-dashed border-gray-300">
                       <CreditCard className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                       <p className="text-sm text-gray-500">
-                        No payment methods configured. Add one above or users will see the global default.
+                        {t('ps.noMethodsConfigured')}
                       </p>
                     </div>
                   ) : (
@@ -453,18 +455,18 @@ export default function PaymentSettings() {
                             <div className="flex items-center gap-2">
                               <GripVertical size={16} className="text-gray-300" />
                               <span className="text-sm font-bold text-gray-700">
-                                Method #{index + 1}
+                                {t('ps.methodNumber', { n: index + 1 })}
                               </span>
                               {info.isNew && (
                                 <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">
-                                  Unsaved
+                                  {t('ps.unsaved')}
                                 </span>
                               )}
                             </div>
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={() => updatePaymentInfo(info.id, 'is_active', !info.is_active)}
-                                title={info.is_active ? 'Deactivate' : 'Activate'}
+                                title={info.is_active ? t('ps.deactivate') : t('ps.activate')}
                               >
                                 {info.is_active ? (
                                   <ToggleRight size={28} className="text-brand-600" />
@@ -475,7 +477,7 @@ export default function PaymentSettings() {
                               <button
                                 onClick={() => removePaymentMethod(info)}
                                 className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition"
-                                title="Remove"
+                                title={t('ps.remove')}
                               >
                                 <Trash2 size={16} />
                               </button>
@@ -485,64 +487,64 @@ export default function PaymentSettings() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div>
                               <label className="block text-xs font-medium text-gray-600 mb-1">
-                                Payment Label *
+                                {t('ps.paymentLabel')}
                               </label>
                               <input
                                 type="text"
                                 value={info.payment_label}
                                 onChange={(e) => updatePaymentInfo(info.id, 'payment_label', e.target.value)}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
-                                placeholder="e.g. Interac e-Transfer, MTN Mobile Money"
+                                placeholder={t('ps.paymentLabelPlaceholder')}
                               />
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-gray-600 mb-1">
-                                Recipient Name
+                                {t('ps.recipientName')}
                               </label>
                               <input
                                 type="text"
                                 value={info.recipient_name}
                                 onChange={(e) => updatePaymentInfo(info.id, 'recipient_name', e.target.value)}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
-                                placeholder="Name of recipient"
+                                placeholder={t('ps.recipientNamePlaceholder')}
                               />
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-gray-600 mb-1">
-                                Recipient Contact (email, phone, or account #)
+                                {t('ps.recipientContact')}
                               </label>
                               <input
                                 type="text"
                                 value={info.recipient_contact}
                                 onChange={(e) => updatePaymentInfo(info.id, 'recipient_contact', e.target.value)}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
-                                placeholder="e.g. admin@email.com or +237 6XX XXX XXX"
+                                placeholder={t('ps.recipientContactPlaceholder')}
                               />
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-gray-600 mb-1">
-                                Method Key
+                                {t('ps.methodKey')}
                               </label>
                               <input
                                 type="text"
                                 value={info.payment_method}
                                 onChange={(e) => updatePaymentInfo(info.id, 'payment_method', e.target.value)}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
-                                placeholder="e.g. e_transfer, mtn_mobile_money"
+                                placeholder={t('ps.methodKeyPlaceholder')}
                               />
                             </div>
                           </div>
 
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">
-                              Payment Instructions
+                              {t('ps.paymentInstructions')}
                             </label>
                             <textarea
                               value={info.payment_instructions}
                               onChange={(e) => updatePaymentInfo(info.id, 'payment_instructions', e.target.value)}
                               rows={2}
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
-                              placeholder="Specific instructions for this payment method..."
+                              placeholder={t('ps.paymentInstructionsPlaceholder')}
                             />
                           </div>
                         </div>
@@ -555,7 +557,7 @@ export default function PaymentSettings() {
                           className="px-4 py-2 bg-brand-700 text-white rounded-lg hover:bg-brand-800 font-medium disabled:bg-gray-400 flex items-center gap-2"
                         >
                           <Save size={16} />
-                          {saving ? 'Saving...' : `Save ${country.name} Settings`}
+                          {saving ? t('profile.saving') : t('ps.saveCountrySettings', { country: country.name })}
                         </button>
                       </div>
                     </div>

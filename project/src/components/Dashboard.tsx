@@ -279,7 +279,7 @@ export function Dashboard() {
                     ? 'bg-brand-100 text-brand-800'
                     : 'bg-gray-100 text-gray-600'
                 }`}>
-                  {viewMode === 'admin' ? 'Admin' : 'User'}
+                  {viewMode === 'admin' ? t('common.admin') : t('common.user')}
                 </span>
               )}
               <NotificationBell

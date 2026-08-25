@@ -1,22 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { supabase, Notification } from '../../lib/supabase';
 import { Bell, Calendar, Award, DollarSign, Users, Settings, Check, CheckCheck } from 'lucide-react';
 
-function timeAgo(dateStr: string) {
-  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-  if (seconds < 60) return 'Just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
 export function NotificationsList() {
   const { profile } = useAuth();
+  const { t } = useLanguage();
+
+  function timeAgo(dateStr: string) {
+    const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+    if (seconds < 60) return t('common.justNow');
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return t('common.minutesAgo', { n: minutes });
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return t('common.hoursAgo', { n: hours });
+    const days = Math.floor(hours / 24);
+    if (days < 7) return t('common.daysAgo', { n: days });
+    return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
@@ -109,9 +111,9 @@ export function NotificationsList() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Notifications</h2>
+          <h2 className="text-2xl font-bold text-slate-900">{t('notifications.title')}</h2>
           <p className="text-slate-600 mt-1">
-            {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}` : 'All caught up!'}
+            {unreadCount > 0 ? t('notifications.unreadCount', { n: unreadCount }) : t('notifications.allCaughtUp')}
           </p>
         </div>
         {unreadCount > 0 && (
@@ -120,7 +122,7 @@ export function NotificationsList() {
             className="inline-flex items-center gap-2 px-4 py-2 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition text-sm font-semibold shadow-sm"
           >
             <CheckCheck className="w-4 h-4" />
-            Mark all as read
+            {t('notifications.markAllRead')}
           </button>
         )}
       </div>
@@ -137,7 +139,7 @@ export function NotificationsList() {
                   : 'text-slate-500 hover:bg-slate-100'
               }`}
             >
-              {tab === 'all' ? 'All' : 'Unread'}
+              {tab === 'all' ? t('notifications.tabAll') : t('notifications.tabUnread')}
               {tab === 'unread' && unreadCount > 0 && (
                 <span className={`ml-1.5 ${filter === 'unread' ? 'text-brand-100' : 'text-slate-400'}`}>
                   ({unreadCount})
@@ -154,10 +156,10 @@ export function NotificationsList() {
               <Bell className="w-8 h-8 text-slate-300" />
             </div>
             <h3 className="text-lg font-semibold text-slate-900 mb-2">
-              {filter === 'unread' ? 'No unread notifications' : 'No notifications'}
+              {filter === 'unread' ? t('notifications.noUnread') : t('notifications.noNotifications')}
             </h3>
             <p className="text-slate-600">
-              You'll receive notifications about meetings, promotions, and more
+              {t('notifications.emptyHint')}
             </p>
           </div>
         ) : (
@@ -198,7 +200,7 @@ export function NotificationsList() {
                           onClick={(e) => e.stopPropagation()}
                           className="text-xs text-brand-600 hover:text-brand-700 font-semibold"
                         >
-                          View Details →
+                          {t('notifications.viewDetails')} →
                         </a>
                       )}
                     </div>

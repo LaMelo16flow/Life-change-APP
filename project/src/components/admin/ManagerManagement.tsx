@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { PermissionType } from '../../lib/supabase';
 import { UserPlus, Shield, Trash2, Search, ChevronDown, ChevronUp } from 'lucide-react';
 
@@ -35,6 +36,7 @@ const ALL_PERMISSIONS: { key: PermissionType; label: string; description: string
 export default function ManagerManagement() {
   const { isMaster } = useAuth();
   const toast = useToast();
+  const { t } = useLanguage();
   const [managers, setManagers] = useState<(ManagerProfile & { permissions: PermissionRow[] })[]>([]);
   const [allUsers, setAllUsers] = useState<ManagerProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,7 +107,7 @@ export default function ManagerManagement() {
 
   const handleAddManager = async () => {
     if (!addForm.user_id || addForm.selectedPermissions.length === 0) {
-      toast.warning('Please select a user and at least one permission.');
+      toast.warning(t('mgr.pleaseSelectUserPermission'));
       return;
     }
 
@@ -137,7 +139,7 @@ export default function ManagerManagement() {
       loadData();
     } catch (error) {
       console.error('Error adding manager:', error);
-      toast.error('Failed to add manager');
+      toast.error(t('mgr.failedAddManager'));
     }
   };
 
@@ -183,11 +185,11 @@ export default function ManagerManagement() {
 
       setShowEditModal(false);
       setSelectedManager(null);
-      toast.success('Permissions updated successfully');
+      toast.success(t('mgr.permissionsUpdated'));
       loadData();
     } catch (error) {
       console.error('Error updating permissions:', error);
-      toast.error('Failed to update permissions');
+      toast.error(t('mgr.failedUpdatePermissions'));
     }
   };
 
@@ -214,11 +216,11 @@ export default function ManagerManagement() {
 
       if (roleError) throw roleError;
 
-      toast.success('Manager removed successfully');
+      toast.success(t('mgr.managerRemoved'));
       loadData();
     } catch (error) {
       console.error('Error removing manager:', error);
-      toast.error('Failed to remove manager');
+      toast.error(t('mgr.failedRemoveManager'));
     }
   };
 
@@ -231,11 +233,11 @@ export default function ManagerManagement() {
         .eq('id', managerId);
 
       if (error) throw error;
-      toast.success('User promoted to admin');
+      toast.success(t('mgr.userPromotedAdmin'));
       loadData();
     } catch (error) {
       console.error('Error promoting to admin:', error);
-      toast.error('Failed to promote to admin');
+      toast.error(t('mgr.failedPromoteAdmin'));
     }
   };
 
@@ -248,11 +250,11 @@ export default function ManagerManagement() {
         .eq('id', managerId);
 
       if (error) throw error;
-      toast.success('Admin demoted to manager');
+      toast.success(t('mgr.adminDemotedManager'));
       loadData();
     } catch (error) {
       console.error('Error demoting admin:', error);
-      toast.error('Failed to demote admin');
+      toast.error(t('mgr.failedDemoteAdmin'));
     }
   };
 
@@ -295,29 +297,29 @@ export default function ManagerManagement() {
     return (
       <div className="text-center py-16">
         <Shield size={48} className="mx-auto text-gray-400 mb-4" />
-        <h3 className="text-xl font-semibold text-gray-700">Access Restricted</h3>
-        <p className="text-gray-500 mt-2">Only the master account can manage team permissions.</p>
+        <h3 className="text-xl font-semibold text-gray-700">{t('mgr.accessRestricted')}</h3>
+        <p className="text-gray-500 mt-2">{t('mgr.accessRestrictedDesc')}</p>
       </div>
     );
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading team management...</div>;
+    return <div className="flex items-center justify-center h-64">{t('admin.loadingTeam')}</div>;
   }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Team Management</h2>
-          <p className="text-gray-600">Assign people to manage orders, inventory, and more</p>
+          <h2 className="text-2xl font-bold text-gray-900">{t('mgr.title')}</h2>
+          <p className="text-gray-600">{t('mgr.subtitle')}</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
           className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg hover:bg-brand-800 self-start sm:self-auto"
         >
           <UserPlus size={20} />
-          Add Manager
+          {t('admin.addManager')}
         </button>
       </div>
 
@@ -325,7 +327,7 @@ export default function ManagerManagement() {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
         <input
           type="text"
-          placeholder="Search managers..."
+          placeholder={t('mgr.searchManagers')}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
@@ -349,12 +351,12 @@ export default function ManagerManagement() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-gray-900 truncate">{manager.full_name}</span>
                       {manager.is_master && (
-                        <span className="text-xs font-bold px-2 py-0.5 rounded bg-yellow-100 text-yellow-800">MASTER</span>
+                        <span className="text-xs font-bold px-2 py-0.5 rounded bg-yellow-100 text-yellow-800">{t('mgr.masterBadge')}</span>
                       )}
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
                         manager.role === 'admin' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
                       }`}>
-                        {manager.role === 'admin' ? 'Admin' : 'Manager'}
+                        {manager.role === 'admin' ? t('common.admin') : t('common.manager')}
                       </span>
                     </div>
                     <p className="text-sm text-gray-500 truncate">{manager.email}</p>
@@ -363,7 +365,7 @@ export default function ManagerManagement() {
 
                 <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                   <span className="text-xs text-gray-500 hidden sm:inline">
-                    {manager.role === 'admin' ? 'Full Access' : `${manager.permissions.length} permissions`}
+                    {manager.role === 'admin' ? t('admin.fullAccess') : t('mgr.permissionsCount', { n: manager.permissions.length })}
                   </span>
                   {isExpanded ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
                 </div>
@@ -374,21 +376,21 @@ export default function ManagerManagement() {
                   {manager.role === 'admin' ? (
                     <div className="bg-blue-50 rounded-lg p-3 mb-3">
                       <p className="text-sm text-blue-800">
-                        <strong>Full Admin</strong> - Has access to all features.
+                        <strong>{t('mgr.fullAdminLabel')}</strong> - {t('mgr.fullAdminDesc')}
                       </p>
                     </div>
                   ) : (
                     <div className="space-y-2 mb-3">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Permissions</p>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('mgr.permissionsLabel')}</p>
                       <div className="flex flex-wrap gap-2">
                         {manager.permissions.length === 0 ? (
-                          <span className="text-sm text-gray-400 italic">No permissions assigned</span>
+                          <span className="text-sm text-gray-400 italic">{t('mgr.noPermissionsAssigned')}</span>
                         ) : (
                           manager.permissions.map(p => {
                             const permInfo = ALL_PERMISSIONS.find(ap => ap.key === p.permission);
                             return (
                               <span key={p.id} className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">
-                                {permInfo?.label || p.permission}
+                                {permInfo ? t(`perm.${permInfo.key}.label`) : p.permission}
                               </span>
                             );
                           })
@@ -405,13 +407,13 @@ export default function ManagerManagement() {
                             onClick={(e) => { e.stopPropagation(); openEditModal(manager); }}
                             className="text-sm px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 hover:bg-brand-100 font-medium"
                           >
-                            Edit Permissions
+                            {t('admin.editPermissions')}
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); handlePromoteToAdmin(manager.id); }}
                             className="text-sm px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-medium"
                           >
-                            Promote to Admin
+                            {t('mgr.promoteToAdmin')}
                           </button>
                         </>
                       )}
@@ -420,7 +422,7 @@ export default function ManagerManagement() {
                           onClick={(e) => { e.stopPropagation(); handleDemoteFromAdmin(manager.id); }}
                           className="text-sm px-3 py-1.5 rounded-lg bg-yellow-50 text-yellow-700 hover:bg-yellow-100 font-medium"
                         >
-                          Demote to Manager
+                          {t('mgr.demoteToManager')}
                         </button>
                       )}
                       <button
@@ -428,7 +430,7 @@ export default function ManagerManagement() {
                         className="text-sm px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 font-medium flex items-center gap-1"
                       >
                         <Trash2 size={14} />
-                        Remove
+                        {t('mgr.remove')}
                       </button>
                     </div>
                   )}
@@ -441,7 +443,7 @@ export default function ManagerManagement() {
         {filteredManagers.length === 0 && (
           <div className="text-center py-12 bg-gray-50 rounded-lg">
             <Shield size={48} className="mx-auto text-gray-400 mb-4" />
-            <p className="text-gray-600">No managers found</p>
+            <p className="text-gray-600">{t('mgr.noManagersFound')}</p>
           </div>
         )}
       </div>
@@ -449,17 +451,17 @@ export default function ManagerManagement() {
       {showAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-4">Add Manager</h3>
+            <h3 className="text-xl font-bold mb-4">{t('admin.addManager')}</h3>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Select User</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('mgr.selectUser')}</label>
                 <select
                   value={addForm.user_id}
                   onChange={(e) => setAddForm({ ...addForm, user_id: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                 >
-                  <option value="">Choose a user...</option>
+                  <option value="">{t('mgr.chooseUser')}</option>
                   {allUsers.map(u => (
                     <option key={u.id} value={u.id}>{u.full_name} ({u.email})</option>
                   ))}
@@ -467,7 +469,7 @@ export default function ManagerManagement() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Permissions</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('mgr.permissionsLabel')}</label>
                 <div className="space-y-2">
                   {ALL_PERMISSIONS.map(perm => (
                     <label key={perm.key} className="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
@@ -478,8 +480,8 @@ export default function ManagerManagement() {
                         className="mt-0.5 w-4 h-4 text-brand-600 rounded focus:ring-brand-500"
                       />
                       <div>
-                        <span className="text-sm font-medium text-gray-900">{perm.label}</span>
-                        <p className="text-xs text-gray-500">{perm.description}</p>
+                        <span className="text-sm font-medium text-gray-900">{t(`perm.${perm.key}.label`)}</span>
+                        <p className="text-xs text-gray-500">{t(`perm.${perm.key}.desc`)}</p>
                       </div>
                     </label>
                   ))}
@@ -491,13 +493,13 @@ export default function ManagerManagement() {
                   onClick={handleAddManager}
                   className="flex-1 bg-brand-700 text-white py-2 rounded-lg hover:bg-brand-800 font-medium"
                 >
-                  Add Manager
+                  {t('admin.addManager')}
                 </button>
                 <button
                   onClick={() => { setShowAddModal(false); setAddForm({ user_id: '', selectedPermissions: [] }); }}
                   className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300 font-medium"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>
@@ -508,12 +510,12 @@ export default function ManagerManagement() {
       {showEditModal && selectedManager && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-2">Edit Permissions</h3>
+            <h3 className="text-xl font-bold mb-2">{t('admin.editPermissions')}</h3>
             <p className="text-sm text-gray-600 mb-4">{selectedManager.full_name} ({selectedManager.email})</p>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Permissions</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('mgr.permissionsLabel')}</label>
                 <div className="space-y-2">
                   {ALL_PERMISSIONS.map(perm => (
                     <label key={perm.key} className="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
@@ -524,8 +526,8 @@ export default function ManagerManagement() {
                         className="mt-0.5 w-4 h-4 text-brand-600 rounded focus:ring-brand-500"
                       />
                       <div>
-                        <span className="text-sm font-medium text-gray-900">{perm.label}</span>
-                        <p className="text-xs text-gray-500">{perm.description}</p>
+                        <span className="text-sm font-medium text-gray-900">{t(`perm.${perm.key}.label`)}</span>
+                        <p className="text-xs text-gray-500">{t(`perm.${perm.key}.desc`)}</p>
                       </div>
                     </label>
                   ))}
@@ -535,7 +537,7 @@ export default function ManagerManagement() {
               {editForm.selectedPermissions.length === 0 && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                   <p className="text-sm text-yellow-800">
-                    <strong>Warning:</strong> Removing all permissions will demote this person back to a regular user.
+                    <strong>{t('mgr.warningLabel')}</strong> {t('mgr.warningRemoveAll')}
                   </p>
                 </div>
               )}
@@ -545,13 +547,13 @@ export default function ManagerManagement() {
                   onClick={handleUpdatePermissions}
                   className="flex-1 bg-brand-700 text-white py-2 rounded-lg hover:bg-brand-800 font-medium"
                 >
-                  Save Changes
+                  {t('profile.save')}
                 </button>
                 <button
                   onClick={() => { setShowEditModal(false); setSelectedManager(null); }}
                   className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300 font-medium"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>

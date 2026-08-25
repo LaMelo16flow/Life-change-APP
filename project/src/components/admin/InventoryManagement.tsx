@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { getLocalizedProductName } from '../../utils/productLocale';
+import { getLocalizedProductName, getLocalizedProductType } from '../../utils/productLocale';
 import { Package, Plus, CreditCard as Edit2, AlertTriangle, Search, RefreshCw } from 'lucide-react';
 
 interface Product {
@@ -10,6 +10,7 @@ interface Product {
   name: string;
   name_en?: string | null;
   product_type: string;
+  product_type_en?: string | null;
   image_url: string | null;
 }
 
@@ -26,7 +27,7 @@ interface InventoryItem {
 
 export default function InventoryManagement() {
   const toast = useToast();
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,8 +59,9 @@ export default function InventoryManagement() {
         .from('product_inventory')
         .select(`
           *,
-          product:products(id, name, name_en, product_type, image_url)
+          product:products(id, name, name_en, product_type, product_type_en, image_url)
         `)
+        .eq('region', 'CA')
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -75,7 +77,7 @@ export default function InventoryManagement() {
     try {
       const { data, error } = await supabase
         .from('products')
-        .select('id, name, name_en, product_type, image_url')
+        .select('id, name, name_en, product_type, product_type_en, image_url')
         .eq('is_active', true)
         .order('name');
 
@@ -123,10 +125,10 @@ export default function InventoryManagement() {
         low_stock_threshold: 10,
       });
       loadInventory();
-      toast.success('Inventory added successfully');
+      toast.success(t('inv.inventoryAdded'));
     } catch (error) {
       console.error('Error adding inventory:', error);
-      toast.error('Failed to add inventory');
+      toast.error(t('inv.failedAddInventory'));
     }
   };
 
@@ -135,7 +137,7 @@ export default function InventoryManagement() {
     if (!selectedItem) return;
 
     if (formData.quantity - formData.reserved_quantity < 0) {
-      toast.error('Stock available cannot be less than reserved. Lower "Reserved" or raise "Stock Available" first.');
+      toast.error(t('inv.stockReservedError'));
       return;
     }
 
@@ -192,10 +194,10 @@ export default function InventoryManagement() {
       setShowEditModal(false);
       setSelectedItem(null);
       loadInventory();
-      toast.success('Inventory updated successfully');
+      toast.success(t('inv.inventoryUpdated'));
     } catch (error) {
       console.error('Error updating inventory:', error);
-      toast.error('Failed to update inventory');
+      toast.error(t('inv.failedUpdateInventory'));
     }
   };
 
@@ -223,12 +225,12 @@ export default function InventoryManagement() {
 
       if (error) throw error;
 
-      toast.success(`Stock updated to ${bulkQuantity} for all products`);
+      toast.success(t('inv.stockUpdatedToAll', { n: bulkQuantity }));
       setShowBulkModal(false);
       loadInventory();
     } catch (error) {
       console.error('Error bulk updating inventory:', error);
-      toast.error('Failed to update inventory');
+      toast.error(t('inv.failedUpdateInventory'));
     } finally {
       setBulkUpdating(false);
     }
@@ -260,12 +262,12 @@ export default function InventoryManagement() {
         if (error) throw error;
       }
 
-      toast.success(`Initialized ${inserts.length} inventory records with ${bulkQuantity} stock each`);
+      toast.success(t('inv.initializedRecords', { n: inserts.length, qty: bulkQuantity }));
       setShowBulkModal(false);
       loadInventory();
     } catch (error) {
       console.error('Error initializing stock:', error);
-      toast.error('Failed to initialize stock');
+      toast.error(t('inv.failedInitializeStock'));
     } finally {
       setBulkUpdating(false);
     }
@@ -279,21 +281,21 @@ export default function InventoryManagement() {
 
   const getStockStatus = (item: InventoryItem) => {
     const available = item.quantity - item.reserved_quantity;
-    if (available <= 0) return { text: 'Out of Stock', color: 'text-red-600', bg: 'bg-red-100' };
-    if (available <= item.low_stock_threshold) return { text: 'Low Stock', color: 'text-yellow-600', bg: 'bg-yellow-100' };
-    return { text: 'In Stock', color: 'text-green-600', bg: 'bg-green-100' };
+    if (available <= 0) return { text: t('shop.outOfStock'), color: 'text-red-600', bg: 'bg-red-100' };
+    if (available <= item.low_stock_threshold) return { text: t('inv.lowStock'), color: 'text-yellow-600', bg: 'bg-yellow-100' };
+    return { text: t('common.inStock'), color: 'text-green-600', bg: 'bg-green-100' };
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading inventory...</div>;
+    return <div className="flex items-center justify-center h-64">{t('admin.loadingInventory')}</div>;
   }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Inventory Management</h2>
-          <p className="text-gray-600">Manage product stock levels</p>
+          <h2 className="text-2xl font-bold text-gray-900">{t('inv.title')}</h2>
+          <p className="text-gray-600">{t('inv.subtitle')}</p>
         </div>
         <div className="flex gap-3 flex-wrap">
           <button
@@ -301,14 +303,14 @@ export default function InventoryManagement() {
             className="flex items-center gap-2 bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-800"
           >
             <RefreshCw size={20} />
-            Set Default Stock
+            {t('inv.setDefaultStock')}
           </button>
           <button
             onClick={() => setShowAddModal(true)}
             className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg hover:bg-brand-800"
           >
             <Plus size={20} />
-            Add Inventory
+            {t('inv.addInventory')}
           </button>
         </div>
       </div>
@@ -317,7 +319,7 @@ export default function InventoryManagement() {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
         <input
           type="text"
-          placeholder="Search products..."
+          placeholder={t('inv.searchProducts')}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
@@ -327,7 +329,7 @@ export default function InventoryManagement() {
       {filteredInventory.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-lg">
           <Package size={48} className="mx-auto text-gray-400 mb-4" />
-          <p className="text-gray-600">No inventory items found</p>
+          <p className="text-gray-600">{t('inv.noItemsFound')}</p>
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow overflow-x-auto hidden md:block">
@@ -335,19 +337,19 @@ export default function InventoryManagement() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Product
+                  {t('inv.product')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Available
+                  {t('inv.available')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Reserved
+                  {t('inv.reserved')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                  {t('common.status')}
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
+                  {t('common.actions')}
                 </th>
               </tr>
             </thead>
@@ -368,7 +370,7 @@ export default function InventoryManagement() {
                         )}
                         <div>
                           <div className="font-medium text-gray-900">{getLocalizedProductName(item.product, language)}</div>
-                          <div className="text-sm text-gray-500">{item.product.product_type}</div>
+                          <div className="text-sm text-gray-500">{getLocalizedProductType(item.product, language)}</div>
                         </div>
                       </div>
                     </td>
@@ -392,7 +394,7 @@ export default function InventoryManagement() {
                         className="text-brand-600 hover:text-brand-800 inline-flex items-center gap-1"
                       >
                         <Edit2 size={16} />
-                        Edit
+                        {t('admin.edit')}
                       </button>
                     </td>
                   </tr>
@@ -420,24 +422,24 @@ export default function InventoryManagement() {
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="font-medium text-gray-900 truncate">{getLocalizedProductName(item.product, language)}</div>
-                    <div className="text-sm text-gray-500 truncate">{item.product.product_type}</div>
+                    <div className="text-sm text-gray-500 truncate">{getLocalizedProductType(item.product, language)}</div>
                   </div>
                   <button
                     onClick={() => openEditModal(item)}
                     className="text-brand-600 hover:text-brand-800 inline-flex items-center gap-1 text-sm font-medium flex-shrink-0"
                   >
                     <Edit2 size={16} />
-                    Edit
+                    {t('admin.edit')}
                   </button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-sm border-t border-gray-100 pt-3">
                   <div>
-                    <div className="text-xs text-gray-500">Available</div>
+                    <div className="text-xs text-gray-500">{t('inv.available')}</div>
                     <div className="text-gray-900">{available}</div>
                   </div>
                   <div>
-                    <div className="text-xs text-gray-500">Reserved</div>
+                    <div className="text-xs text-gray-500">{t('inv.reserved')}</div>
                     <div className="text-gray-600">{item.reserved_quantity}</div>
                   </div>
                 </div>
@@ -459,17 +461,17 @@ export default function InventoryManagement() {
       {showAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-4">Add Product Inventory</h3>
+            <h3 className="text-xl font-bold mb-4">{t('inv.addProductInventoryTitle')}</h3>
             <form onSubmit={handleAddInventory} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('inv.product')}</label>
                 <select
                   value={formData.product_id}
                   onChange={(e) => setFormData({ ...formData, product_id: e.target.value })}
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                 >
-                  <option value="">Select a product</option>
+                  <option value="">{t('inv.selectProduct')}</option>
                   {products.map(product => (
                     <option key={product.id} value={product.id}>
                       {getLocalizedProductName(product, language)}
@@ -478,7 +480,7 @@ export default function InventoryManagement() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Stock Available</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('inv.stockAvailable')}</label>
                 <input
                   type="number"
                   value={formData.quantity}
@@ -489,7 +491,7 @@ export default function InventoryManagement() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Low Stock Alert Threshold</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('inv.lowStockThreshold')}</label>
                 <input
                   type="number"
                   value={formData.low_stock_threshold}
@@ -504,14 +506,14 @@ export default function InventoryManagement() {
                   type="submit"
                   className="flex-1 bg-brand-700 text-white py-2 rounded-lg hover:bg-brand-800 font-medium"
                 >
-                  Add Inventory
+                  {t('inv.addInventory')}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
                   className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300 font-medium"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               </div>
             </form>
@@ -522,11 +524,11 @@ export default function InventoryManagement() {
       {showEditModal && selectedItem && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-1">Refresh Stock</h3>
+            <h3 className="text-xl font-bold mb-1">{t('inv.refreshStock')}</h3>
             <p className="text-sm text-gray-500 mb-4">{getLocalizedProductName(selectedItem.product, language)}</p>
             <form onSubmit={handleUpdateInventory} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Stock Available</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('inv.stockAvailable')}</label>
                 <input
                   type="number"
                   value={formData.quantity}
@@ -538,13 +540,13 @@ export default function InventoryManagement() {
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-medium text-gray-700">Reserved (held by pending orders)</label>
+                  <label className="block text-sm font-medium text-gray-700">{t('inv.reservedHeldByOrders')}</label>
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, reserved_quantity: 0 })}
                     className="text-xs font-medium text-brand-600 hover:text-brand-800"
                   >
-                    Reset to 0
+                    {t('inv.resetToZero')}
                   </button>
                 </div>
                 <input
@@ -556,17 +558,17 @@ export default function InventoryManagement() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Only lower this if orders were rejected/cancelled and stock wasn't released correctly.
+                  {t('inv.reservedHint')}
                 </p>
               </div>
               <div className="bg-gray-50 rounded-lg p-3 flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-700">Available for sale</span>
+                <span className="text-sm font-medium text-gray-700">{t('inv.availableForSale')}</span>
                 <span className={`text-lg font-bold ${formData.quantity - formData.reserved_quantity < 0 ? 'text-red-600' : 'text-green-600'}`}>
                   {formData.quantity - formData.reserved_quantity}
                 </span>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Low Stock Alert Threshold</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('inv.lowStockThreshold')}</label>
                 <input
                   type="number"
                   value={formData.low_stock_threshold}
@@ -581,14 +583,14 @@ export default function InventoryManagement() {
                   type="submit"
                   className="flex-1 bg-brand-700 text-white py-2 rounded-lg hover:bg-brand-800 font-medium"
                 >
-                  Save
+                  {t('common.save')}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowEditModal(false)}
                   className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300 font-medium"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               </div>
             </form>
@@ -599,14 +601,14 @@ export default function InventoryManagement() {
       {showBulkModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-2">Set Default Stock</h3>
+            <h3 className="text-xl font-bold mb-2">{t('inv.setDefaultStock')}</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Update stock levels across all products.
+              {t('inv.updateAcrossProducts')}
             </p>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Stock Available</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('inv.stockAvailable')}</label>
                 <input
                   type="number"
                   value={bulkQuantity}
@@ -618,7 +620,7 @@ export default function InventoryManagement() {
 
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                 <p className="text-sm text-yellow-800">
-                  <strong>Warning:</strong> This will overwrite current stock levels for the selected scope.
+                  <strong>{t('mgr.warningLabel')}</strong> {t('inv.overwriteWarning')}
                 </p>
               </div>
 
@@ -628,21 +630,21 @@ export default function InventoryManagement() {
                   disabled={bulkUpdating}
                   className="w-full bg-brand-700 text-white py-2 rounded-lg hover:bg-brand-800 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
-                  {bulkUpdating ? 'Updating...' : 'Update Existing Stock'}
+                  {bulkUpdating ? t('inv.updating') : t('inv.updateExistingStock')}
                 </button>
                 <button
                   onClick={handleInitializeAllStock}
                   disabled={bulkUpdating}
                   className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
-                  {bulkUpdating ? 'Initializing...' : 'Initialize All Products'}
+                  {bulkUpdating ? t('inv.initializing') : t('inv.initializeAllProducts')}
                 </button>
                 <button
                   onClick={() => setShowBulkModal(false)}
                   disabled={bulkUpdating}
                   className="w-full bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300 font-medium"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>

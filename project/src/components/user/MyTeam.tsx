@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { supabase, Profile } from '../../lib/supabase';
 import { Users, TrendingUp, UserPlus } from 'lucide-react';
 
@@ -7,6 +8,7 @@ type TeamMember = Profile;
 
 export function MyTeam() {
   const { profile } = useAuth();
+  const { t } = useLanguage();
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -56,14 +58,14 @@ export function MyTeam() {
     <div className="space-y-4 lg:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-900">My Team</h2>
-          <p className="text-sm sm:text-base text-slate-600 mt-1">Your direct referrals and their progress</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900">{t('team.title')}</h2>
+          <p className="text-sm sm:text-base text-slate-600 mt-1">{t('team.subtitle')}</p>
         </div>
         <div className="bg-white px-4 sm:px-6 py-3 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-3">
             <Users className="w-5 h-5 text-brand-600 flex-shrink-0" />
             <div>
-              <p className="text-xs sm:text-sm text-slate-600">Total Members</p>
+              <p className="text-xs sm:text-sm text-slate-600">{t('common.totalMembers')}</p>
               <p className="text-lg sm:text-xl font-bold text-slate-900">{team.length}</p>
             </div>
           </div>
@@ -72,7 +74,7 @@ export function MyTeam() {
 
       <div className="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base sm:text-lg font-semibold text-slate-900">Your Referral Link</h3>
+          <h3 className="text-base sm:text-lg font-semibold text-slate-900">{t('team.referralLink')}</h3>
           <UserPlus className="w-5 h-5 text-slate-400 flex-shrink-0" />
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
@@ -86,20 +88,20 @@ export function MyTeam() {
             onClick={() => navigator.clipboard.writeText(profile?.id || '')}
             className="px-4 py-2 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition text-sm font-medium flex-shrink-0"
           >
-            Copy ID
+            {t('common.copyId')}
           </button>
         </div>
         <p className="text-xs text-slate-500 mt-2">
-          Share your user ID with new members so they can add you as their referrer
+          {t('team.shareIdInfo')}
         </p>
       </div>
 
       {team.length === 0 ? (
         <div className="bg-white p-8 sm:p-12 rounded-xl border border-slate-200 shadow-sm text-center">
           <Users className="w-12 h-12 sm:w-16 sm:h-16 text-slate-300 mx-auto mb-4" />
-          <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-2">No team members yet</h3>
+          <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-2">{t('team.noMembers')}</h3>
           <p className="text-sm sm:text-base text-slate-600">
-            Start building your team by sharing your referral link with new members
+            {t('team.noMembersSubtitle')}
           </p>
         </div>
       ) : (
@@ -123,7 +125,7 @@ export function MyTeam() {
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-600">Total PV</span>
+                  <span className="text-sm text-slate-600">{t('pv.total')}</span>
                   <div className="flex items-center gap-2">
                     <TrendingUp className="w-4 h-4 text-green-600" />
                     <span className="text-sm font-semibold text-slate-900">
@@ -134,7 +136,7 @@ export function MyTeam() {
 
                 <div className="pt-3 border-t border-slate-200">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-500">Status</span>
+                    <span className="text-xs text-slate-500">{t('common.status')}</span>
                     <span
                       className={`text-xs font-semibold px-2 py-1 rounded-full ${
                         member.is_active
@@ -142,7 +144,7 @@ export function MyTeam() {
                           : 'bg-red-100 text-red-700'
                       }`}
                     >
-                      {member.is_active ? 'Active' : 'Inactive'}
+                      {member.is_active ? t('common.active') : t('common.inactive')}
                     </span>
                   </div>
                 </div>

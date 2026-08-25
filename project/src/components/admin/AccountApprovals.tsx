@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../../contexts/ToastContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { loadCountryNames, getCountryName } from '../../utils/countries';
 import { UserCheck, UserX, CheckCircle, ToggleLeft, ToggleRight } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -19,6 +20,7 @@ interface PendingProfile {
 
 export default function AccountApprovals() {
   const toast = useToast();
+  const { t } = useLanguage();
   const { isMaster } = useAuth();
   const [pendingUsers, setPendingUsers] = useState<PendingProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,12 +64,12 @@ export default function AccountApprovals() {
       if (error) throw error;
       setApprovalRequired(newValue);
       toast.success(newValue
-        ? 'Account approval is now required for new registrations.'
-        : 'Account approval is no longer required. New users will be auto-approved.'
+        ? t('accounts.approvalEnabledToast')
+        : t('accounts.approvalDisabledToast')
       );
     } catch (error) {
       console.error('Error toggling approval setting:', error);
-      toast.error('Failed to update approval setting');
+      toast.error(t('accounts.failedUpdateApprovalSetting'));
     } finally {
       setTogglingApproval(false);
     }
@@ -111,17 +113,17 @@ export default function AccountApprovals() {
         await supabase.from('notifications').insert({
           user_id: userId,
           type: 'approval',
-          title: 'Account Approved!',
-          message: 'Your account has been approved. You can now sign in and start your wellness journey with Life Changer.',
+          title: t('accounts.accountApprovedTitle'),
+          message: t('accounts.accountApprovedMsg'),
           action_url: '/',
         });
       }
 
-      toast.success('Account approved successfully!');
+      toast.success(t('accounts.accountApprovedToast'));
       loadPendingUsers();
     } catch (error) {
       console.error('Error approving account:', error);
-      toast.error('Failed to approve account');
+      toast.error(t('accounts.failedApproveAccount'));
     } finally {
       setProcessing(false);
     }
@@ -149,44 +151,44 @@ export default function AccountApprovals() {
       await supabase.from('notifications').insert({
         user_id: selectedUser.id,
         type: 'approval',
-        title: 'Account Registration Not Approved',
-        message: `Your account registration was not approved. Reason: ${rejectionReason}`,
+        title: t('accounts.registrationNotApprovedTitle'),
+        message: t('accounts.registrationNotApprovedMsg', { reason: rejectionReason }),
         action_url: '/',
       });
 
-      toast.success('Account rejected.');
+      toast.success(t('accounts.accountRejectedToast'));
       setShowRejectModal(false);
       setRejectionReason('');
       setSelectedUser(null);
       loadPendingUsers();
     } catch (error) {
       console.error('Error rejecting account:', error);
-      toast.error('Failed to reject account');
+      toast.error(t('accounts.failedRejectAccount'));
     } finally {
       setProcessing(false);
     }
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading pending accounts...</div>;
+    return <div className="flex items-center justify-center h-64">{t('admin.loadingPending')}</div>;
   }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Account Approvals</h2>
-          <p className="text-gray-600">Review and approve new account registrations</p>
+          <h2 className="text-2xl font-bold text-gray-900">{t('accounts.title')}</h2>
+          <p className="text-gray-600">{t('accounts.subtitle')}</p>
         </div>
 
         {isMaster && (
           <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-200 px-4 py-3 shadow-sm">
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900">Require Approval</p>
+              <p className="text-sm font-medium text-gray-900">{t('accounts.requireApproval')}</p>
               <p className="text-xs text-gray-500">
                 {approvalRequired
-                  ? 'New users must be approved before signing in'
-                  : 'New users are auto-approved on registration'}
+                  ? t('accounts.requireApprovalOnDesc')
+                  : t('accounts.requireApprovalOffDesc')}
               </p>
             </div>
             <button
@@ -207,7 +209,7 @@ export default function AccountApprovals() {
       {pendingUsers.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-lg">
           <CheckCircle size={48} className="mx-auto text-gray-400 mb-4" />
-          <p className="text-gray-600">No pending accounts to review</p>
+          <p className="text-gray-600">{t('accounts.noPendingAccounts')}</p>
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow overflow-x-auto hidden md:block">
@@ -215,19 +217,19 @@ export default function AccountApprovals() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  User
+                  {t('common.user')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Country
+                  {t('profile.country')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Referred By
+                  {t('accounts.referredBy')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Registration Date
+                  {t('accounts.registrationDate')}
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
+                  {t('common.actions')}
                 </th>
               </tr>
             </thead>
@@ -257,7 +259,7 @@ export default function AccountApprovals() {
                     {getCountryName(user.country_code, countryMap)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {user.referred_by || 'None'}
+                    {user.referred_by || t('accounts.none')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(user.created_at).toLocaleDateString()}
@@ -269,7 +271,7 @@ export default function AccountApprovals() {
                       className="text-green-600 hover:text-green-900 inline-flex items-center gap-1 disabled:opacity-50"
                     >
                       <UserCheck size={16} />
-                      Approve
+                      {t('accounts.approve')}
                     </button>
                     <button
                       onClick={() => {
@@ -280,7 +282,7 @@ export default function AccountApprovals() {
                       className="text-red-600 hover:text-red-900 inline-flex items-center gap-1 disabled:opacity-50"
                     >
                       <UserX size={16} />
-                      Reject
+                      {t('accounts.reject')}
                     </button>
                   </td>
                 </tr>
@@ -314,15 +316,15 @@ export default function AccountApprovals() {
 
               <div className="grid grid-cols-2 gap-2 text-sm border-t border-gray-100 pt-3">
                 <div>
-                  <div className="text-xs text-gray-500">Country</div>
+                  <div className="text-xs text-gray-500">{t('profile.country')}</div>
                   <div className="text-gray-900">{getCountryName(user.country_code, countryMap)}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">Referred By</div>
-                  <div className="text-gray-900">{user.referred_by || 'None'}</div>
+                  <div className="text-xs text-gray-500">{t('accounts.referredBy')}</div>
+                  <div className="text-gray-900">{user.referred_by || t('accounts.none')}</div>
                 </div>
                 <div className="col-span-2">
-                  <div className="text-xs text-gray-500">Registration Date</div>
+                  <div className="text-xs text-gray-500">{t('accounts.registrationDate')}</div>
                   <div className="text-gray-900">{new Date(user.created_at).toLocaleDateString()}</div>
                 </div>
               </div>
@@ -356,19 +358,19 @@ export default function AccountApprovals() {
       {showRejectModal && selectedUser && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-4">Reject Account</h3>
+            <h3 className="text-xl font-bold mb-4">{t('accounts.rejectAccountTitle')}</h3>
             <p className="text-gray-600 mb-4">
-              Please provide a reason for rejecting <strong>{selectedUser.full_name}</strong>'s account:
+              {t('accounts.rejectReasonPrefix')} <strong>{selectedUser.full_name}</strong>{t('accounts.rejectReasonSuffix')}
             </p>
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Rejection Reason*</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{t('accounts.rejectionReasonLabel')}</label>
               <textarea
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
                 rows={4}
                 required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                placeholder="Example: Incomplete information, suspicious activity, duplicate account..."
+                placeholder={t('accounts.rejectionPlaceholder')}
               />
             </div>
             <div className="flex gap-3">
@@ -377,7 +379,7 @@ export default function AccountApprovals() {
                 disabled={!rejectionReason.trim() || processing}
                 className="flex-1 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
-                {processing ? 'Processing...' : 'Confirm Rejection'}
+                {processing ? t('common.processing') : t('admin.confirmRejection')}
               </button>
               <button
                 onClick={() => {
@@ -388,7 +390,7 @@ export default function AccountApprovals() {
                 disabled={processing}
                 className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300 font-medium disabled:opacity-50"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>

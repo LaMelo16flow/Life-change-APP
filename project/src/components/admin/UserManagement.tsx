@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import { supabase, Profile } from '../../lib/supabase';
 import { useToast } from '../../contexts/ToastContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { loadCountryNames, getCountryName } from '../../utils/countries';
 import { Users, Search, TrendingUp, CreditCard as Edit, Shield, UserX, Trash2, Loader2, AlertTriangle } from 'lucide-react';
 
@@ -10,6 +11,7 @@ interface UserWithRank extends Profile {
 
 export function UserManagement() {
   const toast = useToast();
+  const { t } = useLanguage();
   const [users, setUsers] = useState<UserWithRank[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -47,7 +49,7 @@ export function UserManagement() {
   const adjustPV = async (userId: string) => {
     const amount = parseFloat(pvAmount);
     if (isNaN(amount) || amount === 0) {
-      toast.warning('Please enter a valid PV amount');
+      toast.warning(t('um.invalidPvAmount'));
       return;
     }
 
@@ -71,11 +73,11 @@ export function UserManagement() {
     ]);
 
     if (pvResult.error || profileResult.error) {
-      toast.error('Failed to adjust PV');
+      toast.error(t('um.failedAdjustPv'));
       return;
     }
 
-    toast.success('PV adjusted successfully');
+    toast.success(t('um.pvAdjusted'));
     setEditingPV(null);
     setPVAmount('');
     setPVDescription('');
@@ -91,11 +93,11 @@ export function UserManagement() {
       .eq('id', userId);
 
     if (error) {
-      toast.error('Failed to update user role');
+      toast.error(t('um.failedUpdateRole'));
       return;
     }
 
-    toast.success(`User ${newRole === 'admin' ? 'promoted' : 'demoted'} successfully`);
+    toast.success(newRole === 'admin' ? t('um.userPromoted') : t('um.userDemoted'));
     fetchUsers();
   };
 
@@ -104,7 +106,7 @@ export function UserManagement() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        toast.error('Not authenticated');
+        toast.error(t('profile.notAuthenticated'));
         return;
       }
 
@@ -122,13 +124,13 @@ export function UserManagement() {
       );
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Failed to delete user');
+      if (!response.ok) throw new Error(result.error || t('um.failedDeleteUser'));
 
-      toast.success('User account deleted successfully');
+      toast.success(t('um.userDeleted'));
       setDeletingUser(null);
       fetchUsers();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to delete user');
+      toast.error(error.message || t('um.failedDeleteUser'));
     } finally {
       setDeleteLoading(false);
     }
@@ -152,14 +154,14 @@ export function UserManagement() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">User Management</h2>
-          <p className="text-slate-600 mt-1">Manage all platform users</p>
+          <h2 className="text-2xl font-bold text-slate-900">{t('admin.userManagement')}</h2>
+          <p className="text-slate-600 mt-1">{t('admin.manageUsers')}</p>
         </div>
         <div className="bg-white px-6 py-3 rounded-xl border border-slate-200 shadow-sm self-start sm:self-auto">
           <div className="flex items-center gap-3">
             <Users className="w-5 h-5 text-brand-600" />
             <div>
-              <p className="text-sm text-slate-600">Total Users</p>
+              <p className="text-sm text-slate-600">{t('admin.totalUsers')}</p>
               <p className="text-xl font-bold text-slate-900">{users.length}</p>
             </div>
           </div>
@@ -173,7 +175,7 @@ export function UserManagement() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search users by name or email..."
+            placeholder={t('admin.searchUsers')}
             className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
           />
         </div>
@@ -185,22 +187,22 @@ export function UserManagement() {
             <thead className="bg-slate-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                  User
+                  {t('common.user')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                  Role
+                  {t('common.role')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                  PV
+                  {t('um.pv')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                  Country
+                  {t('profile.country')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                  Status
+                  {t('common.status')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                  Actions
+                  {t('common.actions')}
                 </th>
               </tr>
             </thead>
@@ -236,7 +238,7 @@ export function UserManagement() {
                         }`}
                       >
                         {user.role === 'admin' ? <Shield className="w-3 h-3" /> : <UserX className="w-3 h-3" />}
-                        {user.role === 'admin' ? 'Admin' : 'User'}
+                        {user.role === 'admin' ? t('common.admin') : t('common.user')}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -258,7 +260,7 @@ export function UserManagement() {
                             : 'bg-red-100 text-red-700'
                         }`}
                       >
-                        {user.is_active ? 'Active' : 'Inactive'}
+                        {user.is_active ? t('common.active') : t('common.inactive')}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -281,12 +283,12 @@ export function UserManagement() {
                           {user.role === 'admin' ? (
                             <>
                               <UserX className="w-4 h-4" />
-                              Demote
+                              {t('um.demote')}
                             </>
                           ) : (
                             <>
                               <Shield className="w-4 h-4" />
-                              Promote
+                              {t('um.promote')}
                             </>
                           )}
                         </button>
@@ -296,7 +298,7 @@ export function UserManagement() {
                             className="flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition text-sm font-medium"
                           >
                             <Trash2 className="w-4 h-4" />
-                            Delete
+                            {t('admin.delete')}
                           </button>
                         )}
                       </div>
@@ -310,21 +312,21 @@ export function UserManagement() {
                             type="number"
                             value={pvAmount}
                             onChange={(e) => setPVAmount(e.target.value)}
-                            placeholder="PV Amount (+ or -)"
+                            placeholder={t('um.pvAmountPlaceholder')}
                             className="px-4 py-2 border border-slate-300 rounded-lg"
                           />
                           <input
                             type="text"
                             value={pvDescription}
                             onChange={(e) => setPVDescription(e.target.value)}
-                            placeholder="Description"
+                            placeholder={t('admin.description')}
                             className="flex-1 px-4 py-2 border border-slate-300 rounded-lg"
                           />
                           <button
                             onClick={() => adjustPV(user.id)}
                             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium"
                           >
-                            Apply
+                            {t('um.apply')}
                           </button>
                           <button
                             onClick={() => {
@@ -334,7 +336,7 @@ export function UserManagement() {
                             }}
                             className="px-4 py-2 bg-slate-300 text-slate-700 rounded-lg hover:bg-slate-400 transition text-sm font-medium"
                           >
-                            Cancel
+                            {t('common.cancel')}
                           </button>
                         </div>
                       </td>
@@ -346,7 +348,7 @@ export function UserManagement() {
                         <div className="flex items-center gap-4">
                           <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
                           <p className="text-sm text-red-800 flex-1">
-                            Are you sure you want to permanently delete <strong>{user.full_name}</strong>'s account? This will remove all their data and cannot be undone.
+                            {t('um.deleteConfirmPrefix')} <strong>{user.full_name}</strong>{t('um.deleteConfirmSuffix')}
                           </p>
                           <button
                             onClick={() => handleDeleteUser(user.id)}
@@ -356,12 +358,12 @@ export function UserManagement() {
                             {deleteLoading ? (
                               <>
                                 <Loader2 className="w-4 h-4 animate-spin" />
-                                Deleting...
+                                {t('um.deleting')}
                               </>
                             ) : (
                               <>
                                 <Trash2 className="w-4 h-4" />
-                                Confirm Delete
+                                {t('um.confirmDelete')}
                               </>
                             )}
                           </button>
@@ -369,7 +371,7 @@ export function UserManagement() {
                             onClick={() => setDeletingUser(null)}
                             className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition text-sm font-medium flex-shrink-0"
                           >
-                            Cancel
+                            {t('common.cancel')}
                           </button>
                         </div>
                       </td>
@@ -411,7 +413,7 @@ export function UserManagement() {
                   }`}
                 >
                   {user.role === 'admin' ? <Shield className="w-3 h-3" /> : <UserX className="w-3 h-3" />}
-                  {user.role === 'admin' ? 'Admin' : 'User'}
+                  {user.role === 'admin' ? t('common.admin') : t('common.user')}
                 </span>
                 <span
                   className={`px-2 py-1 rounded-full text-xs font-semibold ${
@@ -420,7 +422,7 @@ export function UserManagement() {
                       : 'bg-red-100 text-red-700'
                   }`}
                 >
-                  {user.is_active ? 'Active' : 'Inactive'}
+                  {user.is_active ? t('common.active') : t('common.inactive')}
                 </span>
                 <span className="text-sm text-slate-600">{getCountryName(user.country_code, countryMap)}</span>
               </div>
@@ -436,7 +438,7 @@ export function UserManagement() {
                   className="flex items-center gap-2 px-3 py-1.5 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition text-sm font-medium"
                 >
                   <Edit className="w-4 h-4" />
-                  PV
+                  {t('um.pv')}
                 </button>
                 <button
                   onClick={() => toggleUserRole(user.id, user.role)}
@@ -449,12 +451,12 @@ export function UserManagement() {
                   {user.role === 'admin' ? (
                     <>
                       <UserX className="w-4 h-4" />
-                      Demote
+                      {t('um.demote')}
                     </>
                   ) : (
                     <>
                       <Shield className="w-4 h-4" />
-                      Promote
+                      {t('um.promote')}
                     </>
                   )}
                 </button>
@@ -464,7 +466,7 @@ export function UserManagement() {
                     className="flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition text-sm font-medium"
                   >
                     <Trash2 className="w-4 h-4" />
-                    Delete
+                    {t('admin.delete')}
                   </button>
                 )}
               </div>
@@ -475,14 +477,14 @@ export function UserManagement() {
                     type="number"
                     value={pvAmount}
                     onChange={(e) => setPVAmount(e.target.value)}
-                    placeholder="PV Amount (+ or -)"
+                    placeholder={t('um.pvAmountPlaceholder')}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg"
                   />
                   <input
                     type="text"
                     value={pvDescription}
                     onChange={(e) => setPVDescription(e.target.value)}
-                    placeholder="Description"
+                    placeholder={t('admin.description')}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg"
                   />
                   <div className="flex gap-2">
@@ -490,7 +492,7 @@ export function UserManagement() {
                       onClick={() => adjustPV(user.id)}
                       className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium"
                     >
-                      Apply
+                      {t('um.apply')}
                     </button>
                     <button
                       onClick={() => {
@@ -500,7 +502,7 @@ export function UserManagement() {
                       }}
                       className="flex-1 px-4 py-2 bg-slate-300 text-slate-700 rounded-lg hover:bg-slate-400 transition text-sm font-medium"
                     >
-                      Cancel
+                      {t('common.cancel')}
                     </button>
                   </div>
                 </div>
@@ -511,7 +513,7 @@ export function UserManagement() {
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
                     <p className="text-sm text-red-800">
-                      Are you sure you want to permanently delete <strong>{user.full_name}</strong>'s account? This will remove all their data and cannot be undone.
+                      {t('um.deleteConfirmPrefix')} <strong>{user.full_name}</strong>{t('um.deleteConfirmSuffix')}
                     </p>
                   </div>
                   <div className="flex gap-2">
@@ -523,12 +525,12 @@ export function UserManagement() {
                       {deleteLoading ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          Deleting...
+                          {t('um.deleting')}
                         </>
                       ) : (
                         <>
                           <Trash2 className="w-4 h-4" />
-                          Confirm Delete
+                          {t('um.confirmDelete')}
                         </>
                       )}
                     </button>
@@ -536,7 +538,7 @@ export function UserManagement() {
                       onClick={() => setDeletingUser(null)}
                       className="flex-1 px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition text-sm font-medium"
                     >
-                      Cancel
+                      {t('common.cancel')}
                     </button>
                   </div>
                 </div>

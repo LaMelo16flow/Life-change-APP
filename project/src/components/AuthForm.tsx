@@ -6,6 +6,7 @@ const DEFAULT_COUNTRY_CODE = 'CA';
 
 export function AuthForm() {
   const [isLogin, setIsLogin] = useState(true);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -16,7 +17,28 @@ export function AuthForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, sendPasswordResetEmail } = useAuth();
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (!email) {
+      setError('Le courriel est requis');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(email);
+      setSuccess('Si un compte existe avec ce courriel, un lien de reinitialisation a ete envoye.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Une erreur est survenue');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,9 +83,22 @@ export function AuthForm() {
 
   const toggleMode = () => {
     setIsLogin(!isLogin);
+    setIsForgotPassword(false);
     setError('');
     setSuccess('');
     setFocusedField(null);
+  };
+
+  const openForgotPassword = () => {
+    setIsForgotPassword(true);
+    setError('');
+    setSuccess('');
+  };
+
+  const closeForgotPassword = () => {
+    setIsForgotPassword(false);
+    setError('');
+    setSuccess('');
   };
 
   return (
@@ -100,6 +135,82 @@ export function AuthForm() {
         <div className="relative">
           <div className="absolute -inset-1 bg-gradient-to-r from-brand-500/20 via-brand-400/10 to-brand-500/20 rounded-3xl blur-xl" />
           <div className="relative bg-white/[0.03] backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
+            {isForgotPassword ? (
+              <div className="p-6 sm:p-8">
+                <div className="mb-6">
+                  <h2 className="text-xl font-semibold text-white">Mot de passe oublie</h2>
+                  <p className="text-gray-400 text-sm mt-1">
+                    Entrez votre courriel pour recevoir un lien de reinitialisation
+                  </p>
+                </div>
+
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-medium text-gray-300">
+                      Courriel
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                        <Mail className="w-5 h-5 text-gray-500" />
+                      </div>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 transition-all duration-300 focus:bg-white/10 focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
+                        placeholder="vous@exemple.com"
+                        required
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+
+                  {error && (
+                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl text-sm flex items-start gap-3 animate-shake">
+                      <div className="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-red-400 text-xs font-bold">!</span>
+                      </div>
+                      <span>{error}</span>
+                    </div>
+                  )}
+
+                  {success && (
+                    <div className="bg-brand-500/10 border border-brand-500/20 text-brand-400 px-4 py-3 rounded-xl text-sm flex items-start gap-3">
+                      <div className="w-5 h-5 rounded-full bg-brand-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg className="w-3 h-3 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <span>{success}</span>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 text-white font-semibold py-3.5 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-brand-500/25"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Envoi...</span>
+                      </>
+                    ) : (
+                      <span>Envoyer le lien de reinitialisation</span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={closeForgotPassword}
+                    className="w-full text-gray-400 hover:text-brand-400 text-sm transition-colors text-center"
+                  >
+                    Retour a la connexion
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <>
             <div className="flex border-b border-white/10">
               <button
                 type="button"
@@ -315,6 +426,7 @@ export function AuthForm() {
                 <div className="mt-6 text-center">
                   <button
                     type="button"
+                    onClick={openForgotPassword}
                     className="text-gray-400 hover:text-brand-400 text-sm transition-colors"
                   >
                     Mot de passe oublie?
@@ -322,6 +434,8 @@ export function AuthForm() {
                 </div>
               )}
             </div>
+              </>
+            )}
           </div>
         </div>
 

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { supabase, PVTransaction } from '../../lib/supabase';
 import { TrendingUp, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 
 export function PVHistory() {
   const { profile } = useAuth();
+  const { t } = useLanguage();
   const [transactions, setTransactions] = useState<PVTransaction[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -44,15 +46,15 @@ export function PVHistory() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900">PV History</h2>
-        <p className="text-slate-600 mt-1">Track all your point value transactions</p>
+        <h2 className="text-2xl font-bold text-slate-900">{t('pv.title')}</h2>
+        <p className="text-slate-600 mt-1">{t('pv.subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-3 mb-2">
             <TrendingUp className="w-5 h-5 text-brand-600" />
-            <p className="text-sm text-slate-600">Current Balance</p>
+            <p className="text-sm text-slate-600">{t('pv.currentBalance')}</p>
           </div>
           <p className="text-2xl font-bold text-slate-900">{profile?.total_pv || 0} PV</p>
         </div>
@@ -60,7 +62,7 @@ export function PVHistory() {
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-3 mb-2">
             <ArrowUpCircle className="w-5 h-5 text-green-600" />
-            <p className="text-sm text-slate-600">Total Earned</p>
+            <p className="text-sm text-slate-600">{t('pv.totalEarned')}</p>
           </div>
           <p className="text-2xl font-bold text-green-600">{totalEarned} PV</p>
         </div>
@@ -68,7 +70,7 @@ export function PVHistory() {
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-3 mb-2">
             <ArrowDownCircle className="w-5 h-5 text-red-600" />
-            <p className="text-sm text-slate-600">Total Spent</p>
+            <p className="text-sm text-slate-600">{t('pv.totalSpent')}</p>
           </div>
           <p className="text-2xl font-bold text-red-600">{totalSpent} PV</p>
         </div>
@@ -76,15 +78,15 @@ export function PVHistory() {
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-200">
-          <h3 className="text-lg font-semibold text-slate-900">Transaction History</h3>
+          <h3 className="text-lg font-semibold text-slate-900">{t('pv.transactionHistory')}</h3>
         </div>
 
         {transactions.length === 0 ? (
           <div className="p-12 text-center">
             <TrendingUp className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">No transactions yet</h3>
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">{t('pv.noTransactions')}</h3>
             <p className="text-slate-600">
-              Your PV transaction history will appear here
+              {t('pv.noTransactionsSubtitle')}
             </p>
           </div>
         ) : (
@@ -93,16 +95,16 @@ export function PVHistory() {
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                    Date
+                    {t('orders.date')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                    Type
+                    {t('pv.type')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                    Description
+                    {t('pv.description')}
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                    Amount
+                    {t('pv.amount')}
                   </th>
                 </tr>
               </thead>
@@ -126,11 +128,11 @@ export function PVHistory() {
                             : 'bg-slate-100 text-slate-700'
                         }`}
                       >
-                        {transaction.transaction_type}
+                        {t(`pv.type.${transaction.transaction_type}`)}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
-                      {transaction.description || 'No description'}
+                      {transaction.description || t('pv.noDescription')}
                     </td>
                     <td className="px-6 py-4 text-sm text-right">
                       <span
@@ -167,7 +169,7 @@ export function PVHistory() {
                         : 'bg-slate-100 text-slate-700'
                     }`}
                   >
-                    {transaction.transaction_type}
+                    {t(`pv.type.${transaction.transaction_type}`)}
                   </span>
                   <span
                     className={`font-semibold text-sm ${
@@ -178,7 +180,7 @@ export function PVHistory() {
                     {transaction.amount} PV
                   </span>
                 </div>
-                <p className="text-sm text-slate-600">{transaction.description || 'No description'}</p>
+                <p className="text-sm text-slate-600">{transaction.description || t('pv.noDescription')}</p>
                 <p className="text-xs text-slate-500">{new Date(transaction.created_at).toLocaleDateString()}</p>
               </div>
             ))}

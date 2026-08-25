@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { getLocalizedProductName } from '../../utils/productLocale';
+import { getLocalizedProductName, getLocalizedProductType } from '../../utils/productLocale';
+import { getPromoBuyGetFreeText } from '../../utils/promoLocale';
 import { Tag, Plus, Calendar, Trash2, Ban, Package, X } from 'lucide-react';
 import { getCountryName, loadCountryNames } from '../../utils/countries';
 
@@ -17,7 +18,7 @@ interface ProductPromotion {
   ends_at: string;
   is_active: boolean;
   created_at: string;
-  product?: { name: string; name_en?: string | null; product_type: string; image_url: string | null };
+  product?: { name: string; name_en?: string | null; product_type: string; product_type_en?: string | null; image_url: string | null };
   country?: { name: string } | null;
 }
 
@@ -26,6 +27,7 @@ interface ProductOption {
   name: string;
   name_en?: string | null;
   product_type: string;
+  product_type_en?: string | null;
 }
 
 interface CountryOption {
@@ -35,7 +37,7 @@ interface CountryOption {
 
 export function PromotionApprovals() {
   const toast = useToast();
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const [productPromotions, setProductPromotions] = useState<ProductPromotion[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [countries, setCountries] = useState<CountryOption[]>([]);
@@ -62,7 +64,7 @@ export function PromotionApprovals() {
   const fetchProductPromotions = async () => {
     const { data } = await supabase
       .from('product_promotions')
-      .select('*, product:products(name, name_en, product_type, image_url), country:countries(name)')
+      .select('*, product:products(name, name_en, product_type, product_type_en, image_url), country:countries(name)')
       .order('created_at', { ascending: false });
 
     if (data) setProductPromotions(data);
@@ -72,7 +74,7 @@ export function PromotionApprovals() {
   const fetchProducts = async () => {
     const { data } = await supabase
       .from('products')
-      .select('id, name, name_en, product_type')
+      .select('id, name, name_en, product_type, product_type_en')
       .eq('is_active', true)
       .order('name');
     if (data) setProducts(data);
@@ -91,7 +93,7 @@ export function PromotionApprovals() {
     e.preventDefault();
 
     if (!formData.product_id || formData.buy_quantity < 1 || formData.free_quantity < 1) {
-      toast.warning('Please fill in all required fields.');
+      toast.warning(t('promo.pleaseAllFieldsSimple'));
       return;
     }
 
@@ -100,7 +102,7 @@ export function PromotionApprovals() {
 
     const { error } = await supabase.from('product_promotions').insert({
       product_id: formData.product_id,
-      title: formData.title || `Buy ${formData.buy_quantity} Get ${formData.free_quantity} Free`,
+      title: formData.title.trim(),
       buy_quantity: formData.buy_quantity,
       free_quantity: formData.free_quantity,
       country_code: formData.country_code || null,
@@ -111,11 +113,11 @@ export function PromotionApprovals() {
     });
 
     if (error) {
-      toast.error('Failed to create promotion');
+      toast.error(t('promo.failedCreate'));
       return;
     }
 
-    toast.success('Promotion created successfully');
+    toast.success(t('promo.created'));
     setShowAddModal(false);
     setFormData({
       product_id: '',
@@ -136,10 +138,10 @@ export function PromotionApprovals() {
       .eq('id', id);
 
     if (error) {
-      toast.error('Failed to update promotion');
+      toast.error(t('promo.failedUpdate'));
       return;
     }
-    toast.success(currentActive ? 'Promotion paused' : 'Promotion activated');
+    toast.success(currentActive ? t('promo.paused') : t('promo.activated'));
     fetchProductPromotions();
   };
 
@@ -154,10 +156,10 @@ export function PromotionApprovals() {
       .eq('id', id);
 
     if (error) {
-      toast.error('Failed to cancel promotion');
+      toast.error(t('promo.failedCancel'));
       return;
     }
-    toast.success('Promotion cancelled and ended');
+    toast.success(t('promo.cancelled'));
     fetchProductPromotions();
   };
 
@@ -168,10 +170,10 @@ export function PromotionApprovals() {
       .eq('id', id);
 
     if (error) {
-      toast.error('Failed to delete promotion');
+      toast.error(t('promo.failedDelete'));
       return;
     }
-    toast.success('Promotion deleted');
+    toast.success(t('promo.deleted'));
     fetchProductPromotions();
   };
 
@@ -191,8 +193,8 @@ export function PromotionApprovals() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900">Promotions</h2>
-        <p className="text-slate-600 mt-1">Manage product deals</p>
+        <h2 className="text-2xl font-bold text-slate-900">{t('promo.pageTitle')}</h2>
+        <p className="text-slate-600 mt-1">{t('promo.manageDeals')}</p>
       </div>
 
       <ProductPromotionsSection
@@ -209,7 +211,7 @@ export function PromotionApprovals() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-5">
-              <h3 className="text-xl font-bold text-gray-900">New Product Promotion</h3>
+              <h3 className="text-xl font-bold text-gray-900">{t('promo.newProductPromotionTitle')}</h3>
               <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600">
                 <X size={24} />
               </button>
@@ -217,34 +219,34 @@ export function PromotionApprovals() {
 
             <form onSubmit={handleAddProductPromotion} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('inv.product')}</label>
                 <select
                   value={formData.product_id}
                   onChange={(e) => setFormData({ ...formData, product_id: e.target.value })}
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                 >
-                  <option value="">Select a product</option>
+                  <option value="">{t('inv.selectProduct')}</option>
                   {products.map(p => (
-                    <option key={p.id} value={p.id}>{getLocalizedProductName(p, language)} ({p.product_type})</option>
+                    <option key={p.id} value={p.id}>{getLocalizedProductName(p, language)} ({getLocalizedProductType(p, language)})</option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Promotion Title</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('promo.promotionTitle')}</label>
                 <input
                   type="text"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="e.g., Buy 3 Get 1 Free"
+                  placeholder={t('promo.titlePlaceholder')}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Buy Quantity</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('promo.buyQuantity')}</label>
                   <input
                     type="number"
                     value={formData.buy_quantity}
@@ -255,7 +257,7 @@ export function PromotionApprovals() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Free Quantity</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('promo.freeQuantity')}</label>
                   <input
                     type="number"
                     value={formData.free_quantity}
@@ -270,22 +272,21 @@ export function PromotionApprovals() {
               {formData.buy_quantity > 0 && formData.free_quantity > 0 && (
                 <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                   <p className="text-sm text-green-800 font-medium">
-                    Preview: Buy {formData.buy_quantity}, get {formData.free_quantity} free
-                    (customer pays for {formData.buy_quantity}, receives {formData.buy_quantity + formData.free_quantity} total)
+                    {t('promo.previewText', { buy: formData.buy_quantity, free: formData.free_quantity, total: formData.buy_quantity + formData.free_quantity })}
                   </p>
                 </div>
               )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Country (leave empty for all countries)
+                  {t('promo.countryOptional')}
                 </label>
                 <select
                   value={formData.country_code}
                   onChange={(e) => setFormData({ ...formData, country_code: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                 >
-                  <option value="">All Countries</option>
+                  <option value="">{t('promo.allCountriesOption')}</option>
                   {countries.map(c => (
                     <option key={c.code} value={c.code}>{c.name}</option>
                   ))}
@@ -294,7 +295,7 @@ export function PromotionApprovals() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Starts At</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('promo.startsAt')}</label>
                   <input
                     type="datetime-local"
                     value={formData.starts_at}
@@ -304,7 +305,7 @@ export function PromotionApprovals() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Ends At</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('promo.endsAt')}</label>
                   <input
                     type="datetime-local"
                     value={formData.ends_at}
@@ -320,14 +321,14 @@ export function PromotionApprovals() {
                   type="submit"
                   className="flex-1 bg-brand-700 text-white py-2.5 rounded-lg hover:bg-brand-800 font-medium"
                 >
-                  Create Promotion
+                  {t('admin.createPromotion')}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
                   className="flex-1 bg-gray-200 text-gray-800 py-2.5 rounded-lg hover:bg-gray-300 font-medium"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               </div>
             </form>
@@ -355,6 +356,7 @@ function ProductPromotionsSection({
   onDelete: (id: string) => void;
   isActive: (promo: ProductPromotion) => boolean;
 }) {
+  const { t } = useLanguage();
   const activePromos = promotions.filter(p => isActive(p));
   const inactivePromos = promotions.filter(p => !isActive(p));
 
@@ -362,21 +364,21 @@ function ProductPromotionsSection({
     <div className="space-y-6">
       <div className="flex flex-wrap justify-between items-center gap-3">
         <p className="text-sm text-gray-600">
-          {activePromos.length} active promotion{activePromos.length !== 1 ? 's' : ''}
+          {t('promo.activePromotionsCount', { n: activePromos.length })}
         </p>
         <button
           onClick={onAdd}
           className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg hover:bg-brand-800 font-medium transition"
         >
           <Plus className="w-4 h-4" />
-          New Promotion
+          {t('promo.newPromotion')}
         </button>
       </div>
 
       {activePromos.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100">
-            <h3 className="font-semibold text-gray-900">Active Promotions</h3>
+            <h3 className="font-semibold text-gray-900">{t('promo.activePromotionsHeading')}</h3>
           </div>
           <div className="divide-y divide-gray-100">
             {activePromos.map(promo => (
@@ -389,15 +391,15 @@ function ProductPromotionsSection({
       {activePromos.length === 0 && (
         <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm text-center">
           <Tag className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">No active product promotions</p>
-          <p className="text-sm text-gray-400 mt-1">Create one to offer deals in the shop</p>
+          <p className="text-gray-500">{t('promo.noActivePromotions')}</p>
+          <p className="text-sm text-gray-400 mt-1">{t('promo.createOneHint')}</p>
         </div>
       )}
 
       {inactivePromos.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100">
-            <h3 className="font-semibold text-gray-900">Expired / Inactive Promotions</h3>
+            <h3 className="font-semibold text-gray-900">{t('promo.expiredInactiveHeading')}</h3>
           </div>
           <div className="divide-y divide-gray-100">
             {inactivePromos.slice(0, 20).map(promo => (
@@ -425,7 +427,7 @@ function PromoRow({
   onDelete: (id: string) => void;
   active: boolean;
 }) {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const expired = new Date(promo.ends_at) <= new Date();
   const [showConfirmCancel, setShowConfirmCancel] = useState(false);
   const productName = promo.product ? getLocalizedProductName(promo.product, language) : undefined;
@@ -444,24 +446,24 @@ function PromoRow({
           <p className="font-semibold text-gray-900 truncate">{productName}</p>
           {active && (
             <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-700">
-              Active
+              {t('common.active')}
             </span>
           )}
           {expired && (
             <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-gray-100 text-gray-500">
-              Expired
+              {t('admin.expired')}
             </span>
           )}
           {!active && !expired && (
             <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-700">
-              Paused
+              {t('promo.pausedBadge')}
             </span>
           )}
         </div>
         <div className="flex items-center gap-3 text-sm text-gray-600">
           <span className="flex items-center gap-1">
             <Package className="w-3.5 h-3.5" />
-            Buy {promo.buy_quantity}, Get {promo.free_quantity} Free
+            {getPromoBuyGetFreeText(promo.buy_quantity, promo.free_quantity, language)}
           </span>
           {promo.title && (
             <>
@@ -470,7 +472,7 @@ function PromoRow({
             </>
           )}
           <span className="text-gray-400">|</span>
-          <span>{promo.country_code ? getCountryName(promo.country_code, countryMap) : 'All Countries'}</span>
+          <span>{promo.country_code ? getCountryName(promo.country_code, countryMap) : t('promo.allCountriesOption')}</span>
         </div>
         <div className="flex items-center gap-1 text-xs text-gray-400 mt-1">
           <Calendar className="w-3 h-3" />
@@ -484,7 +486,7 @@ function PromoRow({
               onClick={() => onToggle(promo.id, promo.is_active)}
               className="px-3 py-1.5 text-xs font-medium rounded-lg transition bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
             >
-              Pause
+              {t('admin.pause')}
             </button>
             {showConfirmCancel ? (
               <div className="flex items-center gap-1">
@@ -492,13 +494,13 @@ function PromoRow({
                   onClick={() => { onCancel(promo.id); setShowConfirmCancel(false); }}
                   className="px-3 py-1.5 text-xs font-medium rounded-lg transition bg-red-600 text-white hover:bg-red-700"
                 >
-                  Confirm Cancel
+                  {t('promo.confirmCancel')}
                 </button>
                 <button
                   onClick={() => setShowConfirmCancel(false)}
                   className="px-2 py-1.5 text-xs font-medium rounded-lg transition bg-gray-100 text-gray-600 hover:bg-gray-200"
                 >
-                  No
+                  {t('promo.no')}
                 </button>
               </div>
             ) : (
@@ -507,7 +509,7 @@ function PromoRow({
                 className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition bg-red-50 text-red-600 hover:bg-red-100"
               >
                 <Ban className="w-3.5 h-3.5" />
-                Cancel
+                {t('common.cancel')}
               </button>
             )}
           </>
@@ -517,7 +519,7 @@ function PromoRow({
             onClick={() => onToggle(promo.id, promo.is_active)}
             className="px-3 py-1.5 text-xs font-medium rounded-lg transition bg-green-100 text-green-700 hover:bg-green-200"
           >
-            Activate
+            {t('admin.activate')}
           </button>
         )}
         <button
