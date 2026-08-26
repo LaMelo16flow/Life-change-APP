@@ -13,9 +13,10 @@ import { NotificationsList } from '../user/NotificationsList';
 
 interface AdminDashboardProps {
   activeTab: string;
+  onNavigate: (actionUrl: string | null | undefined) => void;
 }
 
-export function AdminDashboard({ activeTab }: AdminDashboardProps) {
+export function AdminDashboard({ activeTab, onNavigate }: AdminDashboardProps) {
   return (
     <div>
       {activeTab === 'overview' && <AdminOverview />}
@@ -29,7 +30,7 @@ export function AdminDashboard({ activeTab }: AdminDashboardProps) {
       {activeTab === 'promotions' && <PromotionApprovals />}
       {activeTab === 'deals' && <ProductPromotions />}
       {activeTab === 'payment-settings' && <PaymentSettings />}
-      {activeTab === 'notifications' && <NotificationsList />}
+      {activeTab === 'notifications' && <NotificationsList onNavigate={onNavigate} />}
     </div>
   );
 }

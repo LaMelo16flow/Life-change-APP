@@ -5,7 +5,11 @@ import { supabase, Notification } from '../../lib/supabase';
 import { resolveNotificationText } from '../../utils/notificationText';
 import { Bell, Calendar, Award, DollarSign, Users, Settings, Check, CheckCheck } from 'lucide-react';
 
-export function NotificationsList() {
+interface NotificationsListProps {
+  onNavigate?: (actionUrl: string | null | undefined) => void;
+}
+
+export function NotificationsList({ onNavigate }: NotificationsListProps) {
   const { profile } = useAuth();
   const { t } = useLanguage();
 
@@ -197,14 +201,18 @@ export function NotificationsList() {
                       <span className="text-xs font-medium text-slate-400">
                         {timeAgo(notification.created_at)}
                       </span>
-                      {notification.action_url && (
-                        <a
-                          href={notification.action_url}
-                          onClick={(e) => e.stopPropagation()}
+                      {notification.action_url && onNavigate && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!notification.is_read) markAsRead(notification.id);
+                            onNavigate(notification.action_url);
+                          }}
                           className="text-xs text-brand-600 hover:text-brand-700 font-semibold"
                         >
                           {t('notifications.viewDetails')} →
-                        </a>
+                        </button>
                       )}
                     </div>
                   </div>

@@ -126,6 +126,27 @@ export function Dashboard() {
     if (isMobile) setSidebarOpen(false);
   };
 
+  // Notifications store an action_url like '/orders' or '/admin/orders', a
+  // holdover from routes this app never actually has - it's a single-page
+  // tab switcher, not a router, so rendering that as a real <a href> made
+  // "view details" 404 (no server-side route to match it). Resolve it to a
+  // tab switch here instead.
+  const navigateToNotificationTarget = (actionUrl: string | null | undefined) => {
+    if (!actionUrl) return;
+
+    if (actionUrl.startsWith('/admin/')) {
+      setViewMode('admin');
+      setActiveTab(actionUrl.slice('/admin/'.length) || 'overview');
+    } else if (actionUrl === '/') {
+      setViewMode(isAdmin ? 'admin' : 'user');
+      setActiveTab(isAdmin ? 'overview' : 'shop');
+    } else {
+      setViewMode('user');
+      setActiveTab(actionUrl.slice(1) || 'shop');
+    }
+    if (isMobile) setSidebarOpen(false);
+  };
+
   const toggleSidebar = () => {
     if (isMobile) {
       setSidebarOpen(!sidebarOpen);
@@ -285,6 +306,7 @@ export function Dashboard() {
               <NotificationBell
                 unreadCount={unreadCount}
                 onViewAll={() => handleTabClick('notifications')}
+                onNavigate={navigateToNotificationTarget}
               />
               <div className="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center text-white text-sm font-bold">
                 {profile?.full_name?.charAt(0)?.toUpperCase() || '?'}
@@ -294,9 +316,9 @@ export function Dashboard() {
 
           <main className="flex-1 overflow-y-auto p-4 lg:p-6 bg-gray-50 main-scrollbar">
             {showAdminView ? (
-              <AdminDashboard activeTab={activeTab} />
+              <AdminDashboard activeTab={activeTab} onNavigate={navigateToNotificationTarget} />
             ) : (
-              <UserDashboard activeTab={activeTab} />
+              <UserDashboard activeTab={activeTab} onNavigate={navigateToNotificationTarget} />
             )}
           </main>
         </div>

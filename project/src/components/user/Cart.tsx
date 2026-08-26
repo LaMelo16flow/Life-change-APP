@@ -6,7 +6,7 @@ import { formatCurrency } from '../../utils/currency';
 import { getLocalizedProductName, getLocalizedProductType } from '../../utils/productLocale';
 import { getPromoLabel } from '../../utils/promoLocale';
 import { ShoppingCart, Trash2, Plus, Minus, AlertCircle, Check, X, Tag } from 'lucide-react';
-import { sendOrderPlacedNotification, maybeAlertLowStock } from '../../utils/notifications';
+import { sendOrderPlacedNotification } from '../../utils/notifications';
 
 interface CartItem {
   id: string;
@@ -185,21 +185,9 @@ export default function Cart() {
     setProcessing(true);
     setMessage(null);
 
-    const reservedSoFar: string[] = [];
-
-    const rollbackReservations = async () => {
-      for (const token of reservedSoFar) {
-        await supabase.rpc('release_inventory', {
-          p_token: token,
-          p_notes: 'Rollback: checkout failed partway through',
-        });
-      }
-    };
-
     try {
       let totalFreeItems = 0;
       let orderTotal = 0;
-      const itemsToReserve: { product_id: string; name: string; totalQuantity: number; freeItems: number; availableBefore: number; lowStockThreshold: number }[] = [];
 
       for (const item of cartItems) {
         const price = prices[item.product_id];
@@ -212,66 +200,12 @@ export default function Cart() {
           ? getPromoBonusInfo(promo, item.quantity)
           : { freeItems: 0 };
 
-        const totalQuantity = item.quantity + freeItems;
-
-        const { data: inventoryData, error: inventoryError } = await supabase
-          .from('product_inventory')
-          .select('quantity, reserved_quantity, low_stock_threshold')
-          .eq('product_id', item.product_id)
-          .eq('region', 'CA')
-          .maybeSingle();
-
-        if (inventoryError) {
-          throw new Error(t('cart.errorCheckingInventory', { name: getLocalizedProductName(item.products, language) }));
-        }
-
-        if (!inventoryData) {
-          throw new Error(t('cart.notAvailableRegion', { name: getLocalizedProductName(item.products, language) }));
-        }
-
-        const availableStock = inventoryData.quantity - inventoryData.reserved_quantity;
-        if (availableStock < totalQuantity) {
-          throw new Error(t('cart.onlyUnitsOfAvailable', { available: availableStock, name: getLocalizedProductName(item.products, language) }));
-        }
-
         orderTotal += price * item.quantity;
         totalFreeItems += freeItems;
-        itemsToReserve.push({
-          product_id: item.product_id,
-          name: getLocalizedProductName(item.products, language),
-          totalQuantity,
-          freeItems,
-          availableBefore: availableStock,
-          lowStockThreshold: inventoryData.low_stock_threshold,
-        });
       }
 
       const { data: orderNumberData } = await supabase.rpc('generate_order_number');
       const orderNumber = orderNumberData || `ORD-${Date.now()}`;
-
-      for (const item of itemsToReserve) {
-        const { data: reservationToken, error: reserveError } = await supabase.rpc('reserve_inventory', {
-          p_product_id: item.product_id,
-          p_region: 'CA',
-          p_quantity: item.totalQuantity,
-          p_notes: `Order ${orderNumber} - pending approval${item.freeItems > 0 ? ` (includes ${item.freeItems} free)` : ''}`,
-        });
-
-        if (reserveError) {
-          await rollbackReservations();
-          throw new Error(t('cart.failedReserveStockFor', { name: item.name, message: reserveError.message }));
-        }
-
-        maybeAlertLowStock(
-          item.name,
-          'CA',
-          item.availableBefore,
-          item.availableBefore - item.totalQuantity,
-          item.lowStockThreshold
-        ).catch((err) => console.error('Error sending low stock alert:', err));
-
-        reservedSoFar.push(reservationToken);
-      }
 
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
@@ -296,7 +230,6 @@ export default function Cart() {
         .single();
 
       if (orderError || !orderData) {
-        await rollbackReservations();
         throw orderError || new Error('Failed to create order');
       }
 
@@ -330,7 +263,6 @@ export default function Cart() {
         .insert(orderItems);
 
       if (itemsError) {
-        await rollbackReservations();
         throw new Error(t('cart.failedSaveOrderItems', { message: itemsError.message }));
       }
 

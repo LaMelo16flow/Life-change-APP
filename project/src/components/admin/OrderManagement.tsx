@@ -103,6 +103,9 @@ export default function OrderManagement() {
   const [otherPendingOrders, setOtherPendingOrders] = useState<Order[]>([]);
   const [selectedMergeOrderIds, setSelectedMergeOrderIds] = useState<Set<string>>(new Set());
   const [mergeLoading, setMergeLoading] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
+  const [changingStatus, setChangingStatus] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -410,10 +413,10 @@ export default function OrderManagement() {
       .eq('region', order.region)
       .in('product_id', Array.from(needed.keys()));
 
-    for (const productId of needed.keys()) {
+    for (const [productId, qty] of needed) {
       const inv = inventoryRows?.find((r) => r.product_id === productId);
       const available = inv ? inv.quantity - inv.reserved_quantity : 0;
-      if (available < 0) {
+      if (available < qty) {
         const invProduct = Array.isArray(inv?.product) ? inv.product[0] : inv?.product;
         return invProduct?.name || t('promo.selectedProductFallback');
       }
@@ -421,12 +424,45 @@ export default function OrderManagement() {
     return null;
   };
 
-  // Releases a pending/awaiting_payment order's stock reservation (made by
-  // reserve_inventory at checkout) back to available stock. Must only be
-  // called when an order leaves 'pending'/'awaiting_payment' for a terminal
-  // state WITHOUT completing (rejected/cancelled) - completing an order
-  // releases the reservation itself, paired with decrementing quantity, in
-  // handleVerifyPayment.
+  // Orders don't reserve stock at checkout (an unvalidated 'pending' order
+  // never touches inventory) - stock is only reserved once an admin
+  // validates the order, here and in handleStatusChange when moving into
+  // 'awaiting_payment'. Must be paired with releaseInventoryReservation
+  // when an 'awaiting_payment' order leaves that state without completing
+  // (rejected/cancelled) - completing an order releases the reservation
+  // itself, paired with decrementing quantity, in handleVerifyPayment.
+  const reserveStockForOrder = async (order: Order) => {
+    const needed = getOrderProductQuantities(order);
+    if (needed.size === 0) return;
+
+    const { data: inventoryRows } = await supabase
+      .from('product_inventory')
+      .select('id, product_id, quantity, reserved_quantity, low_stock_threshold, product:products(name, name_en)')
+      .eq('region', order.region)
+      .in('product_id', Array.from(needed.keys()));
+
+    for (const [productId, qty] of needed) {
+      const inv = inventoryRows?.find((r) => r.product_id === productId);
+      if (!inv) continue;
+
+      const availableBefore = inv.quantity - inv.reserved_quantity;
+
+      await supabase
+        .from('product_inventory')
+        .update({ reserved_quantity: inv.reserved_quantity + qty })
+        .eq('id', inv.id);
+
+      const invProduct = Array.isArray(inv.product) ? inv.product[0] : inv.product;
+      maybeAlertLowStock(
+        invProduct ? getLocalizedProductName(invProduct, language) : t('promo.selectedProductFallback'),
+        order.region,
+        availableBefore,
+        availableBefore - qty,
+        inv.low_stock_threshold
+      ).catch((err) => console.error('Error sending low stock alert:', err));
+    }
+  };
+
   const releaseInventoryReservation = async (order: Order) => {
     const needed = getOrderProductQuantities(order);
     if (needed.size === 0) return;
@@ -448,11 +484,13 @@ export default function OrderManagement() {
   };
 
   const handleApproveOrder = async () => {
-    if (!selectedOrder) return;
+    if (!selectedOrder || approving) return;
+    setApproving(true);
 
     const insufficientProduct = await getInsufficientStockProduct(selectedOrder);
     if (insufficientProduct) {
       toast.error(t('om.cannotApproveStock', { product: insufficientProduct }));
+      setApproving(false);
       return;
     }
 
@@ -479,6 +517,7 @@ export default function OrderManagement() {
         adminEmail = adminSettings?.value?.email || currentUserEmail;
       }
 
+      await reserveStockForOrder(selectedOrder);
       await applyCrossOrderPromotions(selectedOrder);
 
       const { error: orderError } = await supabase
@@ -530,6 +569,8 @@ export default function OrderManagement() {
     } catch (error) {
       console.error('Error approving order:', error);
       toast.error(t('om.failedApproveOrder'));
+    } finally {
+      setApproving(false);
     }
   };
 
@@ -688,7 +729,9 @@ export default function OrderManagement() {
 
       if (orderError) throw orderError;
 
-      await releaseInventoryReservation(selectedOrder);
+      // No releaseInventoryReservation here: this only fires for 'pending'
+      // orders, which never reserved stock in the first place (reservation
+      // happens at approval, not at checkout).
 
       await supabase.from('notifications').insert([{
         user_id: selectedOrder.user_id,
@@ -727,7 +770,8 @@ export default function OrderManagement() {
   };
 
   const handleVerifyPayment = async () => {
-    if (!selectedOrder) return;
+    if (!selectedOrder || verifyingPayment) return;
+    setVerifyingPayment(true);
 
     try {
       const { data: userData } = await supabase.auth.getUser();
@@ -839,6 +883,8 @@ export default function OrderManagement() {
     } catch (error) {
       console.error('Error verifying payment:', error);
       toast.error(t('om.failedVerifyPayment'));
+    } finally {
+      setVerifyingPayment(false);
     }
   };
 
@@ -882,13 +928,17 @@ export default function OrderManagement() {
   };
 
   const handleStatusChange = async () => {
-    if (!selectedOrder || !newStatus || newStatus === selectedOrder.status) return;
+    if (!selectedOrder || !newStatus || newStatus === selectedOrder.status || changingStatus) return;
+    setChangingStatus(true);
 
-    const isTerminalNonFulfillment = newStatus === 'rejected' || newStatus === 'cancelled';
-    if (!isTerminalNonFulfillment) {
+    const wasHoldingReservation = selectedOrder.status === 'awaiting_payment';
+    const willHoldReservation = newStatus === 'awaiting_payment';
+
+    if (willHoldReservation && !wasHoldingReservation) {
       const insufficientProduct = await getInsufficientStockProduct(selectedOrder);
       if (insufficientProduct) {
         toast.error(`Cannot change status: not enough stock available for ${insufficientProduct}.`);
+        setChangingStatus(false);
         return;
       }
     }
@@ -901,8 +951,9 @@ export default function OrderManagement() {
 
       if (error) throw error;
 
-      const wasHoldingReservation = selectedOrder.status === 'pending' || selectedOrder.status === 'awaiting_payment';
-      if (wasHoldingReservation && isTerminalNonFulfillment) {
+      if (willHoldReservation && !wasHoldingReservation) {
+        await reserveStockForOrder(selectedOrder);
+      } else if (wasHoldingReservation && !willHoldReservation) {
         await releaseInventoryReservation(selectedOrder);
       }
 
@@ -926,6 +977,8 @@ export default function OrderManagement() {
     } catch (error) {
       console.error('Error changing order status:', error);
       toast.error(t('om.failedChangeStatus'));
+    } finally {
+      setChangingStatus(false);
     }
   };
 
@@ -1715,9 +1768,10 @@ export default function OrderManagement() {
               ) : (
                 <button
                   onClick={handleApproveOrder}
-                  className="flex-1 bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 font-medium"
+                  disabled={approving}
+                  className="flex-1 bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 font-medium disabled:opacity-60"
                 >
-                  {t('om.approveThisOrderOnly')}
+                  {approving ? t('common.processing') : t('om.approveThisOrderOnly')}
                 </button>
               )}
               <button
@@ -1848,10 +1902,11 @@ export default function OrderManagement() {
             <div className="flex flex-col sm:flex-row gap-3 mt-6">
               <button
                 onClick={handleVerifyPayment}
-                className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-medium flex items-center justify-center gap-2"
+                disabled={verifyingPayment}
+                className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-medium flex items-center justify-center gap-2 disabled:opacity-60"
               >
                 <Check size={18} />
-                {t('om.verifyAndComplete')}
+                {verifyingPayment ? t('common.processing') : t('om.verifyAndComplete')}
               </button>
               <button
                 onClick={() => {
@@ -1944,10 +1999,10 @@ export default function OrderManagement() {
             <div className="flex gap-3">
               <button
                 onClick={handleStatusChange}
-                disabled={newStatus === selectedOrder.status}
+                disabled={newStatus === selectedOrder.status || changingStatus}
                 className="flex-1 bg-brand-700 text-white py-2 rounded-lg hover:bg-brand-800 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
-                {t('om.updateStatusBtn')}
+                {changingStatus ? t('common.processing') : t('om.updateStatusBtn')}
               </button>
               <button
                 onClick={() => {

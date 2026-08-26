@@ -8,6 +8,7 @@ import { resolveNotificationText } from '../utils/notificationText';
 interface NotificationBellProps {
   unreadCount: number;
   onViewAll: () => void;
+  onNavigate: (actionUrl: string | null | undefined) => void;
 }
 
 const ICONS: Record<string, typeof Calendar> = {
@@ -26,7 +27,7 @@ const COLORS: Record<string, string> = {
   approval: 'bg-yellow-100 text-yellow-600',
 };
 
-export function NotificationBell({ unreadCount, onViewAll }: NotificationBellProps) {
+export function NotificationBell({ unreadCount, onViewAll, onNavigate }: NotificationBellProps) {
   const { profile } = useAuth();
   const { t } = useLanguage();
 
@@ -85,7 +86,11 @@ export function NotificationBell({ unreadCount, onViewAll }: NotificationBellPro
   const handleSelect = (notification: Notification) => {
     if (!notification.is_read) markAsRead(notification.id);
     setOpen(false);
-    onViewAll();
+    if (notification.action_url) {
+      onNavigate(notification.action_url);
+    } else {
+      onViewAll();
+    }
   };
 
   return (

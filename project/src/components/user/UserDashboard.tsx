@@ -8,12 +8,13 @@ import MyOrders from './MyOrders';
 
 interface UserDashboardProps {
   activeTab: string;
+  onNavigate: (actionUrl: string | null | undefined) => void;
 }
 
-export function UserDashboard({ activeTab }: UserDashboardProps) {
+export function UserDashboard({ activeTab, onNavigate }: UserDashboardProps) {
   if (activeTab === 'team') return <MyTeam />;
   if (activeTab === 'pv') return <PVHistory />;
-  if (activeTab === 'notifications') return <NotificationsList />;
+  if (activeTab === 'notifications') return <NotificationsList onNavigate={onNavigate} />;
   if (activeTab === 'cart') return <Cart />;
   if (activeTab === 'orders') return <MyOrders />;
   if (activeTab === 'profile') return <UserProfile />;
