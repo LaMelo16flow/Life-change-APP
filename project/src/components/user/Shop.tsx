@@ -6,7 +6,7 @@ import { formatCurrency } from '../../utils/currency';
 import { getLocalizedProductName, getLocalizedProductDescription, getLocalizedProductType } from '../../utils/productLocale';
 import { getPromoLabel, getPromoBuyGetFreeText } from '../../utils/promoLocale';
 import { ShoppingCart, Package, Check, AlertCircle, X, ShoppingBag, Minus, Plus, Gift } from 'lucide-react';
-import { sendOrderPlacedNotification, maybeAlertLowStock } from '../../utils/notifications';
+import { sendOrderPlacedNotification } from '../../utils/notifications';
 
 interface Product {
   id: string;
@@ -254,83 +254,40 @@ export default function Shop() {
     setMessage(null);
 
     try {
-      const { data: inventoryData, error: inventoryError } = await supabase
-        .from('product_inventory')
-        .select('quantity, reserved_quantity, low_stock_threshold')
-        .eq('product_id', selectedProduct.id)
-        .eq('region', 'CA')
-        .single();
-
-      if (inventoryError || !inventoryData) {
-        throw new Error(t('shop.productNotAvailableCountry'));
-      }
-
-      const availableStock = inventoryData.quantity - inventoryData.reserved_quantity;
-      if (availableStock < totalQuantity) {
-        throw new Error(t('shop.onlyUnitsAvailable', { available: availableStock, needed: totalQuantity, free: freeItems }));
-      }
-
       const { data: orderNumberData } = await supabase.rpc('generate_order_number');
       const orderNumber = orderNumberData || `ORD-${Date.now()}`;
 
-      const { data: reservationToken, error: reserveError } = await supabase.rpc('reserve_inventory', {
-        p_product_id: selectedProduct.id,
-        p_region: 'CA',
-        p_quantity: totalQuantity,
-        p_notes: `Order ${orderNumber} - pending approval${freeItems > 0 ? ` (includes ${freeItems} free)` : ''}`,
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          order_number: orderNumber,
+          user_id: user?.id,
+          product_id: selectedProduct.id,
+          quantity: totalQuantity,
+          unit_price: originalPrice,
+          total_amount: totalPrice,
+          currency_code: 'CAD',
+          region: 'CA',
+          status: 'pending',
+          items_count: 1,
+        })
+        .select()
+        .single();
+
+      if (orderError || !orderData) throw orderError || new Error('Failed to create order');
+
+      const { error: itemError } = await supabase.from('order_items').insert({
+        order_id: orderData.id,
+        product_id: selectedProduct.id,
+        quantity: orderQuantity,
+        free_quantity: freeItems,
+        unit_price: originalPrice,
+        subtotal: totalPrice,
+        pv_value: selectedProduct.pv_value,
+        promotion_id: promo?.id || null,
       });
 
-      if (reserveError) {
-        throw new Error(t('shop.failedReserveStock', { message: reserveError.message }));
-      }
-
-      maybeAlertLowStock(
-        selectedProduct.name,
-        'CA',
-        availableStock,
-        availableStock - totalQuantity,
-        inventoryData.low_stock_threshold
-      ).catch((err) => console.error('Error sending low stock alert:', err));
-
-      try {
-        const { data: orderData, error: orderError } = await supabase
-          .from('orders')
-          .insert({
-            order_number: orderNumber,
-            user_id: user?.id,
-            product_id: selectedProduct.id,
-            quantity: totalQuantity,
-            unit_price: originalPrice,
-            total_amount: totalPrice,
-            currency_code: 'CAD',
-            region: 'CA',
-            status: 'pending',
-            items_count: 1,
-          })
-          .select()
-          .single();
-
-        if (orderError || !orderData) throw orderError || new Error('Failed to create order');
-
-        const { error: itemError } = await supabase.from('order_items').insert({
-          order_id: orderData.id,
-          product_id: selectedProduct.id,
-          quantity: orderQuantity,
-          free_quantity: freeItems,
-          unit_price: originalPrice,
-          subtotal: totalPrice,
-          pv_value: selectedProduct.pv_value,
-          promotion_id: promo?.id || null,
-        });
-
-        if (itemError) throw itemError;
-      } catch (err) {
-        await supabase.rpc('release_inventory', {
-          p_token: reservationToken,
-          p_notes: `Rollback: order creation failed after stock was reserved`,
-        });
-        throw err;
-      }
+      if (itemError) throw itemError;
 
       await sendOrderPlacedNotification({
         orderNumber,
@@ -367,7 +324,7 @@ export default function Shop() {
     if (!inv) return { available: 0, status: 'unavailable', text: t('shop.notAvailable'), color: 'text-gray-500', bg: 'bg-gray-100' };
     const available = inv.quantity - inv.reserved_quantity;
     if (available <= 0) return { available: 0, status: 'out', text: t('shop.outOfStock'), color: 'text-red-600', bg: 'bg-red-100' };
-    if (available <= inv.low_stock_threshold) return { available, status: 'low', text: t('shop.onlyLeft', { n: available }), color: 'text-yellow-600', bg: 'bg-yellow-100' };
+    if (available <= inv.low_stock_threshold) return { available, status: 'low', text: t('shop.lowStock'), color: 'text-yellow-600', bg: 'bg-yellow-100' };
     return { available, status: 'in', text: t('common.inStock'), color: 'text-green-600', bg: 'bg-green-100' };
   };
 
@@ -676,7 +633,6 @@ function OrderModal({
               onChange={(e) => onQuantityChange(Math.max(1, Math.min(maxStock, parseInt(e.target.value) || 1)))}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
             />
-            <p className="text-xs text-gray-500 mt-1">{t('shop.available', { n: maxStock })}</p>
           </div>
 
           {promo && quantity < promo.buy_quantity && (
