@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { LogIn, UserPlus, Loader2, Eye, EyeOff, Mail, Lock, User, Users } from 'lucide-react';
+import { LogIn, UserPlus, Loader2, Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
 
 const DEFAULT_COUNTRY_CODE = 'CA';
 
@@ -10,7 +10,6 @@ export function AuthForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [referralCode, setReferralCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -63,7 +62,7 @@ export function AuthForm() {
       if (isLogin) {
         await signIn(email, password);
       } else {
-        const result = await signUp(email, password, fullName, DEFAULT_COUNTRY_CODE, referralCode || undefined);
+        const result = await signUp(email, password, fullName, DEFAULT_COUNTRY_CODE);
         if (result.requiresApproval) {
           setSuccess('Compte cree avec succes! Veuillez attendre l\'approbation de l\'administrateur avant de pouvoir vous connecter.');
         } else {
@@ -72,7 +71,6 @@ export function AuthForm() {
         setEmail('');
         setPassword('');
         setFullName('');
-        setReferralCode('');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue');
@@ -348,34 +346,6 @@ export function AuthForm() {
                     </button>
                   </div>
                 </div>
-
-                {!isLogin && (
-                  <>
-                    <div className="space-y-1.5">
-                      <label className="block text-sm font-medium text-gray-300">
-                        Code de parrainage <span className="text-gray-500">(Optionnel)</span>
-                      </label>
-                      <div className={`relative group transition-all duration-300 ${
-                        focusedField === 'referral' ? 'scale-[1.02]' : ''
-                      }`}>
-                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                          <Users className={`w-5 h-5 transition-colors duration-300 ${
-                            focusedField === 'referral' ? 'text-brand-400' : 'text-gray-500'
-                          }`} />
-                        </div>
-                        <input
-                          type="text"
-                          value={referralCode}
-                          onChange={(e) => setReferralCode(e.target.value)}
-                          onFocus={() => setFocusedField('referral')}
-                          onBlur={() => setFocusedField(null)}
-                          className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 transition-all duration-300 focus:bg-white/10 focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
-                          placeholder="Entrez l'ID du parrain"
-                        />
-                      </div>
-                    </div>
-                  </>
-                )}
 
                 {error && (
                   <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl text-sm flex items-start gap-3 animate-shake">

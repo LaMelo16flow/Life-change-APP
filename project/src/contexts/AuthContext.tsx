@@ -14,7 +14,7 @@ interface AuthContextType {
   isMaster: boolean;
   isAdminOrManager: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, fullName: string, countryCode: string, referredBy?: string) => Promise<{ requiresApproval: boolean }>;
+  signUp: (email: string, password: string, fullName: string, countryCode: string) => Promise<{ requiresApproval: boolean }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   isPasswordRecovery: boolean;
@@ -202,8 +202,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email: string,
     password: string,
     fullName: string,
-    countryCode: string,
-    referredBy?: string
+    countryCode: string
   ) => {
     const { allowed, retryAfterMs } = checkRateLimit('signUp', 3, 120_000);
     if (!allowed) {
@@ -234,24 +233,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (profileUpdateError) {
       console.error('Error updating profile after signup:', profileUpdateError);
-    }
-
-    if (referredBy) {
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ referred_by: referredBy })
-        .eq('id', authData.user.id);
-
-      if (updateError) {
-        console.error('Error setting referral:', updateError);
-      }
-
-      await supabase
-        .from('branches')
-        .insert({
-          parent_id: referredBy,
-          child_id: authData.user.id,
-        });
     }
 
     const { data: approvalSetting } = await supabase

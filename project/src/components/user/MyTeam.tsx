@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { supabase, Profile } from '../../lib/supabase';
-import { Users, TrendingUp, UserPlus } from 'lucide-react';
+import { Users, TrendingUp } from 'lucide-react';
 
 type TeamMember = Profile;
 
@@ -70,30 +70,6 @@ export function MyTeam() {
             </div>
           </div>
         </div>
-      </div>
-
-      <div className="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base sm:text-lg font-semibold text-slate-900">{t('team.referralLink')}</h3>
-          <UserPlus className="w-5 h-5 text-slate-400 flex-shrink-0" />
-        </div>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <input
-            type="text"
-            value={profile?.id || ''}
-            readOnly
-            className="flex-1 px-3 sm:px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs sm:text-sm font-mono"
-          />
-          <button
-            onClick={() => navigator.clipboard.writeText(profile?.id || '')}
-            className="px-4 py-2 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition text-sm font-medium flex-shrink-0"
-          >
-            {t('common.copyId')}
-          </button>
-        </div>
-        <p className="text-xs text-slate-500 mt-2">
-          {t('team.shareIdInfo')}
-        </p>
       </div>
 
       {team.length === 0 ? (
