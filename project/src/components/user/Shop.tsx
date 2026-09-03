@@ -400,11 +400,11 @@ export default function Shop() {
               )}
 
               {product.image_url && (
-                <div className="relative h-48 w-full overflow-hidden bg-gray-100">
+                <div className="relative w-full bg-gray-100">
                   <img
                     src={product.image_url}
                     alt={getLocalizedProductName(product, language)}
-                    className="w-full h-full object-contain"
+                    className="w-full h-auto block"
                     onError={(e) => {
                       e.currentTarget.onerror = null;
                       e.currentTarget.src = `${import.meta.env.BASE_URL}logo.webp`;
