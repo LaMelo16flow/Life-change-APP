@@ -404,7 +404,7 @@ export default function Shop() {
                   <img
                     src={product.image_url}
                     alt={getLocalizedProductName(product, language)}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                     onError={(e) => {
                       e.currentTarget.onerror = null;
                       e.currentTarget.src = `${import.meta.env.BASE_URL}logo.webp`;
