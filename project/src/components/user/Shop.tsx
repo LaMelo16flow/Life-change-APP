@@ -7,6 +7,25 @@ import { getLocalizedProductName, getLocalizedProductDescription, getLocalizedPr
 import { getPromoLabel, getPromoBuyGetFreeText } from '../../utils/promoLocale';
 import { ShoppingCart, Package, Check, AlertCircle, X, ShoppingBag, Minus, Plus, Gift, Sparkles, Search } from 'lucide-react';
 import { sendOrderPlacedNotification } from '../../utils/notifications';
+import { MasonryGrid } from './MasonryGrid';
+
+function getMasonryColumns(width: number) {
+  if (width >= 1024) return 3;
+  if (width >= 640) return 2;
+  return 1;
+}
+
+function useMasonryColumns() {
+  const [columns, setColumns] = useState(() => (typeof window === 'undefined' ? 3 : getMasonryColumns(window.innerWidth)));
+
+  useEffect(() => {
+    const onResize = () => setColumns(getMasonryColumns(window.innerWidth));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  return columns;
+}
 
 interface Product {
   id: string;
@@ -76,6 +95,7 @@ export default function Shop() {
   const [orderQuantity, setOrderQuantity] = useState(1);
   const [addingToCart, setAddingToCart] = useState<string | null>(null);
   const [cardQuantities, setCardQuantities] = useState<Record<string, number>>({});
+  const masonryColumns = useMasonryColumns();
 
   useEffect(() => {
     loadData();
@@ -458,8 +478,12 @@ export default function Shop() {
         </div>
       )}
 
-      <div className="columns-1 sm:columns-2 lg:columns-3 gap-4 sm:gap-6">
-        {filteredProducts.map(product => {
+      <MasonryGrid
+        items={filteredProducts}
+        getKey={(product) => product.id}
+        columns={masonryColumns}
+        gap={24}
+        renderItem={(product) => {
           const originalPrice = prices[product.id];
           const promo = promotions[product.id];
           const cardQty = getCardQty(product.id);
@@ -469,8 +493,7 @@ export default function Shop() {
 
           return (
             <div
-              key={product.id}
-              className={`group bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg hover:border-gray-300 transition-all duration-200 relative flex flex-col break-inside-avoid mb-4 sm:mb-6 ${!isAvailable ? 'opacity-75' : ''}`}
+              className={`group bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg hover:border-gray-300 transition-all duration-200 relative flex flex-col ${!isAvailable ? 'opacity-75' : ''}`}
             >
               {promo && (
                 <div className="absolute top-3 left-3 z-10 flex items-center gap-1 bg-red-600 text-white px-2.5 py-1 rounded-full text-xs font-bold shadow-sm">
@@ -604,8 +627,8 @@ export default function Shop() {
               </div>
             </div>
           );
-        })}
-      </div>
+        }}
+      />
 
       {filteredProducts.length === 0 && (
         <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
