@@ -458,7 +458,7 @@ export default function Shop() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 items-start">
+      <div className="columns-1 sm:columns-2 lg:columns-3 gap-4 sm:gap-6">
         {filteredProducts.map(product => {
           const originalPrice = prices[product.id];
           const promo = promotions[product.id];
@@ -470,7 +470,7 @@ export default function Shop() {
           return (
             <div
               key={product.id}
-              className={`group bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg hover:border-gray-300 transition-all duration-200 relative flex flex-col ${!isAvailable ? 'opacity-75' : ''}`}
+              className={`group bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg hover:border-gray-300 transition-all duration-200 relative flex flex-col break-inside-avoid mb-4 sm:mb-6 ${!isAvailable ? 'opacity-75' : ''}`}
             >
               {promo && (
                 <div className="absolute top-3 left-3 z-10 flex items-center gap-1 bg-red-600 text-white px-2.5 py-1 rounded-full text-xs font-bold shadow-sm">
