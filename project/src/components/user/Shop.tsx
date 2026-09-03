@@ -5,7 +5,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { formatCurrency } from '../../utils/currency';
 import { getLocalizedProductName, getLocalizedProductDescription, getLocalizedProductType } from '../../utils/productLocale';
 import { getPromoLabel, getPromoBuyGetFreeText } from '../../utils/promoLocale';
-import { ShoppingCart, Package, Check, AlertCircle, X, ShoppingBag, Minus, Plus, Gift } from 'lucide-react';
+import { ShoppingCart, Package, Check, AlertCircle, X, ShoppingBag, Minus, Plus, Gift, Sparkles, Search } from 'lucide-react';
 import { sendOrderPlacedNotification } from '../../utils/notifications';
 
 interface Product {
@@ -70,6 +70,7 @@ export default function Shop() {
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [selectedType, setSelectedType] = useState<string>('All');
+  const [searchQuery, setSearchQuery] = useState('');
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [orderQuantity, setOrderQuantity] = useState(1);
@@ -315,71 +316,147 @@ export default function Shop() {
   }
 
   const productTypes = ['All', ...new Set(products.map(p => p.product_type))];
-  const filteredProducts = selectedType === 'All'
-    ? products
-    : products.filter(p => p.product_type === selectedType);
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const hasActiveFilters = selectedType !== 'All' || normalizedQuery.length > 0;
+  const filteredProducts = products.filter((p) => {
+    if (selectedType !== 'All' && p.product_type !== selectedType) return false;
+    if (!normalizedQuery) return true;
+    const haystack = [
+      getLocalizedProductName(p, language),
+      getLocalizedProductDescription(p, language),
+      getLocalizedProductType(p, language),
+    ].join(' ').toLowerCase();
+    return haystack.includes(normalizedQuery);
+  });
 
   const getStockStatus = (productId: string) => {
     const inv = inventory[productId];
-    if (!inv) return { available: 0, status: 'unavailable', text: t('shop.notAvailable'), color: 'text-gray-500', bg: 'bg-gray-100' };
+    if (!inv) return { available: 0, status: 'unavailable', text: t('shop.notAvailable'), dot: 'bg-gray-400', pill: 'bg-gray-100 text-gray-600' };
     const available = inv.quantity - inv.reserved_quantity;
-    if (available <= 0) return { available: 0, status: 'out', text: t('shop.outOfStock'), color: 'text-red-600', bg: 'bg-red-100' };
-    if (available <= inv.low_stock_threshold) return { available, status: 'low', text: t('shop.lowStock'), color: 'text-yellow-600', bg: 'bg-yellow-100' };
-    return { available, status: 'in', text: t('common.inStock'), color: 'text-green-600', bg: 'bg-green-100' };
+    if (available <= 0) return { available: 0, status: 'out', text: t('shop.outOfStock'), dot: 'bg-red-500', pill: 'bg-red-50 text-red-600' };
+    if (available <= inv.low_stock_threshold) return { available, status: 'low', text: t('shop.lowStock'), dot: 'bg-amber-500', pill: 'bg-amber-50 text-amber-700' };
+    return { available, status: 'in', text: t('common.inStock'), dot: 'bg-green-500', pill: 'bg-green-50 text-green-700' };
   };
 
   if (loading) {
-    return <div className="text-center py-8">{t('shop.loading')}</div>;
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+          <div className="space-y-2">
+            <div className="skeleton h-7 w-40 rounded-lg" />
+            <div className="skeleton h-4 w-56 rounded-lg" />
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-200 p-3 sm:p-4 space-y-3">
+          <div className="skeleton h-10 w-full rounded-xl" />
+          <div className="flex gap-2">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="skeleton h-9 w-24 rounded-full flex-shrink-0" />
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="skeleton h-48 w-full" />
+              <div className="p-4 sm:p-6 space-y-3">
+                <div className="skeleton h-4 w-20 rounded-full" />
+                <div className="skeleton h-5 w-3/4 rounded-lg" />
+                <div className="skeleton h-4 w-full rounded-lg" />
+                <div className="skeleton h-8 w-24 rounded-lg" />
+                <div className="skeleton h-10 w-full rounded-xl" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <ShoppingCart className="w-6 h-6 sm:w-7 sm:h-7 text-brand-600" />
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight flex items-center gap-2.5">
+            <span className="p-2 bg-brand-50 rounded-xl">
+              <ShoppingCart className="w-6 h-6 text-brand-600" />
+            </span>
             {t('shop.title')}
           </h2>
-          <p className="text-sm sm:text-base text-gray-600 mt-1">{t('shop.subtitle')}</p>
+          <p className="text-sm sm:text-base text-gray-500 mt-1">{t('shop.subtitle')}</p>
         </div>
       </div>
 
       {message && (
-        <div className={`p-4 rounded-lg flex items-center gap-2 ${
+        <div className={`p-4 rounded-xl flex items-center gap-2 animate-fade-in ${
           message.type === 'success'
             ? 'bg-green-50 text-green-800 border border-green-200'
             : 'bg-red-50 text-red-800 border border-red-200'
         }`}>
           {message.type === 'success' ? (
-            <Check className="w-5 h-5" />
+            <Check className="w-5 h-5 flex-shrink-0" />
           ) : (
-            <AlertCircle className="w-5 h-5" />
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
           )}
           {message.text}
         </div>
       )}
 
-      <div className="flex gap-2 flex-wrap overflow-x-auto pb-2 -mx-1 px-1">
-        {productTypes.map(type => {
-          const productOfType = products.find(p => p.product_type === type);
-          const label = type === 'All'
-            ? t('shop.allCategories')
-            : productOfType ? getLocalizedProductType(productOfType, language) : type;
-          return (
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-3 sm:p-4 space-y-3">
+        <div className="relative">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t('shop.searchPlaceholder')}
+            className="w-full pl-10 pr-10 py-2.5 bg-gray-50 border border-transparent rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition"
+          />
+          {searchQuery && (
             <button
-              key={type}
-              onClick={() => setSelectedType(type)}
-              className={`px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-sm sm:text-base whitespace-nowrap flex-shrink-0 ${
-                selectedType === type
-                  ? 'bg-brand-700 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-gray-200 transition"
+              aria-label={t('shop.clearFilters')}
             >
-              {label}
+              <X className="w-4 h-4" />
             </button>
-          );
-        })}
+          )}
+        </div>
+
+        <div className="flex gap-2 flex-wrap overflow-x-auto pb-1 -mx-1 px-1">
+          {productTypes.map(type => {
+            const productOfType = products.find(p => p.product_type === type);
+            const label = type === 'All'
+              ? t('shop.allCategories')
+              : productOfType ? getLocalizedProductType(productOfType, language) : type;
+            return (
+              <button
+                key={type}
+                onClick={() => setSelectedType(type)}
+                className={`px-4 py-2 rounded-full font-medium transition-all text-sm whitespace-nowrap flex-shrink-0 ${
+                  selectedType === type
+                    ? 'bg-brand-700 text-white shadow-sm shadow-brand-700/30'
+                    : 'bg-gray-50 text-gray-600 border border-transparent hover:border-brand-300 hover:text-brand-700'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
       </div>
+
+      {hasActiveFilters && (
+        <div className="flex items-center justify-between text-sm text-gray-500 px-1">
+          <span>{t('shop.resultsCount', { n: filteredProducts.length })}</span>
+          <button
+            onClick={() => { setSearchQuery(''); setSelectedType('All'); }}
+            className="text-brand-600 hover:text-brand-700 font-medium"
+          >
+            {t('shop.clearFilters')}
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {filteredProducts.map(product => {
@@ -391,16 +468,19 @@ export default function Shop() {
           const isAvailable = stock.status === 'in' || stock.status === 'low';
 
           return (
-            <div key={product.id} className={`bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow relative ${!isAvailable ? 'opacity-75' : ''}`}>
+            <div
+              key={product.id}
+              className={`group bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg hover:border-gray-300 transition-all duration-200 relative flex flex-col ${!isAvailable ? 'opacity-75' : ''}`}
+            >
               {promo && (
-                <div className="absolute top-3 left-3 z-10 flex items-center gap-1 bg-red-600 text-white px-2.5 py-1 rounded-lg text-xs font-bold shadow-sm">
+                <div className="absolute top-3 left-3 z-10 flex items-center gap-1 bg-red-600 text-white px-2.5 py-1 rounded-full text-xs font-bold shadow-sm">
                   <Gift className="w-3 h-3" />
                   {getPromoBuyGetFreeText(promo.buy_quantity, promo.free_quantity, language)}
                 </div>
               )}
 
               {product.image_url && (
-                <div className="relative w-full bg-gray-100">
+                <div className="relative w-full bg-gray-50">
                   <img
                     src={product.image_url}
                     alt={getLocalizedProductName(product, language)}
@@ -410,24 +490,26 @@ export default function Shop() {
                       e.currentTarget.src = `${import.meta.env.BASE_URL}logo.webp`;
                     }}
                   />
-                  <div className="absolute top-2 right-2 bg-orange-600 text-white px-2 py-1 rounded-lg text-xs font-bold">
+                  <div className="absolute top-2 right-2 bg-orange-600 text-white px-2 py-1 rounded-full text-xs font-bold shadow-sm flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" />
                     {product.pv_value} PV
                   </div>
                 </div>
               )}
 
-              <div className="p-4 sm:p-6">
+              <div className="p-4 sm:p-6 flex flex-col flex-1">
                 <div className="flex items-center justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-2">
-                    <Package className="w-4 h-4 text-brand-600 hidden sm:block" />
-                    <span className="text-xs font-medium text-brand-600 bg-brand-50 px-2 py-1 rounded">
-                      {getLocalizedProductType(product, language)}
-                    </span>
-                  </div>
+                  <span className="text-xs font-semibold text-brand-700 bg-brand-50 px-2.5 py-1 rounded-full">
+                    {getLocalizedProductType(product, language)}
+                  </span>
+                  <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${stock.pill}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${stock.dot}`} />
+                    {stock.text}
+                  </span>
                 </div>
 
-                <h3 className="font-bold text-base sm:text-lg text-gray-900 mb-2">{getLocalizedProductName(product, language)}</h3>
-                <p className="text-xs sm:text-sm text-gray-600 mb-4 line-clamp-2">{getLocalizedProductDescription(product, language)}</p>
+                <h3 className="font-bold text-base sm:text-lg text-gray-900 mb-1.5 leading-snug">{getLocalizedProductName(product, language)}</h3>
+                <p className="text-xs sm:text-sm text-gray-500 mb-4 line-clamp-2">{getLocalizedProductDescription(product, language)}</p>
 
                 {promo && (
                   <div className="mb-3 px-3 py-2 bg-red-50 border border-red-100 rounded-lg">
@@ -437,7 +519,7 @@ export default function Shop() {
                   </div>
                 )}
 
-                <div className="pt-4 border-t border-gray-100">
+                <div className="mt-auto pt-4 border-t border-gray-100">
                   <div className="mb-3">
                     {originalPrice ? (
                       <div className="text-xl sm:text-2xl font-bold text-gray-900">
@@ -450,11 +532,11 @@ export default function Shop() {
 
                   {isAvailable && originalPrice && (
                     <div className="mb-3">
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => setCardQty(product.id, cardQty - 1, stock.available)}
                           disabled={cardQty <= 1}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 hover:border-gray-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           <Minus className="w-3.5 h-3.5" />
                         </button>
@@ -469,7 +551,7 @@ export default function Shop() {
                         <button
                           onClick={() => setCardQty(product.id, cardQty + 1, stock.available)}
                           disabled={cardQty >= stock.available}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 hover:border-gray-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           <Plus className="w-3.5 h-3.5" />
                         </button>
@@ -497,10 +579,10 @@ export default function Shop() {
                     <button
                       onClick={() => addToCart(product)}
                       disabled={!originalPrice || !isAvailable || addingToCart === product.id}
-                      className={`flex-1 px-3 py-2.5 sm:py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 text-sm ${
+                      className={`flex-1 px-3 py-2.5 sm:py-2 rounded-xl font-medium transition-all flex items-center justify-center gap-2 text-sm active:scale-[0.98] ${
                         originalPrice && isAvailable && addingToCart !== product.id
                           ? 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                       }`}
                     >
                       <ShoppingBag className="w-4 h-4" />
@@ -509,10 +591,10 @@ export default function Shop() {
                     <button
                       onClick={() => openOrderModal(product)}
                       disabled={!originalPrice || !isAvailable || purchasing === product.id}
-                      className={`flex-1 px-3 py-2.5 sm:py-2 rounded-lg font-medium transition-colors text-sm ${
+                      className={`flex-1 px-3 py-2.5 sm:py-2 rounded-xl font-medium transition-all text-sm active:scale-[0.98] ${
                         originalPrice && isAvailable && purchasing !== product.id
-                          ? 'bg-brand-700 text-white hover:bg-brand-800'
-                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          ? 'bg-brand-700 text-white hover:bg-brand-800 shadow-sm hover:shadow'
+                          : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                       }`}
                     >
                       {purchasing === product.id ? t('common.processing') : stock.status === 'out' ? t('shop.outOfStock') : t('common.orderNow')}
@@ -526,9 +608,25 @@ export default function Shop() {
       </div>
 
       {filteredProducts.length === 0 && (
-        <div className="text-center py-12 text-gray-500">
-          <Package className="w-16 h-16 mx-auto mb-4 opacity-50" />
-          <p>{t('shop.noProducts')}</p>
+        <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
+          <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-4">
+            {hasActiveFilters ? (
+              <Search className="w-8 h-8 text-gray-300" />
+            ) : (
+              <Package className="w-8 h-8 text-gray-300" />
+            )}
+          </div>
+          <p className="text-gray-500 mb-3">
+            {hasActiveFilters ? t('shop.noSearchResults') : t('shop.noProducts')}
+          </p>
+          {hasActiveFilters && (
+            <button
+              onClick={() => { setSearchQuery(''); setSelectedType('All'); }}
+              className="text-sm font-semibold text-brand-600 hover:text-brand-700"
+            >
+              {t('shop.clearFilters')}
+            </button>
+          )}
         </div>
       )}
 
@@ -578,45 +676,41 @@ function OrderModal({
   const totalPV = product.pv_value * (quantity + freeItems);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-bold">{t('common.placeOrder')}</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-            <X size={24} />
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="bg-white rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="flex justify-between items-center mb-5">
+          <h3 className="text-xl font-bold text-gray-900">{t('common.placeOrder')}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg p-1.5 transition">
+            <X size={20} />
           </button>
         </div>
 
         <div className="space-y-4">
-          <div>
-            <h4 className="font-semibold text-lg">{getLocalizedProductName(product, language)}</h4>
-            <p className="text-sm text-gray-600">{getLocalizedProductType(product, language)}</p>
-          </div>
-
-          <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+          <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
             {product.image_url && (
               <img
                 src={product.image_url}
                 alt={getLocalizedProductName(product, language)}
-                className="w-20 h-20 object-cover rounded"
+                className="w-20 h-20 object-contain rounded-lg bg-white flex-shrink-0"
                 onError={(e) => {
                   e.currentTarget.onerror = null;
                   e.currentTarget.src = `${import.meta.env.BASE_URL}logo.webp`;
                 }}
               />
             )}
-            <div>
-              <div className="text-sm text-gray-600">{t('shop.unitPrice')}</div>
-              <div className="text-xl font-bold">
+            <div className="min-w-0">
+              <h4 className="font-semibold text-gray-900 truncate">{getLocalizedProductName(product, language)}</h4>
+              <p className="text-xs text-gray-500 mb-1.5">{getLocalizedProductType(product, language)}</p>
+              <div className="text-lg font-bold text-gray-900">
                 {formatCurrency(originalPrice)}
               </div>
-              <div className="text-sm text-orange-600 font-medium">{t('shop.pvPerUnit', { pv: product.pv_value })}</div>
+              <div className="text-xs text-orange-600 font-medium">{t('shop.pvPerUnit', { pv: product.pv_value })}</div>
             </div>
           </div>
 
           {promo && (
             <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-100 rounded-lg">
-              <Gift className="w-4 h-4 text-red-600" />
+              <Gift className="w-4 h-4 text-red-600 flex-shrink-0" />
               <span className="text-sm font-medium text-red-700">
                 {getPromoLabel(promo, language)}
               </span>
@@ -625,14 +719,32 @@ function OrderModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">{t('shop.quantity')}</label>
-            <input
-              type="number"
-              min="1"
-              max={maxStock}
-              value={quantity}
-              onChange={(e) => onQuantityChange(Math.max(1, Math.min(maxStock, parseInt(e.target.value) || 1)))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-            />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onQuantityChange(Math.max(1, quantity - 1))}
+                disabled={quantity <= 1}
+                className="w-10 h-10 flex items-center justify-center rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 hover:border-gray-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Minus className="w-4 h-4" />
+              </button>
+              <input
+                type="number"
+                min="1"
+                max={maxStock}
+                value={quantity}
+                onChange={(e) => onQuantityChange(Math.max(1, Math.min(maxStock, parseInt(e.target.value) || 1)))}
+                className="w-full text-center px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-semibold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              <button
+                type="button"
+                onClick={() => onQuantityChange(Math.min(maxStock, quantity + 1))}
+                disabled={quantity >= maxStock}
+                className="w-10 h-10 flex items-center justify-center rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 hover:border-gray-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {promo && quantity < promo.buy_quantity && (
@@ -652,43 +764,43 @@ function OrderModal({
             </div>
           )}
 
-          <div className="border-t pt-4">
-            <div className="flex justify-between mb-2">
-              <span className="text-gray-600">{t('shop.totalAmount')}:</span>
-              <span className="font-bold text-lg">
+          <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+            <div className="flex justify-between">
+              <span className="text-sm text-gray-600">{t('shop.totalAmount')}:</span>
+              <span className="font-bold text-lg text-gray-900">
                 {formatCurrency(totalPrice)}
               </span>
             </div>
-            <div className="flex justify-between mb-2">
-              <span className="text-gray-600">{t('shop.totalPVLabel')}</span>
+            <div className="flex justify-between">
+              <span className="text-sm text-gray-600">{t('shop.totalPVLabel')}</span>
               <span className="font-bold text-orange-600">
                 {totalPV} PV
               </span>
             </div>
             {freeItems > 0 && (
-              <div className="flex justify-between mb-2">
-                <span className="text-gray-600">{t('shop.freeItemsLabel')}</span>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600">{t('shop.freeItemsLabel')}</span>
                 <span className="font-bold text-green-600">
                   +{freeItems}
                 </span>
               </div>
             )}
-            <p className="text-xs text-gray-500 mt-2">
-              {t('shop.orderPending')}
-            </p>
           </div>
+          <p className="text-xs text-gray-500 text-center">
+            {t('shop.orderPending')}
+          </p>
 
-          <div className="flex gap-3 pt-4">
+          <div className="flex gap-3 pt-2">
             <button
               onClick={onPlaceOrder}
               disabled={purchasing}
-              className="flex-1 bg-brand-700 text-white py-3 rounded-lg hover:bg-brand-800 font-medium disabled:bg-gray-400"
+              className="flex-1 bg-brand-700 text-white py-3 rounded-xl hover:bg-brand-800 font-semibold shadow-sm hover:shadow transition disabled:bg-gray-300 disabled:shadow-none active:scale-[0.98]"
             >
               {purchasing ? t('common.processing') : t('common.placeOrder')}
             </button>
             <button
               onClick={onClose}
-              className="flex-1 bg-gray-200 text-gray-800 py-3 rounded-lg hover:bg-gray-300 font-medium"
+              className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl hover:bg-gray-200 font-semibold transition active:scale-[0.98]"
             >
               {t('common.cancel')}
             </button>

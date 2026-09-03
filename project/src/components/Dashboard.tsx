@@ -156,12 +156,13 @@ export function Dashboard() {
   };
 
   const sidebarWidth = sidebarCollapsed ? 'w-16' : 'w-64';
+  const initials = profile?.full_name?.charAt(0)?.toUpperCase() || '?';
 
   return (
     <div className="min-h-screen bg-gray-50">
       {isMobile && sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 transition-opacity"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity animate-fade-in"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -178,25 +179,34 @@ export function Dashboard() {
         >
           <div className={`${isMobile ? 'w-64' : sidebarWidth} flex flex-col h-full transition-all duration-300`}>
             <div className={`${sidebarCollapsed && !isMobile ? 'p-2' : 'p-4 pb-3'}`}>
-              <div className={`flex items-center ${sidebarCollapsed && !isMobile ? 'justify-center' : 'gap-3'} mb-3`}>
+              <div className={`flex items-center ${sidebarCollapsed && !isMobile ? 'justify-center' : 'gap-3'} mb-4`}>
                 <img
                   src={`${import.meta.env.BASE_URL}logo.webp`}
                   alt="Life Changers Logo"
-                  className={`${sidebarCollapsed && !isMobile ? 'w-10 h-10' : 'w-11 h-11'} rounded-lg object-contain transition-all duration-300`}
+                  className={`${sidebarCollapsed && !isMobile ? 'w-10 h-10' : 'w-11 h-11'} rounded-xl object-contain ring-1 ring-white/10 transition-all duration-300`}
                 />
                 {(!sidebarCollapsed || isMobile) && (
                   <h1 className="text-base font-bold tracking-tight text-white whitespace-nowrap">Life Changers</h1>
                 )}
               </div>
-              {(!sidebarCollapsed || isMobile) && (
-                <div className="bg-brand-900/60 rounded-lg p-2.5">
-                  <p className="text-sm font-semibold text-brand-100 truncate">{profile?.full_name}</p>
-                  <p className="text-xs text-brand-300 truncate">{profile?.email}</p>
+              {(!sidebarCollapsed || isMobile) ? (
+                <div className="flex items-center gap-2.5 bg-white/5 rounded-xl p-2.5 ring-1 ring-white/5">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ring-2 ring-white/10">
+                    {initials}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{profile?.full_name}</p>
+                    <p className="text-xs text-brand-300 truncate">{profile?.email}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-9 h-9 mx-auto rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white text-sm font-bold ring-2 ring-white/10">
+                  {initials}
                 </div>
               )}
             </div>
 
-            <nav className={`flex-1 ${sidebarCollapsed && !isMobile ? 'px-1.5' : 'px-2'} py-1 space-y-0.5 overflow-y-auto sidebar-scrollbar`}>
+            <nav className={`flex-1 ${sidebarCollapsed && !isMobile ? 'px-1.5' : 'px-2.5'} py-2 space-y-1 overflow-y-auto sidebar-scrollbar`}>
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -205,13 +215,13 @@ export function Dashboard() {
                     key={tab.id}
                     onClick={() => handleTabClick(tab.id)}
                     title={sidebarCollapsed && !isMobile ? tab.label : undefined}
-                    className={`w-full flex items-center ${sidebarCollapsed && !isMobile ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 rounded-lg transition-all duration-150 ${
+                    className={`relative w-full flex items-center ${sidebarCollapsed && !isMobile ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 rounded-xl transition-all duration-150 ${
                       isActive
-                        ? 'bg-brand-600 text-white shadow-lg shadow-brand-900/50'
-                        : 'text-brand-200 hover:bg-brand-900/60 hover:text-white'
+                        ? 'bg-brand-600 text-white shadow-md shadow-brand-950/40'
+                        : 'text-brand-200 hover:bg-white/5 hover:text-white'
                     }`}
                   >
-                    <Icon className="w-5 h-5 flex-shrink-0" />
+                    <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-white' : 'text-brand-300'}`} />
                     {(!sidebarCollapsed || isMobile) && (
                       <span className="truncate text-sm font-medium">{tab.label}</span>
                     )}
@@ -221,7 +231,7 @@ export function Dashboard() {
                       </span>
                     )}
                     {sidebarCollapsed && !isMobile && 'badge' in tab && (tab as any).badge > 0 && (
-                      <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                      <span className="absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center ring-2 ring-brand-950">
                         {(tab as any).badge}
                       </span>
                     )}
@@ -230,23 +240,23 @@ export function Dashboard() {
               })}
             </nav>
 
-            <div className={`${sidebarCollapsed && !isMobile ? 'p-1.5' : 'p-2'} border-t border-brand-900/50`}>
+            <div className={`${sidebarCollapsed && !isMobile ? 'p-1.5' : 'p-2.5'} border-t border-white/10 space-y-1`}>
               {isAdmin && (
                 <button
                   onClick={toggleView}
                   title={sidebarCollapsed && !isMobile ? (viewMode === 'admin' ? t('nav.switchToUser') : t('nav.switchToAdmin')) : undefined}
-                  className={`w-full flex items-center ${sidebarCollapsed && !isMobile ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 mb-0.5 text-brand-200 hover:bg-brand-900/60 hover:text-white rounded-lg transition-all duration-150`}
+                  className={`w-full flex items-center ${sidebarCollapsed && !isMobile ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 text-brand-200 hover:bg-white/5 hover:text-white rounded-xl transition-all duration-150`}
                 >
                   {viewMode === 'admin' ? (
                     <>
-                      <UserCircle className="w-5 h-5 flex-shrink-0" />
+                      <UserCircle className="w-5 h-5 flex-shrink-0 text-brand-300" />
                       {(!sidebarCollapsed || isMobile) && (
                         <span className="truncate text-sm font-medium">{t('nav.switchToUser')}</span>
                       )}
                     </>
                   ) : (
                     <>
-                      <Shield className="w-5 h-5 flex-shrink-0" />
+                      <Shield className="w-5 h-5 flex-shrink-0 text-brand-300" />
                       {(!sidebarCollapsed || isMobile) && (
                         <span className="truncate text-sm font-medium">{t('nav.switchToAdmin')}</span>
                       )}
@@ -257,9 +267,9 @@ export function Dashboard() {
               <button
                 onClick={() => setLanguage(language === 'en' ? 'fr' : 'en')}
                 title={sidebarCollapsed && !isMobile ? (language === 'en' ? 'Francais' : 'English') : undefined}
-                className={`w-full flex items-center ${sidebarCollapsed && !isMobile ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 mb-0.5 text-brand-200 hover:bg-brand-900/60 hover:text-white rounded-lg transition-all duration-150`}
+                className={`w-full flex items-center ${sidebarCollapsed && !isMobile ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 text-brand-200 hover:bg-white/5 hover:text-white rounded-xl transition-all duration-150`}
               >
-                <Globe className="w-5 h-5 flex-shrink-0" />
+                <Globe className="w-5 h-5 flex-shrink-0 text-brand-300" />
                 {(!sidebarCollapsed || isMobile) && (
                   <span className="truncate text-sm font-medium">{language === 'en' ? 'Francais' : 'English'}</span>
                 )}
@@ -267,7 +277,7 @@ export function Dashboard() {
               <button
                 onClick={handleSignOut}
                 title={sidebarCollapsed && !isMobile ? t('nav.logout') : undefined}
-                className={`w-full flex items-center ${sidebarCollapsed && !isMobile ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 text-brand-300 hover:bg-red-600/20 hover:text-red-300 rounded-lg transition-all duration-150`}
+                className={`w-full flex items-center ${sidebarCollapsed && !isMobile ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 text-brand-300 hover:bg-red-500/10 hover:text-red-300 rounded-xl transition-all duration-150`}
               >
                 <LogOut className="w-5 h-5 flex-shrink-0" />
                 {(!sidebarCollapsed || isMobile) && (
@@ -279,21 +289,21 @@ export function Dashboard() {
         </aside>
 
         <div className="flex-1 flex flex-col overflow-hidden">
-          <header className="bg-white border-b border-gray-100 px-4 lg:px-6 h-16 flex items-center justify-between flex-shrink-0">
-            <div className="flex items-center gap-3">
+          <header className="bg-white/90 backdrop-blur-sm border-b border-gray-100 px-4 lg:px-6 h-16 flex items-center justify-between flex-shrink-0 z-10">
+            <div className="flex items-center gap-3 min-w-0">
               <button
                 onClick={toggleSidebar}
-                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                className="p-2 hover:bg-gray-100 rounded-lg transition flex-shrink-0"
               >
                 <Menu className="w-5 h-5 text-gray-500" />
               </button>
 
-              <h2 className="text-base font-semibold text-gray-900 hidden sm:block">
+              <h2 className="text-base font-semibold text-gray-900 hidden sm:block truncate">
                 {tabs.find((t) => t.id === activeTab)?.label}
               </h2>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
               {isAdmin && (
                 <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${
                   viewMode === 'admin'
@@ -308,8 +318,8 @@ export function Dashboard() {
                 onViewAll={() => handleTabClick('notifications')}
                 onNavigate={navigateToNotificationTarget}
               />
-              <div className="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center text-white text-sm font-bold">
-                {profile?.full_name?.charAt(0)?.toUpperCase() || '?'}
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white text-sm font-bold ring-2 ring-brand-100">
+                {initials}
               </div>
             </div>
           </header>
