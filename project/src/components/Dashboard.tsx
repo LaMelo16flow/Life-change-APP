@@ -77,7 +77,6 @@ export function Dashboard() {
     { id: 'shop', label: t('nav.shop'), icon: ShoppingCart },
     { id: 'cart', label: t('nav.cart'), icon: ShoppingBag },
     { id: 'orders', label: t('nav.orders'), icon: Package },
-    { id: 'team', label: t('nav.team'), icon: Users },
     { id: 'pv', label: t('nav.pv'), icon: TrendingUp },
     { id: 'notifications', label: t('nav.notifications'), icon: Bell, badge: unreadCount },
     { id: 'profile', label: t('nav.profile'), icon: Settings },
