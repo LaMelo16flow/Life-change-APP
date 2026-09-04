@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { formatCurrency } from '../../utils/currency';
-import { getLocalizedProductName } from '../../utils/productLocale';
+import { getLocalizedProductName, getLocalizedProductDescription } from '../../utils/productLocale';
 import { ShoppingBag, Clock, Check, X, Package, Upload, CreditCard, ChevronDown, ChevronUp, Phone, Mail, Building2 } from 'lucide-react';
 import { sendPaymentSubmittedNotification } from '../../utils/notifications';
 
@@ -32,6 +32,8 @@ interface OrderItem {
     name: string;
     name_en?: string | null;
     image_url: string | null;
+    description: string;
+    description_en?: string | null;
   };
 }
 
@@ -60,6 +62,8 @@ interface Order {
     name_en?: string | null;
     pv_value: number;
     image_url: string | null;
+    description: string;
+    description_en?: string | null;
   } | null;
   order_items?: OrderItem[];
 }
@@ -110,7 +114,7 @@ export default function MyOrders() {
         .from('orders')
         .select(`
           *,
-          product:products(name, name_en, pv_value, image_url),
+          product:products(name, name_en, pv_value, image_url, description, description_en),
           order_items(
             id,
             product_id,
@@ -119,7 +123,7 @@ export default function MyOrders() {
             unit_price,
             subtotal,
             pv_value,
-            product:products(name, name_en, image_url)
+            product:products(name, name_en, image_url, description, description_en)
           )
         `)
         .eq('user_id', user.id)
@@ -383,15 +387,20 @@ export default function MyOrders() {
                       <div className="min-w-0">
                         <h3 className="font-bold text-base sm:text-lg text-gray-900 truncate">{displayName}</h3>
                         <p className="text-xs sm:text-sm text-gray-500">{t('orders.orderNumberLabel', { number: order.order_number })}</p>
-                        {itemCount > 1 && (
+                        {order.order_items && order.order_items.length > 0 && (
                           <button
                             onClick={() => toggleOrderExpand(order.id)}
                             className="text-sm text-brand-600 font-medium flex items-center gap-1 mt-1 hover:text-brand-700"
                           >
                             <Package size={14} />
-                            {t('orders.itemsCountLabel', { n: itemCount })}
+                            {itemCount > 1 ? t('orders.itemsCountLabel', { n: itemCount }) : t('orders.viewProductDetails')}
                             {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                           </button>
+                        )}
+                        {(!order.order_items || order.order_items.length === 0) && order.product?.description && (
+                          <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                            {getLocalizedProductDescription(order.product, language)}
+                          </p>
                         )}
                       </div>
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusStyle.bg} ${statusStyle.text} flex items-center gap-1`}>
@@ -403,23 +412,28 @@ export default function MyOrders() {
                     {isExpanded && order.order_items && order.order_items.length > 0 && (
                       <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                         {order.order_items.map((item) => (
-                          <div key={item.id} className="flex items-center gap-3">
+                          <div key={item.id} className="flex items-start gap-3">
                             {item.product.image_url && (
                               <img
                                 src={item.product.image_url}
                                 alt={getLocalizedProductName(item.product, language)}
-                                className="w-12 h-12 object-cover rounded"
+                                className="w-12 h-12 object-cover rounded flex-shrink-0"
                               />
                             )}
-                            <div className="flex-1">
+                            <div className="flex-1 min-w-0">
                               <p className="font-medium text-gray-900 text-sm">{getLocalizedProductName(item.product, language)}</p>
-                              <p className="text-xs text-gray-600">
+                              {item.product.description && (
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                  {getLocalizedProductDescription(item.product, language)}
+                                </p>
+                              )}
+                              <p className="text-xs text-gray-600 mt-0.5">
                                 {t('orders.qtyLabel', { n: item.quantity })}{item.free_quantity > 0 && t('orders.freeSuffix', { n: item.free_quantity })}
                                 <span className="mx-2">|</span>
                                 {formatCurrency(item.unit_price)} {t('orders.each')}
                               </p>
                             </div>
-                            <div className="text-right">
+                            <div className="text-right flex-shrink-0">
                               <p className="font-semibold text-sm">{formatCurrency(item.subtotal)}</p>
                               <p className="text-xs text-orange-600">{item.pv_value * (item.quantity + item.free_quantity)} PV</p>
                             </div>
