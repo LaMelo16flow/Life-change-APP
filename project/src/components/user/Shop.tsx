@@ -533,7 +533,7 @@ export default function Shop() {
                 </div>
 
                 <h3 className="font-bold text-sm sm:text-base text-gray-900 mb-1 leading-snug">{getLocalizedProductName(product, language)}</h3>
-                <p className="text-xs text-gray-500 mb-3 line-clamp-2">{getLocalizedProductDescription(product, language)}</p>
+                <p className="text-xs text-gray-500 mb-3">{getLocalizedProductDescription(product, language)}</p>
 
                 {promo && (
                   <div className="mb-2 px-2.5 py-1.5 bg-red-50 border border-red-100 rounded-lg">
