@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { supabase } from '../../lib/supabase';
-import { User, Mail, Globe, Phone, MapPin, Calendar, Save, AlertCircle, Camera, Loader2, Trash2, ShieldAlert, Lock, Check } from 'lucide-react';
+import { User, Mail, Globe, Phone, MapPin, Calendar, Save, AlertCircle, Camera, Loader2, Lock, Check } from 'lucide-react';
 
 interface Country {
   code: string;
@@ -12,7 +12,7 @@ interface Country {
 }
 
 export function UserProfile() {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile } = useAuth();
   const { t } = useLanguage();
   const [countries, setCountries] = useState<Country[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,9 +21,6 @@ export function UserProfile() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [profileImageUrl, setProfileImageUrl] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleteConfirmText, setDeleteConfirmText] = useState('');
-  const [deleting, setDeleting] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -208,38 +205,6 @@ export function UserProfile() {
       setPasswordMessage({ type: 'error', text: error.message || t('profile.failedUpdate') });
     } finally {
       setChangingPassword(false);
-    }
-  };
-
-  const handleDeleteAccount = async () => {
-    if (deleteConfirmText !== 'DELETE') return;
-    setDeleting(true);
-    setMessage(null);
-
-    try {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      if (!currentSession) throw new Error(t('profile.notAuthenticated'));
-
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-account`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${currentSession.access_token}`,
-            'Content-Type': 'application/json',
-            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          },
-          body: JSON.stringify({}),
-        }
-      );
-
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Failed to delete account');
-
-      await signOut();
-    } catch (error: any) {
-      setMessage({ type: 'error', text: error.message || t('profile.failedDeleteAccount') });
-      setDeleting(false);
     }
   };
 
@@ -612,92 +577,6 @@ export function UserProfile() {
               </button>
             </div>
           </form>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm border border-red-200">
-        <div className="p-6 border-b border-red-100">
-          <h3 className="text-lg font-semibold text-red-700 flex items-center gap-2">
-            <ShieldAlert className="w-5 h-5" />
-            {t('profile.dangerZone')}
-          </h3>
-        </div>
-        <div className="p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <p className="font-semibold text-gray-900">{t('profile.deleteAccountTitle')}</p>
-              <p className="text-sm text-gray-600 mt-1">
-                {t('profile.deleteAccountDesc')}
-              </p>
-            </div>
-            {!showDeleteConfirm ? (
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className="px-5 py-2.5 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 font-medium flex items-center gap-2 transition flex-shrink-0"
-              >
-                <Trash2 className="w-4 h-4" />
-                {t('profile.deleteAccountBtn')}
-              </button>
-            ) : (
-              <button
-                onClick={() => {
-                  setShowDeleteConfirm(false);
-                  setDeleteConfirmText('');
-                }}
-                className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition flex-shrink-0"
-              >
-                {t('common.cancel')}
-              </button>
-            )}
-          </div>
-
-          {showDeleteConfirm && (
-            <div className="mt-6 p-5 bg-red-50 border border-red-200 rounded-xl">
-              <div className="flex items-start gap-3 mb-4">
-                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-red-800">
-                  <p className="font-semibold mb-2">{t('profile.areYouSure')}</p>
-                  <ul className="list-disc list-inside space-y-1 text-red-700">
-                    <li>{t('profile.deleteWarning1')}</li>
-                    <li>{t('profile.deleteWarning2')}</li>
-                    <li>{t('profile.deleteWarning3')}</li>
-                    <li>{t('profile.deleteWarning4')}</li>
-                  </ul>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-red-800 mb-1.5">
-                    {t('profile.typeConfirmPrefix')} <span className="font-bold bg-red-100 px-1.5 py-0.5 rounded">DELETE</span> {t('profile.typeConfirmSuffix')}
-                  </label>
-                  <input
-                    type="text"
-                    value={deleteConfirmText}
-                    onChange={(e) => setDeleteConfirmText(e.target.value)}
-                    placeholder={t('profile.deletePlaceholder')}
-                    className="w-full px-4 py-2.5 border border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-white text-gray-900 placeholder-gray-400"
-                  />
-                </div>
-                <button
-                  onClick={handleDeleteAccount}
-                  disabled={deleteConfirmText !== 'DELETE' || deleting}
-                  className="w-full px-5 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium flex items-center justify-center gap-2 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {deleting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      {t('profile.deletingAccount')}
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="w-4 h-4" />
-                      {t('profile.permanentlyDelete')}
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
