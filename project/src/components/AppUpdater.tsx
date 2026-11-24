@@ -1,6 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
-import { useLanguage } from '../contexts/LanguageContext';
+import { useEffect, useRef } from 'react';
 import { hardReload, isUserBusy, onAppResume } from '../lib/appLifecycle';
 
 const CHECK_EVERY_MS = 60_000;
@@ -8,12 +6,10 @@ const RELOAD_KEY = 'lc_reload_attempt';
 
 /**
  * Detects when a new version of LC Shop has been deployed and reloads the
- * page by itself. If the user is typing, it waits and shows a small banner
- * instead so nothing they entered is lost.
+ * page by itself. If the user is typing, it waits silently until they leave
+ * the field (or the tab) so nothing they entered is lost. No banner is shown.
  */
 export function AppUpdater() {
-  const { t } = useLanguage();
-  const [pending, setPending] = useState<string | null>(null);
   const pendingRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -31,11 +27,7 @@ export function AppUpdater() {
         /* storage unavailable */
       }
       pendingRef.current = version;
-      if (!isUserBusy()) {
-        hardReload(version);
-      } else {
-        setPending(version);
-      }
+      if (!isUserBusy()) hardReload(version);
     };
 
     const check = async () => {
@@ -89,18 +81,5 @@ export function AppUpdater() {
     };
   }, []);
 
-  if (!pending) return null;
-
-  return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 rounded-full bg-black text-white shadow-lg pl-4 pr-2 py-2 text-sm w-max max-w-[calc(100vw-2rem)]">
-      <span className="whitespace-nowrap">{t('update.available')}</span>
-      <button
-        onClick={() => hardReload(pending)}
-        className="flex shrink-0 items-center gap-1 rounded-full bg-white text-black px-3 py-1 font-medium hover:bg-gray-200"
-      >
-        <RefreshCw className="w-4 h-4" />
-        {t('update.reload')}
-      </button>
-    </div>
-  );
+  return null;
 }
