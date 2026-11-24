@@ -1,4 +1,3 @@
-import { PVHistory } from './PVHistory';
 import { NotificationsList } from './NotificationsList';
 import { UserProfile } from './UserProfile';
 import Shop from './Shop';
@@ -11,7 +10,6 @@ interface UserDashboardProps {
 }
 
 export function UserDashboard({ activeTab, onNavigate }: UserDashboardProps) {
-  if (activeTab === 'pv') return <PVHistory />;
   if (activeTab === 'notifications') return <NotificationsList onNavigate={onNavigate} />;
   if (activeTab === 'cart') return <Cart />;
   if (activeTab === 'orders') return <MyOrders />;
