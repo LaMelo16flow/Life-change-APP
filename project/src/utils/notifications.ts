@@ -159,7 +159,7 @@ export async function sendOrderPlacedNotification(orderData: OrderNotificationDa
     .eq('key', 'admin_contact_email')
     .maybeSingle();
 
-  const configuredAdminEmail = adminSettings?.data?.value?.email || 'admin@lifechangers.com';
+  const configuredAdminEmail = adminSettings?.data?.value?.email || 'lcshop.app@gmail.com';
 
   const { data: staff } = await supabase
     .from('profiles')

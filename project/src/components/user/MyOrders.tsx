@@ -155,7 +155,7 @@ export default function MyOrders() {
       ]);
 
       if (emailSettings?.data) {
-        setAdminEmail(emailSettings.data.value?.email || 'admin@lifechangers.com');
+        setAdminEmail(emailSettings.data.value?.email || 'lcshop.app@gmail.com');
       }
       if (instructionsSettings?.data) {
         setPaymentInstructions(instructionsSettings.data.value?.instructions || 'Please send e-transfer to the admin email provided.');
