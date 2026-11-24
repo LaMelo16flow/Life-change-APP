@@ -286,8 +286,8 @@ export default function InventoryManagement() {
 
   const filteredInventory = inventory.filter(item => {
     const term = searchTerm.toLowerCase();
-    return item.product.name.toLowerCase().includes(term)
-      || (item.product.name_en || '').toLowerCase().includes(term);
+    return (item.product?.name || '').toLowerCase().includes(term)
+      || (item.product?.name_en || '').toLowerCase().includes(term);
   });
 
   const getStockStatus = (item: InventoryItem) => {

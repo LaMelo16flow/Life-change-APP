@@ -4,6 +4,7 @@ import { ToastProvider } from './contexts/ToastContext';
 import { AuthForm } from './components/AuthForm';
 import { ResetPasswordForm } from './components/ResetPasswordForm';
 import { Dashboard } from './components/Dashboard';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 function AppContent() {
   const { user, profile, loading, isPasswordRecovery } = useAuth();
@@ -29,13 +30,15 @@ function AppContent() {
 
 function App() {
   return (
-    <LanguageProvider>
-      <ToastProvider>
-        <AuthProvider>
-          <AppContent />
-        </AuthProvider>
-      </ToastProvider>
-    </LanguageProvider>
+    <ErrorBoundary>
+      <LanguageProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <AppContent />
+          </AuthProvider>
+        </ToastProvider>
+      </LanguageProvider>
+    </ErrorBoundary>
   );
 }
 
