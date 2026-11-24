@@ -90,6 +90,21 @@ CREATE TRIGGER a_protect_master_profile_delete
   FOR EACH ROW
   EXECUTE FUNCTION protect_master_profile_delete();
 
+REVOKE EXECUTE ON FUNCTION protect_master_profile_update() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION protect_master_profile_delete() FROM PUBLIC, anon, authenticated;
+
+-- The older protect_profile_privileged_fields_trigger silently reverts
+-- is_master/role changes when auth.uid() has no admin profile (as in the SQL
+-- editor), so pause it for the two data fixes below.
+ALTER TABLE profiles DISABLE TRIGGER protect_profile_privileged_fields_trigger;
+
+-- Only wilfriednawoussi4@gmail.com is super admin (decided 2026-11-24:
+-- wilfriednawoussi32@gmail.com had is_master with role 'user' and is reset).
+UPDATE profiles
+SET is_master = false
+WHERE is_master = true
+  AND lower(email) <> 'wilfriednawoussi4@gmail.com';
+
 -- Make sure the intended account is the master admin (runs as owner, so
 -- auth.uid() is NULL and the trigger above lets it through).
 UPDATE profiles
@@ -98,3 +113,5 @@ SET is_master = true,
     account_status = 'approved',
     is_active = true
 WHERE lower(email) = 'wilfriednawoussi4@gmail.com';
+
+ALTER TABLE profiles ENABLE TRIGGER protect_profile_privileged_fields_trigger;

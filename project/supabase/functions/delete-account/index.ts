@@ -1,5 +1,4 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { isGmailConfigured, sendGmailEmail } from "../_shared/sendGmailEmail.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -102,6 +101,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // The super admin account can never be deleted, not even by itself.
     if (isSelfDelete && callerProfile?.is_master) {
       return jsonResponse(
         { error: "The super admin account is protected and cannot be deleted" },
@@ -172,14 +172,24 @@ Deno.serve(async (req: Request) => {
         isSelfDelete
       );
 
-      if (isGmailConfigured()) {
+      const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+
+      if (RESEND_API_KEY) {
         const emailPromises = recipients
           .filter((r) => r.email)
           .map((r) =>
-            sendGmailEmail({
-              to: r.email,
-              subject: `Account Deleted: ${deletedUserName}`,
-              html: emailHtml,
+            fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${RESEND_API_KEY}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                from: "LifeChangers <notifications@lifechangers.com>",
+                to: [r.email],
+                subject: `Account Deleted: ${deletedUserName}`,
+                html: emailHtml,
+              }),
             }).catch((err) =>
               console.error(`Failed to email ${r.email}:`, err)
             )
