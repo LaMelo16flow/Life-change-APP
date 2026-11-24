@@ -1,4 +1,58 @@
 @tailwind base;
+
+/* Installed app (home screen) on any device: notches, rounded corners, home
+   indicator, on-screen keyboards, rotation and very small or large screens. */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overscroll-behavior-y: none;
+    background-color: #f9fafb;
+  }
+  img, video, svg, canvas {
+    max-width: 100%;
+  }
+  /* iOS zooms into fields with text under 16px and does not zoom back out. */
+  @media (max-width: 767px) {
+    input:not([type='checkbox']):not([type='radio']):not([type='range']),
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Full height that follows the real visible area (mobile toolbars, keyboard). */
+  .h-app { height: 100vh; height: 100dvh; }
+  .min-h-app { min-height: 100vh; min-height: 100dvh; }
+
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .pl-safe { padding-left: env(safe-area-inset-left); }
+  .pr-safe { padding-right: env(safe-area-inset-right); }
+  .px-safe { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+  .p-screen-safe {
+    padding-top: max(1rem, env(safe-area-inset-top));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+  .bottom-safe-4 { bottom: calc(1rem + env(safe-area-inset-bottom)); }
+}
+
+/* Pop-ups never taller than the visible screen, keyboard included. */
+@supports (height: 100dvh) {
+  .max-h-\[90vh\] { max-height: 90dvh; }
+  .max-h-\[60vh\] { max-height: 60dvh; }
+  .max-h-\[50vh\] { max-height: 50dvh; }
+}
 @tailwind components;
 @tailwind utilities;
 

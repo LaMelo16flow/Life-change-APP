@@ -270,7 +270,7 @@ export function UserProfile() {
                   <img
                     src={profileImageUrl}
                     alt={formData.full_name}
-                    className="w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-brand-100"
+                    className="w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-brand-100 bg-brand-50 overflow-hidden text-[0px]"
                   />
                 ) : (
                   <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-2xl sm:text-3xl font-bold border-4 border-brand-100">

@@ -23,9 +23,12 @@ export function Dashboard() {
   const isMobile = screenSize === 'mobile';
 
   useEffect(() => {
+    // A phone (its short side is under 500px) keeps the phone layout even in
+    // landscape. Based on the device screen, so the keyboard cannot change it.
+    const isPhone = () => Math.min(window.screen.width, window.screen.height) < 500 && window.innerWidth < 1024;
     const checkScreenSize = () => {
       const width = window.innerWidth;
-      if (width < 768) {
+      if (width < 768 || isPhone()) {
         setScreenSize('mobile');
         setSidebarOpen(false);
         setSidebarCollapsed(false);
@@ -39,9 +42,24 @@ export function Dashboard() {
         setSidebarCollapsed(false);
       }
     };
-    checkScreenSize();
-    window.addEventListener('resize', checkScreenSize);
-    return () => window.removeEventListener('resize', checkScreenSize);
+    // Only react when the layout class changes: a keyboard opening (which
+    // resizes the window on Android) must not close or reopen the menu.
+    let last = '';
+    const onResize = () => {
+      const w = window.innerWidth;
+      const cls = w < 768 || isPhone() ? 'mobile' : w < 1024 ? 'tablet' : 'desktop';
+      if (cls !== last) {
+        last = cls;
+        checkScreenSize();
+      }
+    };
+    onResize();
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
   }, []);
 
   useEffect(() => {
@@ -157,7 +175,7 @@ export function Dashboard() {
   const initials = profile?.full_name?.charAt(0)?.toUpperCase() || '?';
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-app bg-gray-50">
       {isMobile && sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity animate-fade-in"
@@ -165,7 +183,7 @@ export function Dashboard() {
         />
       )}
 
-      <div className="flex h-screen overflow-hidden">
+      <div className="flex h-app overflow-hidden">
         <aside
           className={`${
             isMobile
@@ -173,7 +191,7 @@ export function Dashboard() {
                   sidebarOpen ? 'translate-x-0' : '-translate-x-full'
                 }`
               : `${sidebarWidth} transition-all duration-300 ease-out`
-          } bg-brand-950 text-white flex-shrink-0 flex flex-col overflow-hidden`}
+          } bg-brand-950 text-white flex-shrink-0 flex flex-col overflow-hidden pt-safe pb-safe pl-safe`}
         >
           <div className={`${isMobile ? 'w-64' : sidebarWidth} flex flex-col h-full transition-all duration-300`}>
             <div className={`${sidebarCollapsed && !isMobile ? 'p-2' : 'p-4 pb-3'}`}>
@@ -286,8 +304,9 @@ export function Dashboard() {
           </div>
         </aside>
 
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <header className="bg-white/90 backdrop-blur-sm border-b border-gray-100 px-4 lg:px-6 h-16 flex items-center justify-between flex-shrink-0 z-10">
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+          <header className="bg-white/90 backdrop-blur-sm border-b border-gray-100 flex-shrink-0 z-10 pt-safe px-safe">
+            <div className="px-4 lg:px-6 h-16 flex items-center justify-between">
             <div className="flex items-center gap-3 min-w-0">
               <button
                 onClick={toggleSidebar}
@@ -320,14 +339,17 @@ export function Dashboard() {
                 {initials}
               </div>
             </div>
+            </div>
           </header>
 
-          <main className="flex-1 overflow-y-auto p-4 lg:p-6 bg-gray-50 main-scrollbar">
-            {showAdminView ? (
-              <AdminDashboard activeTab={activeTab} onNavigate={navigateToNotificationTarget} />
-            ) : (
-              <UserDashboard activeTab={activeTab} onNavigate={navigateToNotificationTarget} />
-            )}
+          <main className="flex-1 overflow-y-auto overscroll-contain bg-gray-50 main-scrollbar px-safe pb-safe">
+            <div className="p-3 sm:p-4 lg:p-6 max-w-[1600px] mx-auto w-full">
+              {showAdminView ? (
+                <AdminDashboard activeTab={activeTab} onNavigate={navigateToNotificationTarget} />
+              ) : (
+                <UserDashboard activeTab={activeTab} onNavigate={navigateToNotificationTarget} />
+              )}
+            </div>
           </main>
         </div>
       </div>
