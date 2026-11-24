@@ -5,7 +5,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { formatCurrency } from '../../utils/currency';
 import { getLocalizedProductName, getLocalizedProductDescription, getLocalizedProductType } from '../../utils/productLocale';
 import { getPromoLabel, getPromoBuyGetFreeText } from '../../utils/promoLocale';
-import { ShoppingCart, Package, Check, AlertCircle, X, ShoppingBag, Minus, Plus, Gift, Sparkles, Search } from 'lucide-react';
+import { ShoppingCart, Package, Check, AlertCircle, X, ShoppingBag, Minus, Plus, Gift, Sparkles, Search, SlidersHorizontal } from 'lucide-react';
 import { sendOrderPlacedNotification } from '../../utils/notifications';
 import { MasonryGrid } from './MasonryGrid';
 
@@ -91,6 +91,14 @@ export default function Shop() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [selectedType, setSelectedType] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
+  // Price (CAD) and PV range filters + sort. Empty = no limit.
+  const [showFilters, setShowFilters] = useState(false);
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [minPV, setMinPV] = useState('');
+  const [maxPV, setMaxPV] = useState('');
+  const [onlyPromo, setOnlyPromo] = useState(false);
+  const [sortBy, setSortBy] = useState<'default' | 'price-asc' | 'price-desc' | 'pv-desc' | 'pv-asc'>('default');
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [orderQuantity, setOrderQuantity] = useState(1);
@@ -344,9 +352,33 @@ export default function Shop() {
 
   const productTypes = ['All', ...new Set(products.map(p => p.product_type))];
   const normalizedQuery = searchQuery.trim().toLowerCase();
-  const hasActiveFilters = selectedType !== 'All' || normalizedQuery.length > 0;
+  const num = (v: string) => {
+    const n = parseFloat(v.replace(',', '.'));
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  };
+  const priceMin = num(minPrice), priceMax = num(maxPrice), pvMin = num(minPV), pvMax = num(maxPV);
+  const rangeFilterCount = [priceMin, priceMax, pvMin, pvMax].filter((v) => v !== null).length + (onlyPromo ? 1 : 0);
+  const hasActiveFilters = selectedType !== 'All' || normalizedQuery.length > 0 || rangeFilterCount > 0;
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setSelectedType('All');
+    setMinPrice('');
+    setMaxPrice('');
+    setMinPV('');
+    setMaxPV('');
+    setOnlyPromo(false);
+    setSortBy('default');
+  };
   const filteredProducts = products.filter((p) => {
     if (selectedType !== 'All' && p.product_type !== selectedType) return false;
+    const price = prices[p.id];
+    if ((priceMin !== null || priceMax !== null) && price === undefined) return false;
+    if (priceMin !== null && price < priceMin) return false;
+    if (priceMax !== null && price > priceMax) return false;
+    const pv = Number(p.pv_value) || 0;
+    if (pvMin !== null && pv < pvMin) return false;
+    if (pvMax !== null && pv > pvMax) return false;
+    if (onlyPromo && !promotions[p.id]) return false;
     if (!normalizedQuery) return true;
     const haystack = [
       getLocalizedProductName(p, language),
@@ -355,6 +387,18 @@ export default function Shop() {
     ].join(' ').toLowerCase();
     return haystack.includes(normalizedQuery);
   });
+  if (sortBy !== 'default') {
+    const priceOf = (id: string) => prices[id] ?? Number.POSITIVE_INFINITY;
+    filteredProducts.sort((a, b) => {
+      switch (sortBy) {
+        case 'price-asc': return priceOf(a.id) - priceOf(b.id);
+        case 'price-desc': return (prices[b.id] ?? -1) - (prices[a.id] ?? -1);
+        case 'pv-desc': return (Number(b.pv_value) || 0) - (Number(a.pv_value) || 0);
+        case 'pv-asc': return (Number(a.pv_value) || 0) - (Number(b.pv_value) || 0);
+        default: return 0;
+      }
+    });
+  }
 
   const getStockStatus = (productId: string) => {
     const inv = inventory[productId];
@@ -471,13 +515,95 @@ export default function Shop() {
             );
           })}
         </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setShowFilters((v) => !v)}
+            aria-expanded={showFilters}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition border ${
+              showFilters || rangeFilterCount > 0
+                ? 'bg-brand-50 text-brand-700 border-brand-300'
+                : 'bg-gray-50 text-gray-600 border-transparent hover:border-brand-300'
+            }`}
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+            {t('shop.filters')}
+            {rangeFilterCount > 0 && (
+              <span className="ml-0.5 min-w-[20px] h-5 px-1.5 rounded-full bg-brand-600 text-white text-xs font-bold inline-flex items-center justify-center">
+                {rangeFilterCount}
+              </span>
+            )}
+          </button>
+          <label className="sr-only" htmlFor="shop-sort">{t('shop.sortBy')}</label>
+          <select
+            id="shop-sort"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+            className="px-3 py-2 rounded-full text-sm font-medium bg-gray-50 text-gray-700 border border-transparent hover:border-brand-300 focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          >
+            <option value="default">{t('shop.sortDefault')}</option>
+            <option value="price-asc">{t('shop.sortPriceAsc')}</option>
+            <option value="price-desc">{t('shop.sortPriceDesc')}</option>
+            <option value="pv-desc">{t('shop.sortPvDesc')}</option>
+            <option value="pv-asc">{t('shop.sortPvAsc')}</option>
+          </select>
+        </div>
+
+        {showFilters && (
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <fieldset className="col-span-2 sm:col-span-1">
+              <legend className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{t('shop.priceRange')}</legend>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number" inputMode="decimal" min="0" step="0.01"
+                  value={minPrice} onChange={(e) => setMinPrice(e.target.value)}
+                  placeholder={t('shop.min')} aria-label={`${t('shop.priceRange')} ${t('shop.min')}`}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                />
+                <span className="text-gray-400">–</span>
+                <input
+                  type="number" inputMode="decimal" min="0" step="0.01"
+                  value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)}
+                  placeholder={t('shop.max')} aria-label={`${t('shop.priceRange')} ${t('shop.max')}`}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                />
+              </div>
+            </fieldset>
+            <fieldset className="col-span-2 sm:col-span-1">
+              <legend className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{t('shop.pvRange')}</legend>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number" inputMode="numeric" min="0" step="1"
+                  value={minPV} onChange={(e) => setMinPV(e.target.value)}
+                  placeholder={t('shop.min')} aria-label={`${t('shop.pvRange')} ${t('shop.min')}`}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                />
+                <span className="text-gray-400">–</span>
+                <input
+                  type="number" inputMode="numeric" min="0" step="1"
+                  value={maxPV} onChange={(e) => setMaxPV(e.target.value)}
+                  placeholder={t('shop.max')} aria-label={`${t('shop.pvRange')} ${t('shop.max')}`}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                />
+              </div>
+            </fieldset>
+            <label className="col-span-2 inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input
+                type="checkbox" checked={onlyPromo} onChange={(e) => setOnlyPromo(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+              />
+              {t('shop.onlyPromotions')}
+            </label>
+          </div>
+        )}
       </div>
 
       {hasActiveFilters && (
         <div className="flex items-center justify-between text-sm text-gray-500 px-1">
           <span>{t('shop.resultsCount', { n: filteredProducts.length })}</span>
           <button
-            onClick={() => { setSearchQuery(''); setSelectedType('All'); }}
+            onClick={clearAllFilters}
             className="text-brand-600 hover:text-brand-700 font-medium"
           >
             {t('shop.clearFilters')}
@@ -667,7 +793,7 @@ export default function Shop() {
           </p>
           {hasActiveFilters && (
             <button
-              onClick={() => { setSearchQuery(''); setSelectedType('All'); }}
+              onClick={clearAllFilters}
               className="text-sm font-semibold text-brand-600 hover:text-brand-700"
             >
               {t('shop.clearFilters')}
