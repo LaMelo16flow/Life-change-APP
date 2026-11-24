@@ -1,6 +1,40 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { isGmailConfigured, sendGmailEmail } from "../_shared/sendGmailEmail.ts";
+import { cleanupGmailIfNeeded } from "../_shared/gmailCleanup.ts";
+
+// At most once a day, after an email goes out, check how full the LC Shop
+// Gmail account is and free space if it is close to 50% (see gmailCleanup.ts).
+// Runs in the background so the email reply is not delayed. The last result
+// is kept in admin_settings under 'gmail_cleanup'.
+// deno-lint-ignore no-explicit-any
+async function dailyMailboxCleanup(adminClient: any) {
+  const { data } = await adminClient
+    .from("admin_settings")
+    .select("value")
+    .eq("key", "gmail_cleanup")
+    .maybeSingle();
+  const last = Date.parse(data?.value?.last_check ?? "") || 0;
+  if (Date.now() - last < 24 * 60 * 60 * 1000) return;
+
+  const save = (value: Record<string, unknown>) =>
+    adminClient.from("admin_settings").upsert({
+      key: "gmail_cleanup",
+      value: { last_check: new Date().toISOString(), ...value },
+      description: "Automatic cleanup of lcshop.app@gmail.com (last check)",
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "key" });
+
+  await save({ status: "running" }); // claim today's check first
+  try {
+    const result = await cleanupGmailIfNeeded();
+    console.log("Gmail cleanup:", JSON.stringify(result));
+    await save({ status: "ok", ...result });
+  } catch (err) {
+    console.error("Gmail cleanup failed:", err);
+    await save({ status: "error", error: String((err as Error)?.message || err) });
+  }
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -110,6 +144,11 @@ Deno.serve(async (req: Request) => {
     }
 
     await sendGmailEmail({ to, subject, html });
+
+    // deno-lint-ignore no-explicit-any
+    (globalThis as any).EdgeRuntime?.waitUntil(
+      dailyMailboxCleanup(adminClient).catch((err) => console.error("Gmail cleanup check failed:", err))
+    );
 
     return new Response(
       JSON.stringify({ success: true }),
