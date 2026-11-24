@@ -143,11 +143,11 @@ export function AuthForm() {
         <div className="text-center mb-8 animate-fade-in">
           <div className="relative inline-block mb-6">
             <div className="absolute inset-0 bg-brand-500/20 rounded-full blur-xl scale-150" />
-            <div className="relative rounded-full shadow-2xl shadow-brand-500/30 ring-2 ring-brand-500/40 bg-black">
+            <div className="relative bg-white rounded-full p-3 shadow-2xl shadow-brand-500/20 ring-4 ring-white/10">
               <img
                 src={`${import.meta.env.BASE_URL}logo.webp`}
                 alt="LC Shop logo"
-                className="w-28 h-28 rounded-full object-contain"
+                className="w-20 h-20 object-contain"
               />
             </div>
           </div>
@@ -155,7 +155,7 @@ export function AuthForm() {
             LC Shop
           </h1>
           <p className="text-gray-400 text-sm">
-            Buy • Shop • Enjoy
+            Life changers teamwork
           </p>
         </div>
 
