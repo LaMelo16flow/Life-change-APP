@@ -1,26 +1,50 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { supabase, Profile } from '../../lib/supabase';
 import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { loadCountryNames, getCountryName } from '../../utils/countries';
-import { Users, Search, TrendingUp, CreditCard as Edit, Shield, UserX, Trash2, Loader2, AlertTriangle } from 'lucide-react';
+import { Users, Search, Shield, ShieldCheck, Briefcase, UserX, Trash2, Loader2, AlertTriangle } from 'lucide-react';
 
-interface UserWithRank extends Profile {
+interface UserRow extends Profile {
   profile_image_url?: string;
+}
+
+function initials(name: string | null | undefined): string {
+  return (name || '?')
+    .trim()
+    .split(/\s+/)
+    .map((n) => n[0] || '')
+    .join('')
+    .toUpperCase()
+    .slice(0, 2) || '?';
 }
 
 export function UserManagement() {
   const toast = useToast();
   const { t } = useLanguage();
-  const [users, setUsers] = useState<UserWithRank[]>([]);
+  const { profile: currentProfile } = useAuth();
+  const [users, setUsers] = useState<UserRow[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  const [editingPV, setEditingPV] = useState<string | null>(null);
-  const [pvAmount, setPVAmount] = useState('');
-  const [pvDescription, setPVDescription] = useState('');
   const [countryMap, setCountryMap] = useState<Record<string, string>>({});
   const [deletingUser, setDeletingUser] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [roleUpdating, setRoleUpdating] = useState<string | null>(null);
+
+  const fetchUsers = useCallback(async () => {
+    const { data: profiles, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error loading users:', error);
+      toast.error(t('um.failedLoadUsers'));
+    }
+    setUsers(profiles || []);
+    setLoading(false);
+  }, [toast, t]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -29,79 +53,55 @@ export function UserManagement() {
       await fetchUsers();
     };
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchUsers = async () => {
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
+  // The super admin (is_master) can never be demoted or deleted, and an admin
+  // cannot change their own role (that would lock them out of this screen).
+  const canChangeRole = (user: UserRow) => !user.is_master && user.id !== currentProfile?.id;
 
-    if (!profiles) {
-      setLoading(false);
+  const toggleUserRole = async (user: UserRow) => {
+    if (user.is_master) {
+      toast.error(t('um.cannotChangeMaster'));
+      return;
+    }
+    if (user.id === currentProfile?.id) {
+      toast.error(t('um.cannotChangeSelf'));
       return;
     }
 
-    setUsers(profiles);
-    setLoading(false);
-  };
-
-  const adjustPV = async (userId: string) => {
-    const amount = parseFloat(pvAmount);
-    if (isNaN(amount) || amount === 0) {
-      toast.warning(t('um.invalidPvAmount'));
-      return;
-    }
-
-    const user = users.find((u) => u.id === userId);
-    if (!user) return;
-
-    const newTotal = Number(user.total_pv) + amount;
-
-    const [pvResult, profileResult] = await Promise.all([
-      supabase.from('pv_transactions').insert({
-        user_id: userId,
-        amount,
-        transaction_type: 'adjustment',
-        reference_type: 'admin',
-        description: pvDescription || 'Admin adjustment',
-      }),
-      supabase
+    // admin -> user, user/manager -> admin
+    const newRole = user.role === 'admin' ? 'user' : 'admin';
+    setRoleUpdating(user.id);
+    try {
+      const { error } = await supabase
         .from('profiles')
-        .update({ total_pv: newTotal })
-        .eq('id', userId),
-    ]);
+        .update({ role: newRole })
+        .eq('id', user.id);
 
-    if (pvResult.error || profileResult.error) {
-      toast.error(t('um.failedAdjustPv'));
-      return;
+      if (error) {
+        console.error('Error updating role:', error);
+        toast.error(error.message?.includes('super admin') ? t('um.cannotChangeMaster') : t('um.failedUpdateRole'));
+        return;
+      }
+
+      // A manager promoted to admin no longer needs scoped permissions.
+      if (user.role === 'manager' && newRole === 'admin') {
+        await supabase.from('manager_permissions').delete().eq('user_id', user.id);
+      }
+
+      toast.success(newRole === 'admin' ? t('um.userPromoted') : t('um.userDemoted'));
+      fetchUsers();
+    } finally {
+      setRoleUpdating(null);
     }
-
-    toast.success(t('um.pvAdjusted'));
-    setEditingPV(null);
-    setPVAmount('');
-    setPVDescription('');
-    fetchUsers();
   };
 
-  const toggleUserRole = async (userId: string, currentRole: string) => {
-    const newRole = currentRole === 'admin' ? 'user' : 'admin';
-
-    const { error } = await supabase
-      .from('profiles')
-      .update({ role: newRole })
-      .eq('id', userId);
-
-    if (error) {
-      toast.error(t('um.failedUpdateRole'));
+  const handleDeleteUser = async (user: UserRow) => {
+    if (user.is_master) {
+      toast.error(t('um.cannotChangeMaster'));
       return;
     }
-
-    toast.success(newRole === 'admin' ? t('um.userPromoted') : t('um.userDemoted'));
-    fetchUsers();
-  };
-
-  const handleDeleteUser = async (userId: string) => {
     setDeleteLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -119,28 +119,105 @@ export function UserManagement() {
             'Content-Type': 'application/json',
             'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
           },
-          body: JSON.stringify({ targetUserId: userId }),
+          body: JSON.stringify({ targetUserId: user.id }),
         }
       );
 
-      const result = await response.json();
+      // The function may return a non-JSON body (e.g. a gateway error page).
+      const result = await response.json().catch(() => ({} as { error?: string }));
       if (!response.ok) throw new Error(result.error || t('um.failedDeleteUser'));
 
       toast.success(t('um.userDeleted'));
       setDeletingUser(null);
       fetchUsers();
-    } catch (error: any) {
-      toast.error(error.message || t('um.failedDeleteUser'));
+    } catch (error) {
+      toast.error(error instanceof Error && error.message ? error.message : t('um.failedDeleteUser'));
     } finally {
       setDeleteLoading(false);
     }
   };
 
+  const q = search.trim().toLowerCase();
   const filteredUsers = users.filter(
     (user) =>
-      user.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      user.email.toLowerCase().includes(search.toLowerCase())
+      (user.full_name || '').toLowerCase().includes(q) ||
+      (user.email || '').toLowerCase().includes(q)
   );
+
+  const RoleBadge = ({ user }: { user: UserRow }) => {
+    if (user.is_master) {
+      return (
+        <span className="px-2 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1 bg-yellow-100 text-yellow-800">
+          <ShieldCheck className="w-3 h-3" />
+          {t('mgr.masterBadge')}
+        </span>
+      );
+    }
+    const styles =
+      user.role === 'admin'
+        ? 'bg-purple-100 text-purple-700'
+        : user.role === 'manager'
+          ? 'bg-green-100 text-green-700'
+          : 'bg-slate-100 text-slate-700';
+    const Icon = user.role === 'admin' ? Shield : user.role === 'manager' ? Briefcase : UserX;
+    const label =
+      user.role === 'admin' ? t('common.admin') : user.role === 'manager' ? t('common.manager') : t('common.user');
+    return (
+      <span className={`px-2 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1 ${styles}`}>
+        <Icon className="w-3 h-3" />
+        {label}
+      </span>
+    );
+  };
+
+  const RoleButton = ({ user }: { user: UserRow }) => {
+    if (!canChangeRole(user)) return null;
+    const isAdmin = user.role === 'admin';
+    return (
+      <button
+        onClick={() => toggleUserRole(user)}
+        disabled={roleUpdating === user.id}
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition text-sm font-medium disabled:opacity-50 ${
+          isAdmin ? 'bg-slate-600 text-white hover:bg-slate-700' : 'bg-purple-600 text-white hover:bg-purple-700'
+        }`}
+      >
+        {roleUpdating === user.id ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : isAdmin ? (
+          <UserX className="w-4 h-4" />
+        ) : (
+          <Shield className="w-4 h-4" />
+        )}
+        {isAdmin ? t('um.demote') : t('um.promote')}
+      </button>
+    );
+  };
+
+  const DeleteButton = ({ user }: { user: UserRow }) => {
+    if (user.is_master || user.id === currentProfile?.id) return null;
+    return (
+      <button
+        onClick={() => setDeletingUser(deletingUser === user.id ? null : user.id)}
+        className="flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition text-sm font-medium"
+      >
+        <Trash2 className="w-4 h-4" />
+        {t('admin.delete')}
+      </button>
+    );
+  };
+
+  const Avatar = ({ user, extra = '' }: { user: UserRow; extra?: string }) =>
+    user.profile_image_url ? (
+      <img
+        src={user.profile_image_url}
+        alt={user.full_name || ''}
+        className={`w-10 h-10 rounded-full object-cover border-2 border-slate-200 ${extra}`}
+      />
+    ) : (
+      <div className={`w-10 h-10 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-sm font-bold ${extra}`}>
+        {initials(user.full_name)}
+      </div>
+    );
 
   if (loading) {
     return (
@@ -193,9 +270,6 @@ export function UserManagement() {
                   {t('common.role')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                  {t('um.pv')}
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                   {t('profile.country')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
@@ -212,17 +286,7 @@ export function UserManagement() {
                   <tr className="hover:bg-slate-50 transition">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        {user.profile_image_url ? (
-                          <img
-                            src={user.profile_image_url}
-                            alt={user.full_name}
-                            className="w-10 h-10 rounded-full object-cover border-2 border-slate-200"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-sm font-bold">
-                            {user.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                          </div>
-                        )}
+                        <Avatar user={user} />
                         <div>
                           <p className="font-semibold text-slate-900">{user.full_name}</p>
                           <p className="text-sm text-slate-600">{user.email}</p>
@@ -230,24 +294,7 @@ export function UserManagement() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1 ${
-                          user.role === 'admin'
-                            ? 'bg-purple-100 text-purple-700'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}
-                      >
-                        {user.role === 'admin' ? <Shield className="w-3 h-3" /> : <UserX className="w-3 h-3" />}
-                        {user.role === 'admin' ? t('common.admin') : t('common.user')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4 text-green-600" />
-                        <span className="text-sm font-semibold text-slate-900">
-                          {user.total_pv}
-                        </span>
-                      </div>
+                      <RoleBadge user={user} />
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-sm text-slate-900">{getCountryName(user.country_code, countryMap)}</span>
@@ -255,9 +302,7 @@ export function UserManagement() {
                     <td className="px-6 py-4">
                       <span
                         className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                          user.is_active
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-red-100 text-red-700'
+                          user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                         }`}
                       >
                         {user.is_active ? t('common.active') : t('common.inactive')}
@@ -265,93 +310,21 @@ export function UserManagement() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex gap-2">
-                        <button
-                          onClick={() => setEditingPV(user.id)}
-                          className="flex items-center gap-2 px-3 py-1.5 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition text-sm font-medium"
-                        >
-                          <Edit className="w-4 h-4" />
-                          PV
-                        </button>
-                        <button
-                          onClick={() => toggleUserRole(user.id, user.role)}
-                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition text-sm font-medium ${
-                            user.role === 'admin'
-                              ? 'bg-slate-600 text-white hover:bg-slate-700'
-                              : 'bg-purple-600 text-white hover:bg-purple-700'
-                          }`}
-                        >
-                          {user.role === 'admin' ? (
-                            <>
-                              <UserX className="w-4 h-4" />
-                              {t('um.demote')}
-                            </>
-                          ) : (
-                            <>
-                              <Shield className="w-4 h-4" />
-                              {t('um.promote')}
-                            </>
-                          )}
-                        </button>
-                        {!user.is_master && (
-                          <button
-                            onClick={() => setDeletingUser(deletingUser === user.id ? null : user.id)}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition text-sm font-medium"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            {t('admin.delete')}
-                          </button>
-                        )}
+                        <RoleButton user={user} />
+                        <DeleteButton user={user} />
                       </div>
                     </td>
                   </tr>
-                  {editingPV === user.id && (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-4 bg-brand-50">
-                        <div className="flex items-center gap-4">
-                          <input
-                            type="number"
-                            value={pvAmount}
-                            onChange={(e) => setPVAmount(e.target.value)}
-                            placeholder={t('um.pvAmountPlaceholder')}
-                            className="px-4 py-2 border border-slate-300 rounded-lg"
-                          />
-                          <input
-                            type="text"
-                            value={pvDescription}
-                            onChange={(e) => setPVDescription(e.target.value)}
-                            placeholder={t('admin.description')}
-                            className="flex-1 px-4 py-2 border border-slate-300 rounded-lg"
-                          />
-                          <button
-                            onClick={() => adjustPV(user.id)}
-                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium"
-                          >
-                            {t('um.apply')}
-                          </button>
-                          <button
-                            onClick={() => {
-                              setEditingPV(null);
-                              setPVAmount('');
-                              setPVDescription('');
-                            }}
-                            className="px-4 py-2 bg-slate-300 text-slate-700 rounded-lg hover:bg-slate-400 transition text-sm font-medium"
-                          >
-                            {t('common.cancel')}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
                   {deletingUser === user.id && (
                     <tr>
-                      <td colSpan={7} className="px-6 py-4 bg-red-50 border-t border-red-100">
+                      <td colSpan={5} className="px-6 py-4 bg-red-50 border-t border-red-100">
                         <div className="flex items-center gap-4">
                           <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
                           <p className="text-sm text-red-800 flex-1">
                             {t('um.deleteConfirmPrefix')} <strong>{user.full_name}</strong>{t('um.deleteConfirmSuffix')}
                           </p>
                           <button
-                            onClick={() => handleDeleteUser(user.id)}
+                            onClick={() => handleDeleteUser(user)}
                             disabled={deleteLoading}
                             className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium flex items-center gap-2 disabled:opacity-50 flex-shrink-0"
                           >
@@ -387,17 +360,7 @@ export function UserManagement() {
           {filteredUsers.map((user) => (
             <div key={user.id} className="p-4 space-y-3">
               <div className="flex items-center gap-3">
-                {user.profile_image_url ? (
-                  <img
-                    src={user.profile_image_url}
-                    alt={user.full_name}
-                    className="w-10 h-10 rounded-full object-cover border-2 border-slate-200 flex-shrink-0"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                    {user.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                  </div>
-                )}
+                <Avatar user={user} extra="flex-shrink-0" />
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold text-slate-900 truncate">{user.full_name}</p>
                   <p className="text-sm text-slate-600 truncate">{user.email}</p>
@@ -405,21 +368,10 @@ export function UserManagement() {
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
-                <span
-                  className={`px-2 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1 ${
-                    user.role === 'admin'
-                      ? 'bg-purple-100 text-purple-700'
-                      : 'bg-slate-100 text-slate-700'
-                  }`}
-                >
-                  {user.role === 'admin' ? <Shield className="w-3 h-3" /> : <UserX className="w-3 h-3" />}
-                  {user.role === 'admin' ? t('common.admin') : t('common.user')}
-                </span>
+                <RoleBadge user={user} />
                 <span
                   className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                    user.is_active
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-red-100 text-red-700'
+                    user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                   }`}
                 >
                   {user.is_active ? t('common.active') : t('common.inactive')}
@@ -427,84 +379,10 @@ export function UserManagement() {
                 <span className="text-sm text-slate-600">{getCountryName(user.country_code, countryMap)}</span>
               </div>
 
-              <div className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-green-600" />
-                <span className="text-sm font-semibold text-slate-900">{user.total_pv} PV</span>
-              </div>
-
-              <div className="flex gap-2 flex-wrap border-t border-slate-100 pt-3">
-                <button
-                  onClick={() => setEditingPV(user.id)}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition text-sm font-medium"
-                >
-                  <Edit className="w-4 h-4" />
-                  {t('um.pv')}
-                </button>
-                <button
-                  onClick={() => toggleUserRole(user.id, user.role)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition text-sm font-medium ${
-                    user.role === 'admin'
-                      ? 'bg-slate-600 text-white hover:bg-slate-700'
-                      : 'bg-purple-600 text-white hover:bg-purple-700'
-                  }`}
-                >
-                  {user.role === 'admin' ? (
-                    <>
-                      <UserX className="w-4 h-4" />
-                      {t('um.demote')}
-                    </>
-                  ) : (
-                    <>
-                      <Shield className="w-4 h-4" />
-                      {t('um.promote')}
-                    </>
-                  )}
-                </button>
-                {!user.is_master && (
-                  <button
-                    onClick={() => setDeletingUser(deletingUser === user.id ? null : user.id)}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition text-sm font-medium"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    {t('admin.delete')}
-                  </button>
-                )}
-              </div>
-
-              {editingPV === user.id && (
-                <div className="bg-brand-50 rounded-lg p-3 space-y-2">
-                  <input
-                    type="number"
-                    value={pvAmount}
-                    onChange={(e) => setPVAmount(e.target.value)}
-                    placeholder={t('um.pvAmountPlaceholder')}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                  />
-                  <input
-                    type="text"
-                    value={pvDescription}
-                    onChange={(e) => setPVDescription(e.target.value)}
-                    placeholder={t('admin.description')}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => adjustPV(user.id)}
-                      className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium"
-                    >
-                      {t('um.apply')}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingPV(null);
-                        setPVAmount('');
-                        setPVDescription('');
-                      }}
-                      className="flex-1 px-4 py-2 bg-slate-300 text-slate-700 rounded-lg hover:bg-slate-400 transition text-sm font-medium"
-                    >
-                      {t('common.cancel')}
-                    </button>
-                  </div>
+              {(canChangeRole(user) || (!user.is_master && user.id !== currentProfile?.id)) && (
+                <div className="flex gap-2 flex-wrap border-t border-slate-100 pt-3">
+                  <RoleButton user={user} />
+                  <DeleteButton user={user} />
                 </div>
               )}
 
@@ -518,7 +396,7 @@ export function UserManagement() {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => handleDeleteUser(user.id)}
+                      onClick={() => handleDeleteUser(user)}
                       disabled={deleteLoading}
                       className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
                     >

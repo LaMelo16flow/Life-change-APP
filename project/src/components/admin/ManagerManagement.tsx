@@ -34,7 +34,7 @@ const ALL_PERMISSIONS: { key: PermissionType; label: string; description: string
 ];
 
 export default function ManagerManagement() {
-  const { isMaster } = useAuth();
+  const { isMaster, profile: currentProfile } = useAuth();
   const toast = useToast();
   const { t } = useLanguage();
   const [managers, setManagers] = useState<(ManagerProfile & { permissions: PermissionRow[] })[]>([]);
@@ -345,7 +345,7 @@ export default function ManagerManagement() {
               >
                 <div className="flex items-center gap-4 min-w-0 flex-1">
                   <div className="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-bold text-sm flex-shrink-0">
-                    {manager.full_name.charAt(0).toUpperCase()}
+                    {(manager.full_name || '?').charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -399,7 +399,7 @@ export default function ManagerManagement() {
                     </div>
                   )}
 
-                  {!manager.is_master && (
+                  {!manager.is_master && manager.id !== currentProfile?.id && (
                     <div className="flex gap-2 flex-wrap pt-2 border-t border-gray-100">
                       {manager.role === 'manager' && (
                         <>

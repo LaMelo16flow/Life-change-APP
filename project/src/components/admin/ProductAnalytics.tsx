@@ -99,7 +99,7 @@ export default function ProductAnalytics() {
   const [productStats, setProductStats] = useState<ProductStat[]>([]);
   const [topBuyers, setTopBuyers] = useState<BuyerStat[]>([]);
   const [inventoryMap, setInventoryMap] = useState<Record<string, number>>({});
-  const [thresholdMap, setThresholdMap] = useState<Record<string, number>>({});
+  const [, setThresholdMap] = useState<Record<string, number>>({});
   const [earliestOrderAt, setEarliestOrderAt] = useState<string | null>(null);
   const [adviceEnabled, setAdviceEnabled] = useState(false);
   const [savingToggle, setSavingToggle] = useState(false);

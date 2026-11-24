@@ -102,6 +102,13 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    if (isSelfDelete && callerProfile?.is_master) {
+      return jsonResponse(
+        { error: "The super admin account is protected and cannot be deleted" },
+        403
+      );
+    }
+
     let deletedUserName = callerProfile?.full_name || "Unknown";
     let deletedUserEmail = callerProfile?.email || caller.email || "Unknown";
 

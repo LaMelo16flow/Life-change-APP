@@ -1,4 +1,15 @@
-import { supabase } from '../lib/supabase';
+import { supabase, SITE_URL } from '../lib/supabase';
+
+// Escape user-supplied text before putting it into email HTML, so a name
+// like `<a href="evil">` cannot inject links or markup into staff emails.
+function esc(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 export interface OrderNotificationData {
   orderNumber: string;
@@ -26,9 +37,9 @@ export async function sendAccountApprovalRequestNotification(userData: {
         </p>
         <div style="background-color: #eff6ff; padding: 16px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2563eb;">
           <p style="margin: 0 0 8px 0; color: #1e40af;"><strong>New User Details</strong></p>
-          <p style="margin: 4px 0; color: #1e3a5f;">Name: ${userData.fullName}</p>
-          <p style="margin: 4px 0; color: #1e3a5f;">Email: ${userData.email}</p>
-          <p style="margin: 4px 0; color: #1e3a5f;">Country: ${userData.countryCode}</p>
+          <p style="margin: 4px 0; color: #1e3a5f;">Name: ${esc(userData.fullName)}</p>
+          <p style="margin: 4px 0; color: #1e3a5f;">Email: ${esc(userData.email)}</p>
+          <p style="margin: 4px 0; color: #1e3a5f;">Country: ${esc(userData.countryCode)}</p>
         </div>
         <p style="color: #374151; font-size: 14px;">
           Please log in to the admin dashboard to review and approve or reject this account.
@@ -94,10 +105,10 @@ export async function sendPromotionNotification(data: {
         <h2 style="color: #ffffff; margin: 0;">New Promotion Available</h2>
       </div>
       <div style="background-color: #ffffff; padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-        <p style="color: #374151; font-size: 15px; line-height: 1.6;">A new promotion is live for ${data.productName}.</p>
+        <p style="color: #374151; font-size: 15px; line-height: 1.6;">A new promotion is live for ${esc(data.productName)}.</p>
         <div style="background-color: #fff7ed; padding: 16px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b;">
-          <p style="margin: 0 0 8px 0; color: #9a4d00;"><strong>${data.title || `Buy ${data.buyQuantity} Get ${data.freeQuantity} Free`}</strong></p>
-          <p style="margin: 4px 0; color: #7c2d12;">Product: ${data.productName}</p>
+          <p style="margin: 0 0 8px 0; color: #9a4d00;"><strong>${esc(data.title) || `Buy ${data.buyQuantity} Get ${data.freeQuantity} Free`}</strong></p>
+          <p style="margin: 4px 0; color: #7c2d12;">Product: ${esc(data.productName)}</p>
           <p style="margin: 4px 0; color: #7c2d12;">Buy: ${data.buyQuantity}</p>
           <p style="margin: 4px 0; color: #7c2d12;">Free: ${data.freeQuantity}</p>
           ${data.startsAt ? `<p style="margin: 4px 0; color: #7c2d12;">Starts: ${new Date(data.startsAt).toLocaleString()}</p>` : ''}
@@ -155,16 +166,16 @@ export async function sendOrderPlacedNotification(orderData: OrderNotificationDa
 
       <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
         <h3 style="margin-top: 0;">Order Details</h3>
-        <p><strong>Order Number:</strong> ${orderData.orderNumber}</p>
-        <p><strong>Customer:</strong> ${orderData.userName} (${orderData.userEmail})</p>
-        <p><strong>Product:</strong> ${orderData.productName}</p>
+        <p><strong>Order Number:</strong> ${esc(orderData.orderNumber)}</p>
+        <p><strong>Customer:</strong> ${esc(orderData.userName)} (${esc(orderData.userEmail)})</p>
+        <p><strong>Product:</strong> ${esc(orderData.productName)}</p>
         <p><strong>Quantity:</strong> ${orderData.quantity}</p>
         <p><strong>Total Amount:</strong> ${orderData.totalAmount}</p>
       </div>
 
       <p>Please log in to the admin dashboard to review and approve this order.</p>
 
-      <a href="${window.location.origin}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 10px;">
+      <a href="${SITE_URL}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 10px;">
         View Order in Dashboard
       </a>
     </div>
@@ -200,19 +211,19 @@ export async function sendOrderPlacedNotification(orderData: OrderNotificationDa
           <h2 style="color: #ffffff; margin: 0;">Order Received</h2>
         </div>
         <div style="background-color: #ffffff; padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-          <p style="color: #374151; font-size: 15px; line-height: 1.6;">Hi ${orderData.userName}, thanks for your order! We've received it and it's now pending approval.</p>
+          <p style="color: #374151; font-size: 15px; line-height: 1.6;">Hi ${esc(orderData.userName)}, thanks for your order! We've received it and it's now pending approval.</p>
 
           <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
             <h3 style="margin-top: 0; color: #1f2937;">Order Details</h3>
-            <p style="margin: 8px 0; color: #374151;"><strong>Order Number:</strong> ${orderData.orderNumber}</p>
-            <p style="margin: 8px 0; color: #374151;"><strong>Product:</strong> ${orderData.productName}</p>
+            <p style="margin: 8px 0; color: #374151;"><strong>Order Number:</strong> ${esc(orderData.orderNumber)}</p>
+            <p style="margin: 8px 0; color: #374151;"><strong>Product:</strong> ${esc(orderData.productName)}</p>
             <p style="margin: 8px 0; color: #374151;"><strong>Quantity:</strong> ${orderData.quantity}</p>
             <p style="margin: 8px 0; color: #374151;"><strong>Total Amount:</strong> ${orderData.totalAmount}</p>
           </div>
 
           <p style="color: #374151;">We'll notify you as soon as it's approved with instructions to complete payment.</p>
 
-          <a href="${window.location.origin}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 10px; font-weight: 600;">
+          <a href="${SITE_URL}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 10px; font-weight: 600;">
             View My Orders
           </a>
 
@@ -266,8 +277,8 @@ export async function sendOrderApprovedNotification(orderData: OrderNotification
 
         <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
           <h3 style="margin-top: 0; color: #1f2937;">Order Details</h3>
-          <p style="margin: 8px 0; color: #374151;"><strong>Order Number:</strong> ${orderData.orderNumber}</p>
-          <p style="margin: 8px 0; color: #374151;"><strong>Product:</strong> ${orderData.productName}</p>
+          <p style="margin: 8px 0; color: #374151;"><strong>Order Number:</strong> ${esc(orderData.orderNumber)}</p>
+          <p style="margin: 8px 0; color: #374151;"><strong>Product:</strong> ${esc(orderData.productName)}</p>
           <p style="margin: 8px 0; color: #374151;"><strong>Quantity:</strong> ${orderData.quantity}</p>
           <p style="margin: 8px 0; color: #374151;"><strong>Total Amount:</strong> ${orderData.totalAmount}</p>
         </div>
@@ -275,19 +286,19 @@ export async function sendOrderApprovedNotification(orderData: OrderNotification
         <div style="background-color: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b;">
           <h3 style="margin-top: 0; color: #92400e;">Payment Instructions</h3>
           <p style="margin: 10px 0; color: #78350f;">${instructions}</p>
-          <p style="margin: 10px 0; color: #78350f;"><strong>Admin Email:</strong> ${orderData.adminEmail}</p>
-          <p style="margin: 10px 0; color: #78350f;"><strong>Reference:</strong> Order #${orderData.orderNumber}</p>
+          <p style="margin: 10px 0; color: #78350f;"><strong>Admin Email:</strong> ${esc(orderData.adminEmail)}</p>
+          <p style="margin: 10px 0; color: #78350f;"><strong>Reference:</strong> Order #${esc(orderData.orderNumber)}</p>
         </div>
 
         <p style="color: #374151;"><strong>Next Steps:</strong></p>
         <ol style="color: #374151; line-height: 1.8;">
           <li>Send your e-transfer to the admin email address above</li>
-          <li>Include your order number (${orderData.orderNumber}) in the transfer message</li>
+          <li>Include your order number (${esc(orderData.orderNumber)}) in the transfer message</li>
           <li>Take a screenshot of the transfer confirmation</li>
           <li>Upload the screenshot in your order dashboard</li>
         </ol>
 
-        <a href="${window.location.origin}" style="display: inline-block; background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 10px; font-weight: 600;">
+        <a href="${SITE_URL}" style="display: inline-block; background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 10px; font-weight: 600;">
           Upload Payment Proof
         </a>
 
@@ -319,15 +330,15 @@ export async function sendPaymentSubmittedNotification(orderData: OrderNotificat
 
       <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
         <h3 style="margin-top: 0;">Order Details</h3>
-        <p><strong>Order Number:</strong> ${orderData.orderNumber}</p>
-        <p><strong>Customer:</strong> ${orderData.userName} (${orderData.userEmail})</p>
-        <p><strong>Product:</strong> ${orderData.productName}</p>
+        <p><strong>Order Number:</strong> ${esc(orderData.orderNumber)}</p>
+        <p><strong>Customer:</strong> ${esc(orderData.userName)} (${esc(orderData.userEmail)})</p>
+        <p><strong>Product:</strong> ${esc(orderData.productName)}</p>
         <p><strong>Total Amount:</strong> ${orderData.totalAmount}</p>
       </div>
 
       <p>Please review the payment proof and verify the payment in the admin dashboard.</p>
 
-      <a href="${window.location.origin}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 10px;">
+      <a href="${SITE_URL}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 10px;">
         Verify Payment
       </a>
     </div>
@@ -364,8 +375,8 @@ export async function sendPaymentVerifiedNotification(orderData: OrderNotificati
 
         <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
           <h3 style="margin-top: 0; color: #1f2937;">Order Details</h3>
-          <p style="margin: 8px 0; color: #374151;"><strong>Order Number:</strong> ${orderData.orderNumber}</p>
-          <p style="margin: 8px 0; color: #374151;"><strong>Product:</strong> ${orderData.productName}</p>
+          <p style="margin: 8px 0; color: #374151;"><strong>Order Number:</strong> ${esc(orderData.orderNumber)}</p>
+          <p style="margin: 8px 0; color: #374151;"><strong>Product:</strong> ${esc(orderData.productName)}</p>
           <p style="margin: 8px 0; color: #374151;"><strong>Quantity:</strong> ${orderData.quantity}</p>
           <p style="margin: 8px 0; color: #374151;"><strong>Total Amount:</strong> ${orderData.totalAmount}</p>
         </div>
@@ -377,7 +388,7 @@ export async function sendPaymentVerifiedNotification(orderData: OrderNotificati
 
         <p style="color: #374151;">Thank you for your purchase!</p>
 
-        <a href="${window.location.origin}" style="display: inline-block; background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 10px; font-weight: 600;">
+        <a href="${SITE_URL}" style="display: inline-block; background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 10px; font-weight: 600;">
           View Dashboard
         </a>
 
@@ -416,19 +427,19 @@ export async function sendOrderRejectedNotification(
 
         <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
           <h3 style="margin-top: 0; color: #1f2937;">Order Details</h3>
-          <p style="margin: 8px 0; color: #374151;"><strong>Order Number:</strong> ${orderData.orderNumber}</p>
-          <p style="margin: 8px 0; color: #374151;"><strong>Product:</strong> ${orderData.productName}</p>
+          <p style="margin: 8px 0; color: #374151;"><strong>Order Number:</strong> ${esc(orderData.orderNumber)}</p>
+          <p style="margin: 8px 0; color: #374151;"><strong>Product:</strong> ${esc(orderData.productName)}</p>
           <p style="margin: 8px 0; color: #374151;"><strong>Total Amount:</strong> ${orderData.totalAmount}</p>
         </div>
 
         <div style="background-color: #fee2e2; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ef4444;">
           <h3 style="margin-top: 0; color: #991b1b;">Reason</h3>
-          <p style="margin: 0; color: #991b1b;">${reason}</p>
+          <p style="margin: 0; color: #991b1b;">${esc(reason)}</p>
         </div>
 
         <p style="color: #374151;">Please contact support if you have any questions.</p>
 
-        <a href="${window.location.origin}" style="display: inline-block; background-color: #ef4444; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 10px; font-weight: 600;">
+        <a href="${SITE_URL}" style="display: inline-block; background-color: #ef4444; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 10px; font-weight: 600;">
           View Order Details
         </a>
 
@@ -479,7 +490,7 @@ export async function sendLowStockAlert(data: LowStockAlertData) {
 
   if (recipients.size === 0) return;
 
-  const dashboardUrl = `${window.location.origin}${(import.meta as any).env?.BASE_URL || '/'}`;
+  const dashboardUrl = SITE_URL;
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <div style="background-color: #f59e0b; padding: 20px; border-radius: 8px 8px 0 0;">
@@ -487,7 +498,7 @@ export async function sendLowStockAlert(data: LowStockAlertData) {
       </div>
       <div style="background-color: #ffffff; padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
         <p style="color: #374151; font-size: 15px; line-height: 1.6;">
-          <strong>${data.productName}</strong> (${data.region}) has dropped to <strong>${data.available}</strong> unit${data.available === 1 ? '' : 's'} available - at or below its low-stock threshold of ${data.threshold}.
+          <strong>${esc(data.productName)}</strong> (${esc(data.region)}) has dropped to <strong>${data.available}</strong> unit${data.available === 1 ? '' : 's'} available - at or below its low-stock threshold of ${data.threshold}.
         </p>
         <p style="color: #374151; font-size: 14px;">
           Please log in to the admin dashboard to restock.

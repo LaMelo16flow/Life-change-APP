@@ -257,7 +257,7 @@ export default function Shop() {
   }
 
   async function handlePlaceOrder() {
-    if (!profile || !selectedProduct) return;
+    if (!profile || !selectedProduct || purchasing) return;
 
     const originalPrice = prices[selectedProduct.id];
     if (!originalPrice) {
@@ -309,16 +309,22 @@ export default function Shop() {
         promotion_id: promo?.id || null,
       });
 
-      if (itemError) throw itemError;
+      if (itemError) {
+        // Don't leave an empty order behind for admins to approve.
+        await supabase.from('orders').delete().eq('id', orderData.id);
+        throw itemError;
+      }
 
-      await sendOrderPlacedNotification({
+      // The order is saved: a notification failure must not look like a
+      // failed purchase (the user would retry and order twice).
+      sendOrderPlacedNotification({
         orderNumber,
         productName: selectedProduct.name,
         quantity: totalQuantity,
         totalAmount: formatCurrency(totalPrice),
         userName: profile.full_name || user?.email || 'Customer',
         userEmail: user?.email || '',
-      }, user?.id);
+      }, user?.id).catch((err) => console.error('Error sending order notification:', err));
 
       setShowOrderModal(false);
       setSelectedProduct(null);
