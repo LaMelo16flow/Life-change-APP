@@ -4,7 +4,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { formatCurrency } from '../../utils/currency';
 import { getLocalizedProductType } from '../../utils/productLocale';
-import { Upload, Plus, CreditCard as Edit2, Save, X, Image, Eye, EyeOff, Wand2, Loader2 } from 'lucide-react';
+import { Upload, Plus, CreditCard as Edit2, Save, X, Image, Eye, EyeOff } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const normalizedProductName = (value: string) => {
@@ -198,7 +198,6 @@ export function ProductManagement() {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const editImageInputRef = useRef<HTMLInputElement>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [enhancing, setEnhancing] = useState<{ done: number; total: number; current: string } | null>(null);
   const [newProduct, setNewProduct] = useState({
     name: '',
     name_en: '',
@@ -403,26 +402,13 @@ export function ProductManagement() {
 
   const uploadImage = async (file: File): Promise<string | null> => {
     try {
-      // Small / blurry photos are enhanced automatically before saving.
-      let body: Blob = file;
-      let fileExt = file.name.split('.').pop();
-      try {
-        const { enhanceImage } = await import('../../utils/imageEnhance');
-        const result = await enhanceImage(file);
-        if (result.enhanced) {
-          body = result.blob;
-          fileExt = 'jpg';
-          toast.success(t('admin.photoEnhanced', { from: result.from.width, to: result.to.width }));
-        }
-      } catch (err) {
-        console.warn('Photo enhancement skipped:', err);
-      }
+      const fileExt = file.name.split('.').pop();
       const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
       const filePath = fileName;
 
       const { error: uploadError } = await supabase.storage
         .from('product-images')
-        .upload(filePath, body, { contentType: body.type || file.type });
+        .upload(filePath, file);
 
       if (uploadError) {
         throw uploadError;
@@ -438,43 +424,6 @@ export function ProductManagement() {
       toast.error(t('profile.failedUploadImage'));
       return null;
     }
-  };
-
-  // Enhances every product photo smaller than TARGET_MIN_SIDE (one by one),
-  // saves the new version in storage and points the product to it.
-  const enhanceBlurryPhotos = async () => {
-    if (enhancing) return;
-    const { enhanceImage, loadImage, TARGET_MIN_SIDE } = await import('../../utils/imageEnhance');
-    const candidates = products.filter((p) => p.image_url && !p.image_url.endsWith('logo.webp'));
-    setEnhancing({ done: 0, total: candidates.length, current: '' });
-    let improved = 0;
-    const failed: string[] = [];
-    for (let i = 0; i < candidates.length; i++) {
-      const p = candidates[i];
-      setEnhancing({ done: i, total: candidates.length, current: p.name });
-      try {
-        const img = await loadImage(p.image_url as string);
-        if (Math.max(img.naturalWidth, img.naturalHeight) >= TARGET_MIN_SIDE) continue;
-        const result = await enhanceImage(img.src);
-        if (!result.enhanced) continue;
-        const path = `enhanced/${p.id}-${Date.now()}.jpg`;
-        const { error: upErr } = await supabase.storage
-          .from('product-images')
-          .upload(path, result.blob, { contentType: 'image/jpeg', upsert: true });
-        if (upErr) throw upErr;
-        const url = supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl;
-        const { error: dbErr } = await supabase.from('products').update({ image_url: url }).eq('id', p.id);
-        if (dbErr) throw dbErr;
-        improved++;
-      } catch (err) {
-        console.error('Could not enhance', p.name, err);
-        failed.push(p.name);
-      }
-    }
-    setEnhancing(null);
-    await fetchProducts();
-    if (failed.length) toast.warning(t('admin.photosEnhancedSome', { n: improved, failed: failed.length }));
-    else toast.success(t('admin.photosEnhanced', { n: improved }));
   };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -790,17 +739,6 @@ export function ProductManagement() {
           >
             <Plus className="w-5 h-5" />
             {t('admin.addProduct')}
-          </button>
-          <button
-            onClick={enhanceBlurryPhotos}
-            disabled={!!enhancing}
-            title={t('admin.enhancePhotosHint')}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium disabled:bg-purple-400 disabled:cursor-wait"
-          >
-            {enhancing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />}
-            {enhancing
-              ? t('admin.enhancingPhotos', { done: enhancing.done + 1, total: enhancing.total })
-              : t('admin.enhancePhotos')}
           </button>
           <button
             onClick={() => setProductsVisibility(selectedProductIds, false)}
