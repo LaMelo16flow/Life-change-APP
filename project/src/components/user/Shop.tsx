@@ -90,6 +90,8 @@ export default function Shop() {
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [selectedType, setSelectedType] = useState<string>('All');
+  // Category keys are the translated names, so start over when the language changes.
+  useEffect(() => { setSelectedType('All'); }, [language]);
   const [searchQuery, setSearchQuery] = useState('');
   // Price (CAD) and PV range filters + sort. Empty = no limit.
   const [showFilters, setShowFilters] = useState(false);
@@ -350,7 +352,21 @@ export default function Shop() {
     }
   }
 
-  const productTypes = ['All', ...new Set(products.map(p => p.product_type))];
+  // Categories are grouped by the name shown to the user, so two spellings of
+  // the same category (e.g. "Beverage" / "Beverages") appear once. Sorted by
+  // how many products they hold.
+  const categoryKey = (p: Product) => getLocalizedProductType(p, language).trim().toLowerCase();
+  const categories = (() => {
+    const map = new Map<string, { key: string; label: string; count: number }>();
+    for (const p of products) {
+      const key = categoryKey(p);
+      if (!key) continue;
+      const cur = map.get(key);
+      if (cur) cur.count++;
+      else map.set(key, { key, label: getLocalizedProductType(p, language).trim(), count: 1 });
+    }
+    return [...map.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  })();
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const num = (v: string) => {
     const n = parseFloat(v.replace(',', '.'));
@@ -370,7 +386,7 @@ export default function Shop() {
     setSortBy('default');
   };
   const filteredProducts = products.filter((p) => {
-    if (selectedType !== 'All' && p.product_type !== selectedType) return false;
+    if (selectedType !== 'All' && categoryKey(p) !== selectedType) return false;
     const price = prices[p.id];
     if ((priceMin !== null || priceMax !== null) && price === undefined) return false;
     if (priceMin !== null && price < priceMin) return false;
@@ -494,26 +510,39 @@ export default function Shop() {
           )}
         </div>
 
-        <div className="flex gap-2 flex-wrap overflow-x-auto pb-1 -mx-1 px-1">
-          {productTypes.map(type => {
-            const productOfType = products.find(p => p.product_type === type);
-            const label = type === 'All'
-              ? t('shop.allCategories')
-              : productOfType ? getLocalizedProductType(productOfType, language) : type;
-            return (
-              <button
-                key={type}
-                onClick={() => setSelectedType(type)}
-                className={`px-4 py-2 rounded-full font-medium transition-all text-sm whitespace-nowrap flex-shrink-0 ${
-                  selectedType === type
-                    ? 'bg-brand-700 text-white shadow-sm shadow-brand-700/30'
-                    : 'bg-gray-50 text-gray-600 border border-transparent hover:border-brand-300 hover:text-brand-700'
-                }`}
-              >
-                {label}
-              </button>
-            );
-          })}
+        <div className="relative -mx-3 sm:-mx-4">
+          <div
+            role="tablist"
+            aria-label={t('shop.categories')}
+            className="flex gap-2 overflow-x-auto px-3 sm:px-4 scroll-px-3 sm:scroll-px-4 pb-1 snap-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {[{ key: 'All', label: t('shop.allCategories'), count: products.length }, ...categories].map((cat) => {
+              const active = selectedType === cat.key;
+              return (
+                <button
+                  key={cat.key}
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setSelectedType(cat.key)}
+                  className={`snap-start flex-shrink-0 inline-flex items-center gap-1.5 h-9 pl-3.5 pr-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors border ${
+                    active
+                      ? 'bg-brand-700 text-white border-brand-700 shadow-sm'
+                      : 'bg-white text-gray-700 border-gray-200 hover:border-brand-300 hover:text-brand-700'
+                  }`}
+                >
+                  {cat.label}
+                  <span
+                    className={`min-w-[22px] h-5 px-1.5 rounded-full text-[11px] font-semibold inline-flex items-center justify-center ${
+                      active ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
+                    }`}
+                  >
+                    {cat.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="pointer-events-none absolute right-0 top-0 bottom-1 w-8 bg-gradient-to-l from-white to-transparent sm:hidden" />
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
