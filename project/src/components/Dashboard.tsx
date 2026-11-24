@@ -179,7 +179,7 @@ export function Dashboard() {
                 <img
                   src={`${import.meta.env.BASE_URL}logo.webp`}
                   alt="LC Shop logo"
-                  className={`${sidebarCollapsed && !isMobile ? 'w-10 h-10' : 'w-11 h-11'} rounded-xl object-contain ring-1 ring-white/10 transition-all duration-300`}
+                  className={`${sidebarCollapsed && !isMobile ? 'w-10 h-10' : 'w-11 h-11'} rounded-full object-contain bg-black ring-1 ring-brand-500/40 transition-all duration-300`}
                 />
                 {(!sidebarCollapsed || isMobile) && (
                   <h1 className="text-base font-bold tracking-tight text-white whitespace-nowrap">LC Shop</h1>

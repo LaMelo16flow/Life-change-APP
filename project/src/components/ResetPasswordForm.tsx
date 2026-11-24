@@ -43,11 +43,11 @@ export function ResetPasswordForm() {
         <div className="text-center mb-8">
           <div className="relative inline-block mb-6">
             <div className="absolute inset-0 bg-brand-500/20 rounded-full blur-xl scale-150" />
-            <div className="relative bg-white rounded-full p-3 shadow-2xl shadow-brand-500/20 ring-4 ring-white/10">
+            <div className="relative rounded-full shadow-2xl shadow-brand-500/30 ring-2 ring-brand-500/40 bg-black">
               <img
                 src={`${import.meta.env.BASE_URL}logo.webp`}
                 alt="LC Shop logo"
-                className="w-20 h-20 object-contain"
+                className="w-28 h-28 rounded-full object-contain"
               />
             </div>
           </div>
