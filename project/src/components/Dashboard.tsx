@@ -178,11 +178,11 @@ export function Dashboard() {
               <div className={`flex items-center ${sidebarCollapsed && !isMobile ? 'justify-center' : 'gap-3'} mb-4`}>
                 <img
                   src={`${import.meta.env.BASE_URL}logo.webp`}
-                  alt="Life Changers Logo"
+                  alt="LC Shop logo"
                   className={`${sidebarCollapsed && !isMobile ? 'w-10 h-10' : 'w-11 h-11'} rounded-xl object-contain ring-1 ring-white/10 transition-all duration-300`}
                 />
                 {(!sidebarCollapsed || isMobile) && (
-                  <h1 className="text-base font-bold tracking-tight text-white whitespace-nowrap">Life Changers</h1>
+                  <h1 className="text-base font-bold tracking-tight text-white whitespace-nowrap">LC Shop</h1>
                 )}
               </div>
               {(!sidebarCollapsed || isMobile) ? (

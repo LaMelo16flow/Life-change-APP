@@ -45,7 +45,7 @@ export async function sendAccountApprovalRequestNotification(userData: {
           Please log in to the admin dashboard to review and approve or reject this account.
         </p>
         <p style="color: #6b7280; font-size: 13px; margin-top: 16px;">
-          This is an automated notification from the LifeChangers platform.
+          This is an automated notification from the LC Shop app.
         </p>
       </div>
     </div>
@@ -238,7 +238,7 @@ export async function sendOrderPlacedNotification(orderData: OrderNotificationDa
           </a>
 
           <p style="color: #6b7280; font-size: 13px; margin-top: 24px;">
-            This is an automated notification from the LifeChangers platform.
+            This is an automated notification from the LC Shop app.
           </p>
         </div>
       </div>
@@ -313,7 +313,7 @@ export async function sendOrderApprovedNotification(orderData: OrderNotification
         </a>
 
         <p style="color: #6b7280; font-size: 13px; margin-top: 24px;">
-          This is an automated notification from the LifeChangers platform.
+          This is an automated notification from the LC Shop app.
         </p>
       </div>
     </div>
@@ -403,7 +403,7 @@ export async function sendPaymentVerifiedNotification(orderData: OrderNotificati
         </a>
 
         <p style="color: #6b7280; font-size: 13px; margin-top: 24px;">
-          This is an automated notification from the LifeChangers platform.
+          This is an automated notification from the LC Shop app.
         </p>
       </div>
     </div>
@@ -454,7 +454,7 @@ export async function sendOrderRejectedNotification(
         </a>
 
         <p style="color: #6b7280; font-size: 13px; margin-top: 24px;">
-          This is an automated notification from the LifeChangers platform.
+          This is an automated notification from the LC Shop app.
         </p>
       </div>
     </div>
@@ -517,7 +517,7 @@ export async function sendLowStockAlert(data: LowStockAlertData) {
           Manage Inventory
         </a>
         <p style="color: #6b7280; font-size: 13px; margin-top: 24px;">
-          This is an automated notification from the LifeChangers platform.
+          This is an automated notification from the LC Shop app.
         </p>
       </div>
     </div>

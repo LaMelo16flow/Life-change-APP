@@ -46,7 +46,7 @@ export function ResetPasswordForm() {
             <div className="relative bg-white rounded-full p-3 shadow-2xl shadow-brand-500/20 ring-4 ring-white/10">
               <img
                 src={`${import.meta.env.BASE_URL}logo.webp`}
-                alt="Life Changers Logo"
+                alt="LC Shop logo"
                 className="w-20 h-20 object-contain"
               />
             </div>

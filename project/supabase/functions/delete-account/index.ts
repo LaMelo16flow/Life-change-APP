@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { isGmailConfigured, sendGmailEmail } from "../_shared/sendGmailEmail.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,7 +41,7 @@ function buildDeletionEmailHtml(
           <p style="margin: 4px 0; color: #7f1d1d;">Date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
         </div>
         <p style="color: #6b7280; font-size: 13px;">
-          This is an automated notification from the LifeChangers platform.
+          This is an automated notification from the LC Shop app.
         </p>
       </div>
     </div>
@@ -172,24 +173,14 @@ Deno.serve(async (req: Request) => {
         isSelfDelete
       );
 
-      const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-
-      if (RESEND_API_KEY) {
+      if (isGmailConfigured()) {
         const emailPromises = recipients
           .filter((r) => r.email)
           .map((r) =>
-            fetch("https://api.resend.com/emails", {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${RESEND_API_KEY}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                from: "LifeChangers <notifications@lifechangers.com>",
-                to: [r.email],
-                subject: `Account Deleted: ${deletedUserName}`,
-                html: emailHtml,
-              }),
+            sendGmailEmail({
+              to: r.email,
+              subject: `Account Deleted: ${deletedUserName}`,
+              html: emailHtml,
             }).catch((err) =>
               console.error(`Failed to email ${r.email}:`, err)
             )

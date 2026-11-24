@@ -146,13 +146,13 @@ export function AuthForm() {
             <div className="relative bg-white rounded-full p-3 shadow-2xl shadow-brand-500/20 ring-4 ring-white/10">
               <img
                 src={`${import.meta.env.BASE_URL}logo.webp`}
-                alt="Life Changers Logo"
+                alt="LC Shop logo"
                 className="w-20 h-20 object-contain"
               />
             </div>
           </div>
           <h1 className="text-3xl font-bold text-white tracking-tight mb-2">
-            Life Changers
+            LC Shop
           </h1>
           <p className="text-gray-400 text-sm">
             Life changers teamwork
@@ -283,7 +283,7 @@ export function AuthForm() {
                 <p className="text-gray-400 text-sm mt-1">
                   {isLogin
                     ? 'Connectez-vous pour acceder a votre espace'
-                    : 'Rejoignez notre communaute de Life Changers'}
+                    : 'Rejoignez la communaute LC Shop'}
                 </p>
               </div>
 
