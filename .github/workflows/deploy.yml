@@ -34,10 +34,15 @@ jobs:
 
       - name: Build
         working-directory: ./project
+        # Public values (they ship inside the website anyway). Repository
+        # secrets of the same name override them if set. Without them the
+        # build has no Supabase address and the site shows a white screen.
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-        run: npm run build
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://eqqfbdyjcvwmrnbtvarb.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVxcWZiZHlqY3Z3bXJuYnR2YXJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY3NzgwMjMsImV4cCI6MjA4MjM1NDAyM30.KujqmUru0ja7l0Lx-n8elZUqEGJSwPY1U1Twss_1bxQ' }}
+        run: |
+          test -n "$VITE_SUPABASE_URL" && test -n "$VITE_SUPABASE_ANON_KEY" || { echo "Supabase env missing"; exit 1; }
+          npm run build
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
