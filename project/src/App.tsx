@@ -5,6 +5,7 @@ import { AuthForm } from './components/AuthForm';
 import { ResetPasswordForm } from './components/ResetPasswordForm';
 import { Dashboard } from './components/Dashboard';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { AppUpdater } from './components/AppUpdater';
 
 function AppContent() {
   const { user, profile, loading, isPasswordRecovery } = useAuth();
@@ -35,6 +36,7 @@ function App() {
         <ToastProvider>
           <AuthProvider>
             <AppContent />
+            <AppUpdater />
           </AuthProvider>
         </ToastProvider>
       </LanguageProvider>

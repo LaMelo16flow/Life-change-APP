@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { onAppResume } from '../../lib/appLifecycle';
 import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { getLocalizedProductName } from '../../utils/productLocale';
@@ -129,8 +130,13 @@ export default function OrderManagement() {
         await loadStatusCounts();
       })
       .subscribe();
+    const offResume = onAppResume(async () => {
+      await loadOrders();
+      await loadStatusCounts();
+    });
 
     return () => {
+      offResume();
       supabase.removeChannel(updateChannel);
     };
   }, []);

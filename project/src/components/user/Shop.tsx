@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase, Profile } from '../../lib/supabase';
+import { onAppResume } from '../../lib/appLifecycle';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { formatCurrency } from '../../utils/currency';
@@ -120,8 +121,10 @@ export default function Shop() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'product_inventory' }, () => loadData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'product_promotions' }, () => loadData())
       .subscribe();
+    const offResume = onAppResume(() => loadData());
 
     return () => {
+      offResume();
       supabase.removeChannel(channel);
     };
   }, []);

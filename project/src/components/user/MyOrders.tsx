@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
+import { onAppResume } from '../../lib/appLifecycle';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -100,8 +101,10 @@ export default function MyOrders() {
         loadOrders();
       })
       .subscribe();
+    const offResume = onAppResume(() => loadOrders());
 
     return () => {
+      offResume();
       supabase.removeChannel(channel);
     };
   }, [user]);

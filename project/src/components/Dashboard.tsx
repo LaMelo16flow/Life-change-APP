@@ -6,6 +6,7 @@ import { UserDashboard } from './user/UserDashboard';
 import { AdminDashboard } from './admin/AdminDashboard';
 import { NotificationBell } from './NotificationBell';
 import { supabase } from '../lib/supabase';
+import { onAppResume } from '../lib/appLifecycle';
 
 export function Dashboard() {
   const { profile, signOut, isMaster, hasPermission, isAdminOrManager } = useAuth();
@@ -65,8 +66,10 @@ export function Dashboard() {
         loadUnread();
       })
       .subscribe();
+    const offResume = onAppResume(() => loadUnread());
 
     return () => {
+      offResume();
       clearInterval(interval);
       window.removeEventListener('notification-read', handleNotificationRead);
       supabase.removeChannel(channel);

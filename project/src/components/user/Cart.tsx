@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase, Profile } from '../../lib/supabase';
+import { onAppResume } from '../../lib/appLifecycle';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { formatCurrency } from '../../utils/currency';
@@ -66,8 +67,10 @@ export default function Cart() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'product_promotions' }, () => loadCartData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cart_items', filter: `user_id=eq.${user.id}` }, () => loadCartData())
       .subscribe();
+    const offResume = onAppResume(() => loadCartData());
 
     return () => {
+      offResume();
       supabase.removeChannel(channel);
     };
   }, [user]);

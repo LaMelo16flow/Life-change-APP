@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase, Product } from '../../lib/supabase';
+import { onAppResume } from '../../lib/appLifecycle';
 import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { formatCurrency } from '../../utils/currency';
@@ -224,8 +225,10 @@ export function ProductManagement() {
         await fetchProducts();
       })
       .subscribe();
+    const offResume = onAppResume(() => fetchProducts());
 
     return () => {
+      offResume();
       supabase.removeChannel(channel);
     };
   }, []);
