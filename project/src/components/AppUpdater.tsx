@@ -58,7 +58,13 @@ export function AppUpdater() {
       if (document.visibilityState === 'hidden' && pendingRef.current) hardReload(pendingRef.current);
     };
 
-    const first = setTimeout(check, 3_000);
+    // The home-screen app (standalone) is often resumed from memory instead of
+    // being reloaded: check right away at launch and whenever it is shown again.
+    const standalone =
+      window.matchMedia?.('(display-mode: standalone)').matches ||
+      (navigator as Navigator & { standalone?: boolean }).standalone === true;
+    const first = setTimeout(check, standalone ? 0 : 3_000);
+    const onPageShow = () => check();
     const interval = setInterval(check, CHECK_EVERY_MS);
     const offResume = onAppResume(check);
     const onVisible = () => document.visibilityState === 'visible' && check();
@@ -66,6 +72,7 @@ export function AppUpdater() {
     document.addEventListener('visibilitychange', onHidden);
     document.addEventListener('focusout', onFocusOut);
     window.addEventListener('focus', check);
+    window.addEventListener('pageshow', onPageShow);
     window.addEventListener('vite:preloadError', onPreloadError);
 
     return () => {
@@ -77,6 +84,7 @@ export function AppUpdater() {
       document.removeEventListener('visibilitychange', onHidden);
       document.removeEventListener('focusout', onFocusOut);
       window.removeEventListener('focus', check);
+      window.removeEventListener('pageshow', onPageShow);
       window.removeEventListener('vite:preloadError', onPreloadError);
     };
   }, []);
