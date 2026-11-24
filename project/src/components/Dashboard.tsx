@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { LayoutDashboard, Users, Award, TrendingUp, Bell, LogOut, Menu, ShoppingCart, Shield, CircleUser as UserCircle, Package, ShoppingBag, UsersRound, Tag, Globe, Settings, CreditCard, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Users, Award, TrendingUp, Bell, LogOut, Menu, ShoppingCart, Shield, CircleUser as UserCircle, Package, ShoppingBag, UsersRound, Tag, Globe, Settings, BarChart3 } from 'lucide-react';
 import { UserDashboard } from './user/UserDashboard';
 import { AdminDashboard } from './admin/AdminDashboard';
 import { NotificationBell } from './NotificationBell';
@@ -92,14 +92,12 @@ export function Dashboard() {
     { id: 'analytics', label: 'Analytics', icon: BarChart3, permission: 'manage_inventory' as const },
     { id: 'promotions', label: t('nav.promotions'), icon: Award, permission: 'manage_promotions' as const },
     { id: 'deals', label: t('nav.deals'), icon: Tag, permission: 'manage_products' as const },
-    { id: 'payment-settings', label: t('nav.paymentSettings'), icon: CreditCard, adminOnly: true },
     { id: 'notifications', label: t('nav.notifications'), icon: Bell, badge: unreadCount, always: true },
   ];
 
   const adminTabs = allAdminTabs.filter(tab => {
     if (tab.always) return true;
     if (tab.masterOnly) return isMaster;
-    if (tab.adminOnly) return profile?.role === 'admin';
     if (tab.permission) return hasPermission(tab.permission);
     return true;
   });

@@ -395,6 +395,7 @@ export function UserProfile() {
               <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <MapPin className="w-5 h-5" />
                 {t('profile.deliveryAddress')}
+                <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{t('profile.optional')}</span>
               </h4>
               <p className="text-sm text-gray-600 mb-4">
                 {t('profile.deliveryAddressDesc')}
@@ -403,7 +404,7 @@ export function UserProfile() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {t('profile.streetAddress')} *
+                    {t('profile.streetAddress')}
                   </label>
                   <input
                     type="text"
@@ -411,7 +412,6 @@ export function UserProfile() {
                     onChange={(e) => setFormData({ ...formData, address_line1: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                     placeholder="123 Main Street"
-                    required
                   />
                 </div>
 
@@ -431,7 +431,7 @@ export function UserProfile() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {t('profile.city')} *
+                      {t('profile.city')}
                     </label>
                     <input
                       type="text"
@@ -439,13 +439,12 @@ export function UserProfile() {
                       onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                       placeholder="New York"
-                      required
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {t('profile.stateProvince')} *
+                      {t('profile.stateProvince')}
                     </label>
                     <input
                       type="text"
@@ -453,14 +452,13 @@ export function UserProfile() {
                       onChange={(e) => setFormData({ ...formData, state_province: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                       placeholder="NY"
-                      required
                     />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {t('profile.postalCode')} *
+                    {t('profile.postalCode')}
                   </label>
                   <input
                     type="text"
@@ -468,7 +466,6 @@ export function UserProfile() {
                     onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                     placeholder="10001"
-                    required
                   />
                 </div>
               </div>

@@ -6,6 +6,7 @@ import { getLocalizedProductName, getLocalizedProductType } from '../../utils/pr
 import { getPromoLabel } from '../../utils/promoLocale';
 import { Tag, Plus, Trash2, CreditCard as Edit2, Save, Package, Power, CheckCircle2, Loader2 } from 'lucide-react';
 import { sendPromotionNotification } from '../../utils/notifications';
+import { toLocalInput } from '../../utils/datetime';
 
 interface Product {
   id: string;
@@ -27,15 +28,6 @@ interface Promotion {
   is_active: boolean;
   created_at: string;
   product?: Product;
-}
-
-// <input type="datetime-local"> works in the browser's LOCAL time. Using
-// toISOString().slice(0, 16) (UTC) shifted every promotion by the timezone
-// offset - in Moncton a promo created "now" only started 4 hours later and
-// so did not show in the shop.
-function toLocalInput(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 const defaultForm = () => ({
