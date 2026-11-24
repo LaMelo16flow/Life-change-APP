@@ -155,7 +155,7 @@ export function AuthForm() {
             LC Shop
           </h1>
           <p className="text-gray-400 text-sm">
-            Life changers teamwork
+            Buy • Shop • Enjoy
           </p>
         </div>
 
