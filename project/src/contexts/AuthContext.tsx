@@ -41,8 +41,23 @@ const readRecoveryFlag = () => {
 const writeRecoveryFlag = (on: boolean) => {
   try {
     if (on) sessionStorage.setItem(RECOVERY_FLAG, '1');
-    else sessionStorage.removeItem(RECOVERY_FLAG);
+    else {
+      sessionStorage.removeItem(RECOVERY_FLAG);
+      sessionStorage.removeItem(RECOVERY_TOKEN);
+    }
   } catch { /* storage unavailable */ }
+};
+
+// One-time code from a reset email that links straight to the site
+// (?token_hash=...&type=recovery). It is NOT used when the page opens - only
+// when the person saves the new password - so opening the link (or an email
+// scanner opening it) never logs anyone in or burns the code.
+const RECOVERY_TOKEN = 'lc_recovery_token';
+const readRecoveryToken = () => {
+  try { return sessionStorage.getItem(RECOVERY_TOKEN); } catch { return null; }
+};
+const writeRecoveryToken = (token: string) => {
+  try { sessionStorage.setItem(RECOVERY_TOKEN, token); } catch { /* storage unavailable */ }
 };
 
 const EXPIRED_LINK_MESSAGE =
@@ -149,26 +164,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearAuthParamsFromUrl();
       }
 
-      // Custom email template using {{ .TokenHash }}: verify it ourselves.
+      // Email template linking straight here with {{ .TokenHash }}: keep the
+      // code for when the new password is saved; don't log in yet.
       if (initialAuthRedirect.isRecovery && initialAuthRedirect.tokenHash) {
-        const { error } = await supabase.auth.verifyOtp({
-          token_hash: initialAuthRedirect.tokenHash,
-          type: 'recovery',
-        });
+        writeRecoveryToken(initialAuthRedirect.tokenHash);
         clearAuthParamsFromUrl();
-        if (error) {
-          console.error('Recovery link verification failed:', error);
-          setIsPasswordRecovery(false);
-          setAuthNotice({ type: 'error', message: EXPIRED_LINK_MESSAGE, openForgotPassword: true });
-        }
       }
+      const pendingToken = readRecoveryToken();
 
       const { data: { session } } = await supabase.auth.getSession();
       if (!mounted) return;
 
       // In recovery mode but no session means the link did not log us in
       // (expired, already used, or opened on another device): ask again.
-      if (!session?.user && (initialAuthRedirect.isRecovery || readRecoveryFlag())) {
+      if (!pendingToken && !session?.user && (initialAuthRedirect.isRecovery || readRecoveryFlag())) {
         setIsPasswordRecovery(false);
         setAuthNotice({ type: 'error', message: EXPIRED_LINK_MESSAGE, openForgotPassword: true });
       }
@@ -342,6 +351,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const updatePassword = async (newPassword: string) => {
+    // Link with a one-time code: check it now, right before changing the
+    // password (this is the moment the link is used).
+    const pendingToken = readRecoveryToken();
+    if (pendingToken) {
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        token_hash: pendingToken,
+        type: 'recovery',
+      });
+      if (verifyError) {
+        console.error('Recovery code verification failed:', verifyError);
+        setIsPasswordRecovery(false);
+        setAuthNotice({ type: 'error', message: EXPIRED_LINK_MESSAGE, openForgotPassword: true });
+        throw new Error(EXPIRED_LINK_MESSAGE);
+      }
+    }
+
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) {
       if (error.message?.toLowerCase().includes('session')) {
