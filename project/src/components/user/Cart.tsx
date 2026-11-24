@@ -87,10 +87,17 @@ export default function Cart() {
           .single(),
         supabase
           .from('product_promotions')
-          .select('id, product_id, title, buy_quantity, free_quantity, country_code'),
+          .select('id, product_id, title, buy_quantity, free_quantity, country_code')
+          // Only promotions that are switched on and currently running. This
+          // used to load every promotion, so paused/expired/cancelled ones
+          // still gave free items at checkout.
+          .eq('is_active', true)
+          .lte('starts_at', new Date().toISOString())
+          .gt('ends_at', new Date().toISOString()),
       ]);
 
-      if (cartRes.data) setCartItems(cartRes.data);
+      // Products the admin has hidden from the shop can't be ordered either.
+      if (cartRes.data) setCartItems(cartRes.data.filter((item) => item.products && item.products.is_active !== false));
       if (promosRes.data) setPromotions(promosRes.data);
 
       if (profileRes.data) {
