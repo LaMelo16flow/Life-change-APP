@@ -87,10 +87,17 @@ export default function Cart() {
           .single(),
         supabase
           .from('product_promotions')
-          .select('id, product_id, title, buy_quantity, free_quantity, country_code'),
+          .select('id, product_id, title, buy_quantity, free_quantity, country_code')
+          // Only promotions that are switched on and currently running. This
+          // used to load every promotion, so paused/expired/cancelled ones
+          // still gave free items at checkout.
+          .eq('is_active', true)
+          .lte('starts_at', new Date().toISOString())
+          .gt('ends_at', new Date().toISOString()),
       ]);
 
-      if (cartRes.data) setCartItems(cartRes.data);
+      // Products the admin has hidden from the shop can't be ordered either.
+      if (cartRes.data) setCartItems(cartRes.data.filter((item) => item.products && item.products.is_active !== false));
       if (promosRes.data) setPromotions(promosRes.data);
 
       if (profileRes.data) {
@@ -180,7 +187,7 @@ export default function Cart() {
   }
 
   async function handleCheckout() {
-    if (!profile || cartItems.length === 0) return;
+    if (!profile || cartItems.length === 0 || processing) return;
 
     setProcessing(true);
     setMessage(null);
@@ -263,10 +270,14 @@ export default function Cart() {
         .insert(orderItems);
 
       if (itemsError) {
+        // Don't leave an empty order behind for admins to approve.
+        await supabase.from('orders').delete().eq('id', orderData.id);
         throw new Error(t('cart.failedSaveOrderItems', { message: itemsError.message }));
       }
 
-      await sendOrderPlacedNotification({
+      // The order is saved at this point: an email/notification failure must
+      // not show "checkout failed" (the user would retry and order twice).
+      sendOrderPlacedNotification({
         orderNumber,
         productName: productNames.join(', '),
         quantity: cartItems.reduce((sum, item) => {
@@ -277,7 +288,7 @@ export default function Cart() {
         totalAmount: formatCurrency(orderTotal),
         userName: profile.full_name || user?.email || 'Customer',
         userEmail: user?.email || '',
-      }, user?.id);
+      }, user?.id).catch((err) => console.error('Error sending order notification:', err));
 
       const { error: clearCartError } = await supabase
         .from('cart_items')

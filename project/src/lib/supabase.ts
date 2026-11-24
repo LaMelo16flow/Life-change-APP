@@ -7,6 +7,41 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
+// Public URL of the deployed app. Password-reset emails always send users
+// back here (override with VITE_SITE_URL, e.g. for local testing).
+export const SITE_URL: string =
+  (import.meta.env.VITE_SITE_URL as string | undefined) || 'https://lamelo16flow.github.io/Life-change-APP/';
+
+export interface AuthRedirectInfo {
+  isRecovery: boolean;
+  tokenHash: string | null;
+  errorCode: string | null;
+  errorDescription: string | null;
+}
+
+// Read the auth callback parameters BEFORE the Supabase client is created:
+// with detectSessionInUrl the client consumes the URL hash and fires the
+// one-time PASSWORD_RECOVERY event, possibly before React has subscribed.
+function readAuthRedirect(): AuthRedirectInfo {
+  const empty = { isRecovery: false, tokenHash: null, errorCode: null, errorDescription: null };
+  if (typeof window === 'undefined') return empty;
+  try {
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const query = new URLSearchParams(window.location.search);
+    const get = (k: string) => hash.get(k) ?? query.get(k);
+    return {
+      isRecovery: get('type') === 'recovery',
+      tokenHash: query.get('token_hash'),
+      errorCode: get('error_code') ?? get('error'),
+      errorDescription: get('error_description'),
+    };
+  } catch {
+    return empty;
+  }
+}
+
+export const initialAuthRedirect = readAuthRedirect();
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,

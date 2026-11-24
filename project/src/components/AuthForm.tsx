@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { LogIn, UserPlus, Loader2, Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
 
@@ -16,15 +16,37 @@ export function AuthForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
-  const { signIn, signUp, sendPasswordResetEmail } = useAuth();
+  const { signIn, signUp, sendPasswordResetEmail, authNotice, clearAuthNotice } = useAuth();
+
+  // Messages coming from the password-reset flow (expired link, password
+  // changed successfully, ...).
+  useEffect(() => {
+    if (!authNotice) return;
+    if (authNotice.openForgotPassword) {
+      setIsLogin(true);
+      setIsForgotPassword(true);
+    }
+    if (authNotice.type === 'success') {
+      setSuccess(authNotice.message);
+      setError('');
+    } else {
+      setError(authNotice.message);
+      setSuccess('');
+    }
+    clearAuthNotice();
+  }, [authNotice, clearAuthNotice]);
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
 
-    if (!email) {
+    if (!email.trim()) {
       setError('Le courriel est requis');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Veuillez entrer un courriel valide');
       return;
     }
 
@@ -44,14 +66,21 @@ export function AuthForm() {
     setError('');
     setSuccess('');
 
+    const cleanEmail = email.trim();
+    const cleanName = fullName.trim();
+
     if (isLogin) {
-      if (!email || !password) {
+      if (!cleanEmail || !password) {
         setError('Le courriel et le mot de passe sont requis');
         return;
       }
     } else {
-      if (!email || !password || !fullName) {
+      if (!cleanEmail || !password || !cleanName) {
         setError('Tous les champs sont requis');
+        return;
+      }
+      if (password.length < 6) {
+        setError('Le mot de passe doit contenir au moins 6 caracteres');
         return;
       }
     }
@@ -60,9 +89,9 @@ export function AuthForm() {
 
     try {
       if (isLogin) {
-        await signIn(email, password);
+        await signIn(cleanEmail, password);
       } else {
-        const result = await signUp(email, password, fullName, DEFAULT_COUNTRY_CODE);
+        const result = await signUp(cleanEmail, password, cleanName, DEFAULT_COUNTRY_CODE);
         if (result.requiresApproval) {
           setSuccess('Compte cree avec succes! Veuillez attendre l\'approbation de l\'administrateur avant de pouvoir vous connecter.');
         } else {

@@ -195,7 +195,27 @@ export default function OrderManagement() {
         throw error;
       }
 
-      setOrders(data || []);
+      // The customer profile can be missing (deleted account, or hidden from
+      // a manager by RLS). Normalise it so the list never crashes on
+      // order.user.full_name.
+      setOrders(
+        (data || []).map((o) => ({
+          ...o,
+          user: {
+            phone: null,
+            address_line1: null,
+            address_line2: null,
+            city: null,
+            state_province: null,
+            postal_code: null,
+            country_code: null,
+            profile_image_url: null,
+            ...(o.user || {}),
+            full_name: o.user?.full_name || o.user?.email || '—',
+            email: o.user?.email || '',
+          },
+        }))
+      );
     } catch (error) {
       console.error('Error loading orders:', error);
     } finally {
@@ -517,10 +537,9 @@ export default function OrderManagement() {
         adminEmail = adminSettings?.value?.email || currentUserEmail;
       }
 
-      await reserveStockForOrder(selectedOrder);
-      await applyCrossOrderPromotions(selectedOrder);
-
-      const { error: orderError } = await supabase
+      // Claim the order first (only if still pending) so a double click or
+      // two admins approving at once cannot reserve the stock twice.
+      const { data: claimed, error: orderError } = await supabase
         .from('orders')
         .update({
           status: 'awaiting_payment',
@@ -529,9 +548,22 @@ export default function OrderManagement() {
           admin_notes: adminNotes,
           admin_email: adminEmail,
         })
-        .eq('id', selectedOrder.id);
+        .eq('id', selectedOrder.id)
+        .eq('status', 'pending')
+        .select('id');
 
       if (orderError) throw orderError;
+      if (!claimed || claimed.length === 0) {
+        toast.error(t('om.alreadyProcessed'));
+        setShowApproveModal(false);
+        setSelectedOrder(null);
+        await loadOrders();
+        await loadStatusCounts();
+        return;
+      }
+
+      await reserveStockForOrder(selectedOrder);
+      await applyCrossOrderPromotions(selectedOrder);
 
       const { displayName } = getOrderDisplayInfo(selectedOrder);
 
@@ -777,6 +809,31 @@ export default function OrderManagement() {
       const { data: userData } = await supabase.auth.getUser();
       const { displayName, totalPV: orderPV } = getOrderDisplayInfo(selectedOrder);
 
+      // Claim the order FIRST with a conditional update: only an order that
+      // is still awaiting payment can be completed. If two admins click
+      // "Verify" at the same time, or the order was already completed, the
+      // second attempt matches 0 rows and stops here - so stock is never
+      // deducted twice and PV is never credited twice.
+      const { data: claimed, error: orderError } = await supabase
+        .from('orders')
+        .update({
+          status: 'completed',
+          payment_verified_at: new Date().toISOString(),
+        })
+        .eq('id', selectedOrder.id)
+        .eq('status', 'awaiting_payment')
+        .select('id');
+
+      if (orderError) throw orderError;
+      if (!claimed || claimed.length === 0) {
+        toast.error(t('om.alreadyProcessed'));
+        setShowPaymentModal(false);
+        setSelectedOrder(null);
+        await loadOrders();
+        await loadStatusCounts();
+        return;
+      }
+
       if (selectedOrder.order_items && selectedOrder.order_items.length > 0) {
         for (const item of selectedOrder.order_items) {
           const totalQuantity = item.quantity + item.free_quantity;
@@ -842,16 +899,6 @@ export default function OrderManagement() {
           .update({ total_pv: (profileData.total_pv || 0) + roundedPV })
           .eq('id', selectedOrder.user_id);
       }
-
-      const { error: orderError } = await supabase
-        .from('orders')
-        .update({
-          status: 'completed',
-          payment_verified_at: new Date().toISOString(),
-        })
-        .eq('id', selectedOrder.id);
-
-      if (orderError) throw orderError;
 
       await supabase.from('notifications').insert([{
         user_id: selectedOrder.user_id,
@@ -929,6 +976,14 @@ export default function OrderManagement() {
 
   const handleStatusChange = async () => {
     if (!selectedOrder || !newStatus || newStatus === selectedOrder.status || changingStatus) return;
+
+    // A completed order has already deducted stock and credited PV; moving it
+    // back would let it be verified (and counted) a second time. Completing
+    // must go through "Verify payment", which does the stock/PV bookkeeping.
+    if (selectedOrder.status === 'completed' || newStatus === 'completed') {
+      toast.error(t('om.completedViaVerifyOnly'));
+      return;
+    }
     setChangingStatus(true);
 
     const wasHoldingReservation = selectedOrder.status === 'awaiting_payment';
@@ -986,7 +1041,7 @@ export default function OrderManagement() {
     const { displayName } = getOrderDisplayInfo(order);
     const matchesSearch =
       order.order_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (order.user?.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       displayName.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSearch;
   });
@@ -1985,7 +2040,13 @@ export default function OrderManagement() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
               >
                 {['pending', 'awaiting_payment', 'rejected', 'completed', 'cancelled'].map(status => (
-                  <option key={status} value={status}>{getStatusLabel(status)}</option>
+                  <option
+                    key={status}
+                    value={status}
+                    disabled={status !== selectedOrder.status && (status === 'completed' || selectedOrder.status === 'completed')}
+                  >
+                    {getStatusLabel(status)}
+                  </option>
                 ))}
               </select>
             </div>

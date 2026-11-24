@@ -3,8 +3,10 @@ import { supabase } from '../../lib/supabase';
 import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { getLocalizedProductName, getLocalizedProductType } from '../../utils/productLocale';
-import { getPromoBuyGetFreeText } from '../../utils/promoLocale';
-import { Tag, Plus, Calendar, Trash2, Ban, Package, X } from 'lucide-react';
+import { getPromoBuyGetFreeText, getPromoLabel } from '../../utils/promoLocale';
+import { sendPromotionNotification } from '../../utils/notifications';
+import { toLocalInput } from '../../utils/datetime';
+import { Tag, Plus, Calendar, Trash2, Ban, Package, X, Power, CheckCircle2 } from 'lucide-react';
 import { getCountryName, loadCountryNames } from '../../utils/countries';
 
 interface ProductPromotion {
@@ -50,8 +52,8 @@ export function PromotionApprovals() {
     buy_quantity: 3,
     free_quantity: 1,
     country_code: '',
-    starts_at: new Date().toISOString().slice(0, 16),
-    ends_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+    starts_at: toLocalInput(new Date()),
+    ends_at: toLocalInput(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
   });
 
   useEffect(() => {
@@ -97,6 +99,11 @@ export function PromotionApprovals() {
       return;
     }
 
+    if (new Date(formData.ends_at) <= new Date(formData.starts_at)) {
+      toast.warning(t('promo.endAfterStart'));
+      return;
+    }
+
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -117,6 +124,15 @@ export function PromotionApprovals() {
       return;
     }
 
+    notifyPromotion({
+      product_id: formData.product_id,
+      title: formData.title.trim(),
+      buy_quantity: formData.buy_quantity,
+      free_quantity: formData.free_quantity,
+      starts_at: new Date(formData.starts_at).toISOString(),
+      ends_at: new Date(formData.ends_at).toISOString(),
+    });
+
     toast.success(t('promo.created'));
     setShowAddModal(false);
     setFormData({
@@ -125,13 +141,31 @@ export function PromotionApprovals() {
       buy_quantity: 3,
       free_quantity: 1,
       country_code: '',
-      starts_at: new Date().toISOString().slice(0, 16),
-      ends_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+      starts_at: toLocalInput(new Date()),
+      ends_at: toLocalInput(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
     });
     fetchProductPromotions();
   };
 
+  const notifyPromotion = (p: { product_id: string; title: string; buy_quantity: number; free_quantity: number; starts_at: string; ends_at: string }) => {
+    const product = products.find((pr) => pr.id === p.product_id) ||
+      productPromotions.find((pr) => pr.product_id === p.product_id)?.product;
+    sendPromotionNotification({
+      productName: product ? getLocalizedProductName(product, language) : t('promo.selectedProductFallback'),
+      title: getPromoLabel({ title: p.title, buy_quantity: p.buy_quantity, free_quantity: p.free_quantity }, language),
+      buyQuantity: p.buy_quantity,
+      freeQuantity: p.free_quantity,
+      startsAt: p.starts_at,
+      endsAt: p.ends_at,
+    }).catch((err) => console.error('Error sending promotion notifications:', err));
+  };
+
   const toggleProductPromotion = async (id: string, currentActive: boolean) => {
+    const promo = productPromotions.find((p) => p.id === id);
+    if (!currentActive && promo && new Date(promo.ends_at) <= new Date()) {
+      toast.warning(t('promo.expiredEditDates'));
+      return;
+    }
     const { error } = await supabase
       .from('product_promotions')
       .update({ is_active: !currentActive, updated_at: new Date().toISOString() })
@@ -141,7 +175,8 @@ export function PromotionApprovals() {
       toast.error(t('promo.failedUpdate'));
       return;
     }
-    toast.success(currentActive ? t('promo.paused') : t('promo.activated'));
+    if (!currentActive && promo) notifyPromotion(promo);
+    toast.success(currentActive ? t('promo.paused') : t('promo.activatedToast'));
     fetchProductPromotions();
   };
 
@@ -429,6 +464,10 @@ function PromoRow({
 }) {
   const { language, t } = useLanguage();
   const expired = new Date(promo.ends_at) <= new Date();
+  // is_active=true with a future start date is SCHEDULED, not paused. It used
+  // to show "Paused" with an "Activate" button that actually switched it OFF.
+  const scheduled = promo.is_active && !expired && new Date(promo.starts_at) > new Date();
+  const paused = !promo.is_active && !expired;
   const [showConfirmCancel, setShowConfirmCancel] = useState(false);
   const productName = promo.product ? getLocalizedProductName(promo.product, language) : undefined;
 
@@ -454,7 +493,12 @@ function PromoRow({
               {t('admin.expired')}
             </span>
           )}
-          {!active && !expired && (
+          {scheduled && (
+            <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700">
+              {t('promo.scheduled')}
+            </span>
+          )}
+          {paused && (
             <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-700">
               {t('promo.pausedBadge')}
             </span>
@@ -480,13 +524,15 @@ function PromoRow({
         </div>
       </div>
       <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
-        {active && (
+        {(active || scheduled) && (
           <>
             <button
               onClick={() => onToggle(promo.id, promo.is_active)}
-              className="px-3 py-1.5 text-xs font-medium rounded-lg transition bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
+              aria-pressed="true"
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition bg-green-600 text-white hover:bg-green-700"
             >
-              {t('admin.pause')}
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              {t('promo.activeDeactivate')}
             </button>
             {showConfirmCancel ? (
               <div className="flex items-center gap-1">
@@ -514,12 +560,14 @@ function PromoRow({
             )}
           </>
         )}
-        {!active && !expired && (
+        {paused && (
           <button
             onClick={() => onToggle(promo.id, promo.is_active)}
-            className="px-3 py-1.5 text-xs font-medium rounded-lg transition bg-green-100 text-green-700 hover:bg-green-200"
+            aria-pressed="false"
+            className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition bg-white text-green-700 border border-green-300 hover:bg-green-50"
           >
-            {t('admin.activate')}
+            <Power className="w-3.5 h-3.5" />
+            {t('promo.activate')}
           </button>
         )}
         <button

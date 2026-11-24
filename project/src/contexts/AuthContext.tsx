@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { supabase, Profile, ManagerPermission, PermissionType } from '../lib/supabase';
+import { supabase, Profile, ManagerPermission, PermissionType, SITE_URL, initialAuthRedirect } from '../lib/supabase';
 import { sendAccountApprovalRequestNotification } from '../utils/notifications';
 import { checkRateLimit, formatRetryTime } from '../utils/rateLimiter';
 
@@ -21,6 +21,40 @@ interface AuthContextType {
   sendPasswordResetEmail: (email: string) => Promise<void>;
   updatePassword: (newPassword: string) => Promise<void>;
   cancelPasswordRecovery: () => Promise<void>;
+  authNotice: AuthNotice | null;
+  clearAuthNotice: () => void;
+}
+
+export interface AuthNotice {
+  type: 'success' | 'error';
+  message: string;
+  /** Open the "forgot password" form so the user can ask for a new link. */
+  openForgotPassword?: boolean;
+}
+
+// Survives a page reload while the user is on the "new password" screen, so
+// refreshing does not drop them into the dashboard without changing it.
+const RECOVERY_FLAG = 'lc_password_recovery';
+const readRecoveryFlag = () => {
+  try { return sessionStorage.getItem(RECOVERY_FLAG) === '1'; } catch { return false; }
+};
+const writeRecoveryFlag = (on: boolean) => {
+  try {
+    if (on) sessionStorage.setItem(RECOVERY_FLAG, '1');
+    else sessionStorage.removeItem(RECOVERY_FLAG);
+  } catch { /* storage unavailable */ }
+};
+
+const EXPIRED_LINK_MESSAGE =
+  'Ce lien de reinitialisation est invalide ou a expire. Entrez votre courriel pour recevoir un nouveau lien.';
+
+function clearAuthParamsFromUrl() {
+  try {
+    const url = new URL(window.location.href);
+    ['token_hash', 'type', 'error', 'error_code', 'error_description', 'code'].forEach((k) => url.searchParams.delete(k));
+    url.hash = '';
+    window.history.replaceState(window.history.state, '', url.toString());
+  } catch { /* ignore */ }
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -31,7 +65,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [permissions, setPermissions] = useState<ManagerPermission[]>([]);
-  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+  const [isPasswordRecovery, setIsPasswordRecoveryState] = useState(
+    () => initialAuthRedirect.isRecovery || readRecoveryFlag()
+  );
+  const [authNotice, setAuthNotice] = useState<AuthNotice | null>(null);
+  const setIsPasswordRecovery = useCallback((on: boolean) => {
+    writeRecoveryFlag(on);
+    setIsPasswordRecoveryState(on);
+  }, []);
+  const clearAuthNotice = useCallback(() => setAuthNotice(null), []);
   const isSigningInRef = useRef(false);
 
   const fetchProfile = useCallback(async (userId: string) => {
@@ -93,19 +135,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // The Supabase client is constructed at module load (src/lib/supabase.ts),
-    // before this effect ever runs - with detectSessionInUrl on, it can already
-    // have parsed a `#type=recovery` link and fired the one-time PASSWORD_RECOVERY
-    // event before the onAuthStateChange listener below is attached, which would
-    // silently drop straight into the normal dashboard instead of the reset
-    // screen. Checking the URL directly here is not timing-dependent.
-    if (typeof window !== 'undefined' && window.location.hash.includes('type=recovery')) {
-      setIsPasswordRecovery(true);
+    // Recovery intent is read from the URL in src/lib/supabase.ts before the
+    // client consumes it (see initialAuthRedirect), so it is not timing-dependent.
+    if (initialAuthRedirect.isRecovery) {
+      writeRecoveryFlag(true);
     }
 
     const initialize = async () => {
+      // Expired / already-used link: Supabase redirects back with an error.
+      if (initialAuthRedirect.errorCode) {
+        setIsPasswordRecovery(false);
+        setAuthNotice({ type: 'error', message: EXPIRED_LINK_MESSAGE, openForgotPassword: true });
+        clearAuthParamsFromUrl();
+      }
+
+      // Custom email template using {{ .TokenHash }}: verify it ourselves.
+      if (initialAuthRedirect.isRecovery && initialAuthRedirect.tokenHash) {
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: initialAuthRedirect.tokenHash,
+          type: 'recovery',
+        });
+        clearAuthParamsFromUrl();
+        if (error) {
+          console.error('Recovery link verification failed:', error);
+          setIsPasswordRecovery(false);
+          setAuthNotice({ type: 'error', message: EXPIRED_LINK_MESSAGE, openForgotPassword: true });
+        }
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
       if (!mounted) return;
+
+      // In recovery mode but no session means the link did not log us in
+      // (expired, already used, or opened on another device): ask again.
+      if (!session?.user && (initialAuthRedirect.isRecovery || readRecoveryFlag())) {
+        setIsPasswordRecovery(false);
+        setAuthNotice({ type: 'error', message: EXPIRED_LINK_MESSAGE, openForgotPassword: true });
+      }
 
       if (session?.user) {
         setSession(session);
@@ -141,7 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [loadProfile]);
+  }, [loadProfile, setIsPasswordRecovery]);
 
   useEffect(() => {
     // Skip while signIn() is already fetching the profile itself (it needs
@@ -169,6 +235,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error.message === 'Email not confirmed') {
         throw new Error('Votre courriel n\'est pas encore confirme. Veuillez contacter l\'administrateur.');
       }
+      if (error.message === 'Invalid login credentials') {
+        throw new Error('Courriel ou mot de passe incorrect.');
+      }
       throw error;
     }
 
@@ -191,6 +260,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const perms = await fetchPermissions(data.user.id);
           setPermissions(perms);
         }
+      } else {
+        // Auth account without a profile row: the app cannot work, and
+        // leaving the session open would show the login form forever.
+        await supabase.auth.signOut();
+        throw new Error('Profil introuvable pour ce compte. Veuillez contacter l\'administrateur.');
       }
     }
     } finally {
@@ -262,28 +336,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(`Trop de tentatives. Reessayez dans ${formatRetryTime(retryAfterMs)}.`);
     }
 
-    const redirectTo = `${window.location.origin}${import.meta.env.BASE_URL}`;
-    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    // Always send the user back to the live site, whatever URL they asked from.
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: SITE_URL });
     if (error) throw error;
   };
 
   const updatePassword = async (newPassword: string) => {
     const { error } = await supabase.auth.updateUser({ password: newPassword });
-    if (error) throw error;
-
-    setIsPasswordRecovery(false);
-
-    const { data: { session: refreshedSession } } = await supabase.auth.getSession();
-    if (refreshedSession?.user) {
-      setSession(refreshedSession);
-      setUser(refreshedSession.user);
-      await loadProfile(refreshedSession.user.id);
+    if (error) {
+      if (error.message?.toLowerCase().includes('session')) {
+        throw new Error(EXPIRED_LINK_MESSAGE);
+      }
+      if (error.message?.toLowerCase().includes('different from the old')) {
+        throw new Error('Le nouveau mot de passe doit etre different de l\'ancien.');
+      }
+      throw error;
     }
+
+    // The recovery link only grants a temporary session for changing the
+    // password: end it and make the user log in with the new password.
+    clearAuthParamsFromUrl();
+    await signOut().catch(() => undefined);
+    setIsPasswordRecovery(false);
+    setAuthNotice({
+      type: 'success',
+      message: 'Mot de passe mis a jour avec succes. Connectez-vous avec votre nouveau mot de passe.',
+    });
   };
 
   const cancelPasswordRecovery = async () => {
+    clearAuthParamsFromUrl();
     setIsPasswordRecovery(false);
-    await signOut();
+    await signOut().catch(() => undefined);
   };
 
   const signOut = async () => {
@@ -316,6 +400,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sendPasswordResetEmail,
         updatePassword,
         cancelPasswordRecovery,
+        authNotice,
+        clearAuthNotice,
       }}
     >
       {children}

@@ -4,8 +4,9 @@ import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { getLocalizedProductName, getLocalizedProductType } from '../../utils/productLocale';
 import { getPromoLabel } from '../../utils/promoLocale';
-import { Tag, Plus, Trash2, CreditCard as Edit2, Save, Package, Ban } from 'lucide-react';
+import { Tag, Plus, Trash2, CreditCard as Edit2, Save, Package, Power, CheckCircle2, Loader2 } from 'lucide-react';
 import { sendPromotionNotification } from '../../utils/notifications';
+import { toLocalInput } from '../../utils/datetime';
 
 interface Product {
   id: string;
@@ -29,6 +30,16 @@ interface Promotion {
   product?: Product;
 }
 
+const defaultForm = () => ({
+  product_id: '',
+  title: '',
+  buy_quantity: 3,
+  free_quantity: 1,
+  starts_at: toLocalInput(new Date()),
+  ends_at: toLocalInput(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
+  is_active: true,
+});
+
 export default function ProductPromotions() {
   const toast = useToast();
   const { language, t } = useLanguage();
@@ -38,15 +49,8 @@ export default function ProductPromotions() {
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const [form, setForm] = useState({
-    product_id: '',
-    title: '',
-    buy_quantity: 3,
-    free_quantity: 1,
-    starts_at: new Date().toISOString().slice(0, 16),
-    ends_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
-    is_active: true,
-  });
+  const [form, setForm] = useState(defaultForm);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -67,15 +71,31 @@ export default function ProductPromotions() {
   };
 
   const resetForm = () => {
-    setForm({
-      product_id: '',
-      title: '',
-      buy_quantity: 3,
-      free_quantity: 1,
-      starts_at: new Date().toISOString().slice(0, 16),
-      ends_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
-      is_active: true,
-    });
+    setForm(defaultForm());
+  };
+
+  // Tell every customer about a promotion that has just been switched on.
+  const notifyPromotion = (p: { product_id: string; title: string; buy_quantity: number; free_quantity: number; starts_at: string; ends_at: string }) => {
+    const product = products.find((pr) => pr.id === p.product_id) ||
+      promotions.find((pr) => pr.product_id === p.product_id)?.product;
+    sendPromotionNotification({
+      productName: product ? getLocalizedProductName(product, language) : t('promo.selectedProductFallback'),
+      title: getPromoLabel({ title: p.title, buy_quantity: p.buy_quantity, free_quantity: p.free_quantity }, language),
+      buyQuantity: p.buy_quantity,
+      freeQuantity: p.free_quantity,
+      startsAt: p.starts_at,
+      endsAt: p.ends_at,
+    }).catch((notifyError) => console.error('Error sending promotion notifications:', notifyError));
+  };
+
+  const validDates = () => {
+    const start = new Date(form.starts_at);
+    const end = new Date(form.ends_at);
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) {
+      toast.warning(t('promo.endAfterStart'));
+      return false;
+    }
+    return true;
   };
 
   const handleAdd = async () => {
@@ -83,6 +103,7 @@ export default function ProductPromotions() {
       toast.warning(t('promo.pleaseAllFields'));
       return;
     }
+    if (!validDates()) return;
 
     const { data: userData } = await supabase.auth.getUser();
     const cleanedTitle = form.title.trim();
@@ -104,16 +125,16 @@ export default function ProductPromotions() {
       return;
     }
 
-    const productName = products.find((product) => product.id === form.product_id)?.name || t('promo.selectedProductFallback');
-
-    sendPromotionNotification({
-      productName,
-      title: getPromoLabel({ title: cleanedTitle, buy_quantity: form.buy_quantity, free_quantity: form.free_quantity }, language),
-      buyQuantity: form.buy_quantity,
-      freeQuantity: form.free_quantity,
-      startsAt: new Date(form.starts_at).toISOString(),
-      endsAt: new Date(form.ends_at).toISOString(),
-    }).catch((notifyError) => console.error('Error sending promotion notifications:', notifyError));
+    if (form.is_active) {
+      notifyPromotion({
+        product_id: form.product_id,
+        title: cleanedTitle,
+        buy_quantity: form.buy_quantity,
+        free_quantity: form.free_quantity,
+        starts_at: new Date(form.starts_at).toISOString(),
+        ends_at: new Date(form.ends_at).toISOString(),
+      });
+    }
 
     toast.success(t('promo.created'));
     setShowAdd(false);
@@ -128,14 +149,20 @@ export default function ProductPromotions() {
       title: promo.title,
       buy_quantity: promo.buy_quantity,
       free_quantity: promo.free_quantity,
-      starts_at: new Date(promo.starts_at).toISOString().slice(0, 16),
-      ends_at: new Date(promo.ends_at).toISOString().slice(0, 16),
+      starts_at: toLocalInput(new Date(promo.starts_at)),
+      ends_at: toLocalInput(new Date(promo.ends_at)),
       is_active: promo.is_active,
     });
   };
 
   const handleUpdate = async () => {
     if (!editingId) return;
+    if (form.buy_quantity < 1 || form.free_quantity < 1) {
+      toast.warning(t('promo.pleaseAllFields'));
+      return;
+    }
+    if (!validDates()) return;
+    const wasActive = promotions.find((p) => p.id === editingId)?.is_active ?? false;
 
     const { error } = await supabase
       .from('product_promotions')
@@ -156,28 +183,54 @@ export default function ProductPromotions() {
       return;
     }
 
+    if (!wasActive && form.is_active) {
+      notifyPromotion({
+        product_id: form.product_id,
+        title: form.title,
+        buy_quantity: form.buy_quantity,
+        free_quantity: form.free_quantity,
+        starts_at: new Date(form.starts_at).toISOString(),
+        ends_at: new Date(form.ends_at).toISOString(),
+      });
+    }
+
     toast.success(t('promo.updated'));
     setEditingId(null);
     resetForm();
     await loadData();
   };
 
-  const handleCancel = async (id: string) => {
-    const { error } = await supabase
-      .from('product_promotions')
-      .update({
-        is_active: false,
-        ends_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id);
+  // Activate / deactivate without losing the dates, so it can be switched
+  // back on later.
+  const handleToggleActive = async (promo: Promotion) => {
+    if (togglingId) return;
+    const turningOn = !promo.is_active;
 
-    if (error) {
-      toast.error(t('promo.failedCancel'));
+    if (turningOn && new Date(promo.ends_at) <= new Date()) {
+      toast.warning(t('promo.expiredEditDates'));
+      startEdit(promo);
+      setShowAdd(false);
       return;
     }
-    toast.success(t('promo.cancelled'));
-    await loadData();
+
+    setTogglingId(promo.id);
+    try {
+      const { error } = await supabase
+        .from('product_promotions')
+        .update({ is_active: turningOn, updated_at: new Date().toISOString() })
+        .eq('id', promo.id);
+
+      if (error) {
+        toast.error(t('promo.failedUpdate'));
+        return;
+      }
+
+      if (turningOn) notifyPromotion(promo);
+      toast.success(turningOn ? t('promo.activatedToast') : t('promo.deactivatedToast'));
+      await loadData();
+    } finally {
+      setTogglingId(null);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -343,6 +396,7 @@ export default function ProductPromotions() {
           {promotions.map((promo) => {
             const active = isPromoActive(promo);
             const expired = new Date(promo.ends_at) < new Date();
+            const scheduled = promo.is_active && !expired && new Date(promo.starts_at) > new Date();
 
             return (
               <div
@@ -364,9 +418,10 @@ export default function ProductPromotions() {
                   <span className={`px-2 py-1 text-xs font-semibold rounded flex-shrink-0 ${
                     active ? 'bg-green-100 text-green-700' :
                     expired ? 'bg-gray-100 text-gray-500' :
+                    scheduled ? 'bg-blue-100 text-blue-700' :
                     'bg-yellow-100 text-yellow-700'
                   }`}>
-                    {active ? t('common.active') : expired ? t('admin.expired') : t('common.inactive')}
+                    {active ? t('common.active') : expired ? t('admin.expired') : scheduled ? t('promo.scheduled') : t('common.inactive')}
                   </span>
                 </div>
 
@@ -398,15 +453,25 @@ export default function ProductPromotions() {
                     <Edit2 className="w-3.5 h-3.5" />
                     {t('admin.edit')}
                   </button>
-                  {active && (
-                    <button
-                      onClick={() => handleCancel(promo.id)}
-                      className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100"
-                    >
-                      <Ban className="w-3.5 h-3.5" />
-                      {t('common.cancel')}
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleToggleActive(promo)}
+                    disabled={togglingId === promo.id}
+                    aria-pressed={promo.is_active}
+                    className={`flex items-center gap-1 px-3 py-1.5 text-sm font-semibold rounded-lg transition disabled:opacity-60 ${
+                      promo.is_active && !expired
+                        ? 'bg-green-600 text-white hover:bg-green-700'
+                        : 'bg-white text-green-700 border border-green-300 hover:bg-green-50'
+                    }`}
+                  >
+                    {togglingId === promo.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : promo.is_active && !expired ? (
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                    ) : (
+                      <Power className="w-3.5 h-3.5" />
+                    )}
+                    {promo.is_active && !expired ? t('promo.activeDeactivate') : t('promo.activate')}
+                  </button>
                   <button
                     onClick={() => handleDelete(promo.id)}
                     className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium bg-red-50 text-red-600 rounded-lg hover:bg-red-100"
