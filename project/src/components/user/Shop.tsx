@@ -485,6 +485,20 @@ export default function Shop() {
         </div>
       )}
 
+      {Object.keys(promotions).length > 0 && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-gradient-to-r from-red-600 to-orange-500 text-white shadow-sm">
+          <div className="p-2 bg-white/20 rounded-xl flex-shrink-0">
+            <Gift className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="font-bold text-sm sm:text-base">{t('shop.promoBannerTitle')}</p>
+            <p className="text-xs sm:text-sm text-white/90">
+              {t('shop.promoBannerCount', { n: products.filter((p) => promotions[p.id]).length })}
+            </p>
+          </div>
+        </div>
+      )}
+
       <MasonryGrid
         items={filteredProducts}
         getKey={(product) => product.id}
@@ -500,12 +514,14 @@ export default function Shop() {
 
           return (
             <div
-              className={`group bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg hover:border-gray-300 transition-all duration-200 relative flex flex-col ${!isAvailable ? 'opacity-75' : ''}`}
+              className={`group bg-white rounded-2xl border overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200 relative flex flex-col ${
+                promo ? 'border-red-400 ring-2 ring-red-400/60 shadow-red-100' : 'border-gray-200 hover:border-gray-300'
+              } ${!isAvailable ? 'opacity-75' : ''}`}
             >
               {promo && (
-                <div className="absolute top-2 left-2 z-10 flex items-center gap-1 bg-red-600 text-white px-2 py-0.5 rounded-full text-[11px] font-bold shadow-sm">
+                <div className="absolute top-2 left-2 z-10 flex items-center gap-1 bg-red-600 text-white px-2 py-0.5 rounded-full text-[11px] font-bold shadow-md">
                   <Gift className="w-3 h-3" />
-                  {getPromoBuyGetFreeText(promo.buy_quantity, promo.free_quantity, language)}
+                  {t('shop.promoRibbon')} · {getPromoBuyGetFreeText(promo.buy_quantity, promo.free_quantity, language)}
                 </div>
               )}
 

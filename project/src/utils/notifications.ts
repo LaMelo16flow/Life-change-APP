@@ -90,11 +90,32 @@ export async function sendPromotionNotification(data: {
   startsAt?: string;
   endsAt?: string;
 }) {
+  // Only approved accounts can see the shop - don't notify pending/rejected ones.
   const { data: recipients } = await supabase
     .from('profiles')
-    .select('id, email, full_name');
+    .select('id, email, full_name')
+    .eq('account_status', 'approved');
 
   if (!recipients || recipients.length === 0) return;
+
+  const label = data.title || `Buy ${data.buyQuantity} Get ${data.freeQuantity} Free`;
+
+  // In-app notification (bell icon) for everyone, in one insert. This used to
+  // run only AFTER each email succeeded, so when email sending failed nobody
+  // got notified in the app at all.
+  const { error: notifError } = await supabase.from('notifications').insert(
+    recipients.map((recipient) => ({
+      user_id: recipient.id,
+      type: 'promotion',
+      title: 'New Promotion Available',
+      message: `${label} is now active for ${data.productName}.`,
+      title_key: 'notif.newPromotionTitle',
+      message_key: 'notif.newPromotionMsg',
+      message_params: { label, product: data.productName },
+      action_url: '/shop',
+    }))
+  );
+  if (notifError) console.error('Error creating promotion notifications:', notifError);
 
   const validRecipients = recipients.filter((recipient) => recipient.email);
   if (validRecipients.length === 0) return;
@@ -126,18 +147,7 @@ export async function sendPromotionNotification(data: {
         subject: `New promotion: ${data.productName}`,
         html,
         type: 'promotion_created',
-      }).then(() =>
-        createInAppNotification({
-          type: 'promotion',
-          title: 'New Promotion Available',
-          message: `${data.title || `Buy ${data.buyQuantity} Get ${data.freeQuantity} Free`} is now active for ${data.productName}.`,
-          titleKey: 'notif.newPromotionTitle',
-          messageKey: 'notif.newPromotionMsg',
-          messageParams: { label: data.title || `Buy ${data.buyQuantity} Get ${data.freeQuantity} Free`, product: data.productName },
-          action_url: '/shop',
-          userId: recipient.id,
-        })
-      )
+      })
     )
   );
 }
