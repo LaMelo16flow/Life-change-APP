@@ -79,6 +79,7 @@ export interface Profile {
   account_status?: 'pending' | 'approved' | 'rejected';
   rejection_reason?: string | null;
   profile_image_url?: string | null;
+  promo_emails?: boolean;
   created_at: string;
   updated_at: string;
   countries?: {

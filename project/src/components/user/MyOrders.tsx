@@ -6,20 +6,8 @@ import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { formatCurrency } from '../../utils/currency';
 import { getLocalizedProductName, getLocalizedProductDescription } from '../../utils/productLocale';
-import { ShoppingBag, Clock, Check, X, Package, Upload, CreditCard, ChevronDown, ChevronUp, Phone, Mail, Building2 } from 'lucide-react';
+import { ShoppingBag, Clock, Check, X, Package, Upload, CreditCard, ChevronDown, ChevronUp } from 'lucide-react';
 import { sendPaymentSubmittedNotification } from '../../utils/notifications';
-
-interface CountryPaymentInfo {
-  id: string;
-  country_code: string;
-  payment_method: string;
-  payment_label: string;
-  recipient_name: string;
-  recipient_contact: string;
-  payment_instructions: string;
-  is_active: boolean;
-  display_order: number;
-}
 
 interface OrderItem {
   id: string;
@@ -82,9 +70,7 @@ export default function MyOrders() {
   const [paymentScreenshot, setPaymentScreenshot] = useState<File | null>(null);
   const [uploadingPayment, setUploadingPayment] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
-  const [paymentInstructions, setPaymentInstructions] = useState('');
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
-  const [countryPaymentInfos, setCountryPaymentInfos] = useState<CountryPaymentInfo[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -141,31 +127,12 @@ export default function MyOrders() {
     }
   };
 
+  // Where staff are alerted when a proof is sent (not shown to the customer:
+  // payment itself is arranged offline).
   const loadAdminSettings = async () => {
     try {
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('country_code')
-        .eq('id', user!.id)
-        .maybeSingle();
-
-      const userCountry = profileData?.country_code || 'CA';
-
-      const [emailSettings, instructionsSettings, countryPayments] = await Promise.all([
-        supabase.from('admin_settings').select('value').eq('key', 'admin_contact_email').maybeSingle(),
-        supabase.from('admin_settings').select('value').eq('key', 'payment_instructions').maybeSingle(),
-        supabase.from('country_payment_info').select('*').eq('country_code', userCountry).eq('is_active', true).order('display_order'),
-      ]);
-
-      if (emailSettings?.data) {
-        setAdminEmail(emailSettings.data.value?.email || 'lcshop.app@gmail.com');
-      }
-      if (instructionsSettings?.data) {
-        setPaymentInstructions(instructionsSettings.data.value?.instructions || 'Please send e-transfer to the admin email provided.');
-      }
-      if (countryPayments?.data) {
-        setCountryPaymentInfos(countryPayments.data);
-      }
+      const { data } = await supabase.from('admin_settings').select('value').eq('key', 'admin_contact_email').maybeSingle();
+      setAdminEmail(data?.value?.email || 'lcshop.app@gmail.com');
     } catch (error) {
       console.error('Error loading admin settings:', error);
     }
@@ -273,7 +240,6 @@ export default function MyOrders() {
     const styles: Record<string, { bg: string; text: string; icon: typeof Clock; label: string }> = {
       pending: { bg: 'bg-yellow-100', text: 'text-yellow-800', icon: Clock, label: t('orders.pending') },
       approved: { bg: 'bg-green-100', text: 'text-green-800', icon: Check, label: t('orders.statusApproved') },
-      awaiting_payment: { bg: 'bg-orange-100', text: 'text-orange-800', icon: CreditCard, label: t('orders.awaitingPayment') },
       rejected: { bg: 'bg-red-100', text: 'text-red-800', icon: X, label: t('orders.rejected') },
       completed: { bg: 'bg-brand-100', text: 'text-brand-800', icon: Package, label: t('orders.completed') },
       cancelled: { bg: 'bg-gray-100', text: 'text-gray-800', icon: X, label: t('orders.cancelled') },
@@ -281,12 +247,15 @@ export default function MyOrders() {
     return styles[status] || styles.pending;
   };
 
+  // Orders from the old two-step flow ('awaiting_payment') are shown as pending.
+  const isOpen = (o: Order) => o.status === 'pending' || o.status === 'awaiting_payment';
   const filteredOrders = statusFilter === 'all'
     ? orders
-    : orders.filter(order => order.status === statusFilter);
+    : statusFilter === 'pending'
+      ? orders.filter(isOpen)
+      : orders.filter(order => order.status === statusFilter);
 
-  const pendingCount = orders.filter(o => o.status === 'pending').length;
-  const awaitingPaymentCount = orders.filter(o => o.status === 'awaiting_payment').length;
+  const pendingCount = orders.filter(isOpen).length;
 
   if (loading) {
     return <div className="flex items-center justify-center h-64">{t('admin.loadingOrders')}</div>;
@@ -302,7 +271,7 @@ export default function MyOrders() {
         <p className="text-sm sm:text-base text-gray-600 mt-1">{t('orders.subtitle')}</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -310,15 +279,6 @@ export default function MyOrders() {
               <div className="text-xl sm:text-2xl font-bold text-yellow-800">{pendingCount}</div>
             </div>
             <Clock className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-600" />
-          </div>
-        </div>
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 sm:p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xs sm:text-sm text-orange-600 font-medium">{t('orders.awaitingPayment')}</div>
-              <div className="text-xl sm:text-2xl font-bold text-orange-800">{awaitingPaymentCount}</div>
-            </div>
-            <CreditCard className="w-6 h-6 sm:w-8 sm:h-8 text-orange-600" />
           </div>
         </div>
         <div className="bg-brand-50 border border-brand-200 rounded-lg p-3 sm:p-4">
@@ -336,7 +296,6 @@ export default function MyOrders() {
         {[
           { value: 'all', label: t('orders.filterAll') },
           { value: 'pending', label: t('orders.pending') },
-          { value: 'awaiting_payment', label: t('orders.filterAwaiting') },
           { value: 'completed', label: t('orders.completed') },
           { value: 'rejected', label: t('orders.rejected') },
         ].map(({ value, label }) => (
@@ -482,7 +441,7 @@ export default function MyOrders() {
                       </div>
                     )}
 
-                    {order.status === 'pending' && (
+                    {isOpen(order) && order.payment_screenshot_url && (
                       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-2">
                         <div className="text-sm text-yellow-800 flex items-center gap-2">
                           <Clock size={16} />
@@ -491,40 +450,15 @@ export default function MyOrders() {
                       </div>
                     )}
 
-                    {order.status === 'awaiting_payment' && !order.payment_screenshot_url && (
+                    {isOpen(order) && !order.payment_screenshot_url && (
                       <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mt-2">
                         <div className="text-sm font-medium text-orange-800 mb-2 flex items-center gap-2">
                           <CreditCard size={16} />
-                          {t('orders.awaitingPayment')}
+                          {t('orders.proofNeededTitle')}
                         </div>
                         <p className="text-sm text-orange-700 mb-2">
-                          {t('orders.approvedReserveMsg')}
+                          {t('orders.proofNeededMsg')}
                         </p>
-                        {countryPaymentInfos.length > 0 ? (
-                          <div className="space-y-2 mb-3">
-                            {countryPaymentInfos.map((info) => (
-                              <div key={info.id} className="bg-white rounded-lg p-3 border border-orange-200">
-                                <p className="text-xs text-gray-500 uppercase font-medium tracking-wide flex items-center gap-1">
-                                  {info.payment_label}
-                                </p>
-                                {info.recipient_name && (
-                                  <p className="text-sm text-gray-700 mt-1">{info.recipient_name}</p>
-                                )}
-                                <p className="text-lg font-bold text-brand-700 mt-0.5">{info.recipient_contact}</p>
-                                {info.payment_instructions && (
-                                  <p className="text-xs text-gray-500 mt-1">{info.payment_instructions}</p>
-                                )}
-                                <p className="text-xs text-gray-400 mt-1">{t('orders.refOrderNumber', { number: order.order_number })}</p>
-                              </div>
-                            ))}
-                          </div>
-                        ) : order.admin_email ? (
-                          <div className="bg-white rounded-lg p-3 mb-3 border border-orange-200">
-                            <p className="text-xs text-gray-500 uppercase font-medium tracking-wide">{t('orders.sendPaymentTo')}</p>
-                            <p className="text-lg font-bold text-brand-700 mt-1">{order.admin_email}</p>
-                            <p className="text-xs text-gray-500 mt-1">{t('orders.referenceOrderNumber', { number: order.order_number })}</p>
-                          </div>
-                        ) : null}
                         <button
                           onClick={() => {
                             setSelectedOrder(order);
@@ -535,20 +469,6 @@ export default function MyOrders() {
                           <Upload size={18} />
                           {t('orders.submitPaymentProof')}
                         </button>
-                      </div>
-                    )}
-
-                    {order.status === 'awaiting_payment' && order.payment_screenshot_url && (
-                      <div className="bg-brand-50 border border-brand-200 rounded-lg p-4 mt-2">
-                        <div className="text-sm font-medium text-brand-800 mb-2">{t('orders.paymentProofSubmitted')}</div>
-                        <p className="text-sm text-brand-700">
-                          {t('orders.paymentBeingVerifiedMsg')}
-                        </p>
-                        {order.payment_submitted_at && (
-                          <p className="text-xs text-brand-600 mt-1">
-                            {t('orders.submittedOn', { date: new Date(order.payment_submitted_at).toLocaleString() })}
-                          </p>
-                        )}
                       </div>
                     )}
 
@@ -602,44 +522,7 @@ export default function MyOrders() {
               </div>
 
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <h4 className="font-semibold text-yellow-900 mb-2">{t('orders.paymentInstructionsTitle')}</h4>
-                <p className="text-sm text-yellow-800 mb-2">{paymentInstructions}</p>
-                {countryPaymentInfos.length > 0 ? (
-                  <div className="space-y-2 mt-3">
-                    {countryPaymentInfos.map((info) => (
-                      <div key={info.id} className="bg-white rounded-lg p-3 border border-yellow-200">
-                        <div className="flex items-center gap-2 mb-1">
-                          {info.payment_method.includes('mobile') || info.payment_method.includes('mtn') || info.payment_method.includes('orange') ? (
-                            <Phone size={14} className="text-gray-500" />
-                          ) : info.payment_method.includes('bank') || info.payment_method.includes('wire') ? (
-                            <Building2 size={14} className="text-gray-500" />
-                          ) : (
-                            <Mail size={14} className="text-gray-500" />
-                          )}
-                          <span className="text-sm font-semibold text-gray-800">{info.payment_label}</span>
-                        </div>
-                        {info.recipient_name && (
-                          <p className="text-sm text-gray-600">{info.recipient_name}</p>
-                        )}
-                        <p className="text-lg font-bold text-brand-600 mt-0.5">{info.recipient_contact}</p>
-                        {info.payment_instructions && (
-                          <p className="text-xs text-gray-500 mt-1">{info.payment_instructions}</p>
-                        )}
-                        <p className="text-xs text-gray-400 mt-1">
-                          {t('orders.referenceOrderNumber', { number: selectedOrder.order_number })}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="bg-white rounded p-2 mt-2">
-                    <p className="text-sm font-medium text-gray-700">{t('orders.sendPaymentTo')}:</p>
-                    <p className="text-lg font-bold text-brand-600">{selectedOrder.admin_email || adminEmail}</p>
-                    <p className="text-xs text-gray-600 mt-1">
-                      {t('orders.referenceOrderNumber', { number: selectedOrder.order_number })}
-                    </p>
-                  </div>
-                )}
+                <p className="text-sm text-yellow-800">{t('checkout.payFirstMsg', { amount: formatCurrency(selectedOrder.total_amount) })}</p>
               </div>
 
               <div>

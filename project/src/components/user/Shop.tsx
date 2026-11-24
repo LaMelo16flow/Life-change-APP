@@ -9,6 +9,8 @@ import { getPromoLabel, getPromoBuyGetFreeText } from '../../utils/promoLocale';
 import { ShoppingCart, Package, Check, AlertCircle, X, ShoppingBag, Minus, Plus, Gift, Sparkles, Search, SlidersHorizontal } from 'lucide-react';
 import { sendOrderPlacedNotification } from '../../utils/notifications';
 import { MasonryGrid } from './MasonryGrid';
+import { removePaymentProof, uploadPaymentProof } from '../../lib/paymentProof';
+import { PaymentProofFields } from './PaymentProofFields';
 
 function getMasonryColumns(width: number) {
   if (width >= 1280) return 4;
@@ -89,6 +91,9 @@ export default function Shop() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofNotes, setProofNotes] = useState('');
+  const [orderError, setOrderError] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [selectedType, setSelectedType] = useState<string>('All');
   // Category keys are the translated names, so start over when the language changes.
@@ -220,6 +225,7 @@ export default function Shop() {
     setSelectedProduct(product);
     setOrderQuantity(getCardQty(product.id));
     setShowOrderModal(true);
+    setOrderError('');
   };
 
   async function addToCart(product: Product) {
@@ -270,7 +276,11 @@ export default function Shop() {
   }
 
   async function handlePlaceOrder() {
-    if (!profile || !selectedProduct || purchasing) return;
+    if (!profile || !user || !selectedProduct || purchasing) return;
+    if (!proofFile) {
+      setOrderError(t('checkout.proofRequired'));
+      return;
+    }
 
     const originalPrice = prices[selectedProduct.id];
     if (!originalPrice) {
@@ -287,8 +297,11 @@ export default function Shop() {
 
     setPurchasing(selectedProduct.id);
     setMessage(null);
+    setOrderError('');
+    let proofPath: string | null = null;
 
     try {
+      proofPath = await uploadPaymentProof(user.id, proofFile);
       const { data: orderNumberData } = await supabase.rpc('generate_order_number');
       const orderNumber = orderNumberData || `ORD-${Date.now()}`;
 
@@ -305,6 +318,9 @@ export default function Shop() {
           region: 'CA',
           status: 'pending',
           items_count: 1,
+          payment_screenshot_url: proofPath,
+          payment_submitted_at: new Date().toISOString(),
+          payment_notes: proofNotes.trim() || null,
         })
         .select()
         .single();
@@ -339,8 +355,11 @@ export default function Shop() {
         userEmail: user?.email || '',
       }, user?.id).catch((err) => console.error('Error sending order notification:', err));
 
+      proofPath = null; // saved with the order: keep it
       setShowOrderModal(false);
       setSelectedProduct(null);
+      setProofFile(null);
+      setProofNotes('');
       setMessage({
         type: 'success',
         text: t('shop.orderPlacedSuccess', { orderNumber }) + (freeItems > 0 ? t('shop.freeItemsIncludedSuffix', { n: freeItems }) : '')
@@ -349,7 +368,8 @@ export default function Shop() {
       setTimeout(() => setMessage(null), 5000);
     } catch (error: any) {
       console.error('Order error:', error);
-      setMessage({ type: 'error', text: error.message || t('shop.failedPlaceOrder') });
+      if (proofPath) removePaymentProof(proofPath).catch(() => {});
+      setOrderError(error.message || t('shop.failedPlaceOrder'));
     } finally {
       setPurchasing(null);
     }
@@ -845,6 +865,17 @@ export default function Shop() {
           purchasing={purchasing === selectedProduct.id}
           onPlaceOrder={handlePlaceOrder}
           onClose={() => setShowOrderModal(false)}
+          proof={
+            <PaymentProofFields
+              amountLabel={formatCurrency((prices[selectedProduct.id] || 0) * orderQuantity)}
+              file={proofFile}
+              onFileChange={setProofFile}
+              notes={proofNotes}
+              onNotesChange={setProofNotes}
+            />
+          }
+          hasProof={!!proofFile}
+          error={orderError}
         />
       )}
     </div>
@@ -861,6 +892,9 @@ function OrderModal({
   purchasing,
   onPlaceOrder,
   onClose,
+  proof,
+  hasProof,
+  error,
 }: {
   product: Product;
   originalPrice: number;
@@ -871,6 +905,9 @@ function OrderModal({
   purchasing: boolean;
   onPlaceOrder: () => void;
   onClose: () => void;
+  proof: React.ReactNode;
+  hasProof: boolean;
+  error: string;
 }) {
   const { language, t } = useLanguage();
   const { freeItems } = promo
@@ -990,17 +1027,17 @@ function OrderModal({
               </div>
             )}
           </div>
-          <p className="text-xs text-gray-500 text-center">
-            {t('shop.orderPending')}
-          </p>
+          {proof}
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
 
           <div className="flex gap-3 pt-2">
             <button
               onClick={onPlaceOrder}
-              disabled={purchasing}
+              disabled={purchasing || !hasProof}
               className="flex-1 bg-brand-700 text-white py-3 rounded-xl hover:bg-brand-800 font-semibold shadow-sm hover:shadow transition disabled:bg-gray-300 disabled:shadow-none active:scale-[0.98]"
             >
-              {purchasing ? t('common.processing') : t('common.placeOrder')}
+              {purchasing ? t('common.processing') : t('checkout.sendOrder')}
             </button>
             <button
               onClick={onClose}

@@ -124,6 +124,36 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // A customer may only email themselves or the shop staff (order/payment
+    // alerts). Only staff can email other customers - otherwise any member
+    // could send messages to everyone from the official LC Shop address.
+    const { data: callerProfile } = await adminClient
+      .from("profiles")
+      .select("email, role, is_master")
+      .eq("id", caller.id)
+      .maybeSingle();
+    const callerIsStaff = !!callerProfile && (callerProfile.role === "admin" || callerProfile.role === "manager" || callerProfile.is_master === true);
+    if (!callerIsStaff && to.toLowerCase() !== (caller.email || "").toLowerCase()) {
+      const { data: target } = await adminClient
+        .from("profiles")
+        .select("role, is_master")
+        .eq("id", recipientProfile.id)
+        .maybeSingle();
+      const targetIsStaff = !!target && (target.role === "admin" || target.role === "manager" || target.is_master === true);
+      const { data: contact } = await adminClient
+        .from("admin_settings")
+        .select("value")
+        .eq("key", "admin_contact_email")
+        .maybeSingle();
+      const isShopAddress = (contact?.value?.email || "").toLowerCase() === to.toLowerCase();
+      if (!targetIsStaff && !isShopAddress) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Not allowed to email this recipient" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     if (!isGmailConfigured()) {
       console.log(`Gmail credentials not configured; email skipped for ${to} (development mode)`);
       return new Response(

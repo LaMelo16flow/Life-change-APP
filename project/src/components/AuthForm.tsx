@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { LogIn, UserPlus, Loader2, Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
+import { LegalModal, type LegalDoc } from './LegalModal';
 
 const DEFAULT_COUNTRY_CODE = 'CA';
 
 export function AuthForm() {
   const [isLogin, setIsLogin] = useState(true);
+  const [legalDoc, setLegalDoc] = useState<LegalDoc | null>(null);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -435,9 +437,13 @@ export function AuthForm() {
         </div>
 
         <p className="text-center text-gray-500 text-xs mt-8">
-          En continuant, vous acceptez nos conditions d'utilisation et notre politique de confidentialite.
+          En continuant, vous acceptez nos{' '}
+          <button type="button" onClick={() => setLegalDoc('terms')} className="underline hover:text-gray-300">conditions d'utilisation</button>
+          {' '}et notre{' '}
+          <button type="button" onClick={() => setLegalDoc('privacy')} className="underline hover:text-gray-300">politique de confidentialite</button>.
         </p>
       </div>
+      {legalDoc && <LegalModal doc={legalDoc} onClose={() => setLegalDoc(null)} onSwitch={setLegalDoc} />}
     </div>
   );
 }

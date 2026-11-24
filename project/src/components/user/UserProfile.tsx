@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { supabase } from '../../lib/supabase';
 import { User, Mail, Globe, Phone, MapPin, Calendar, Save, AlertCircle, Camera, Loader2, Lock, Check } from 'lucide-react';
+import { LegalModal, type LegalDoc } from '../LegalModal';
 
 interface Country {
   code: string;
@@ -17,6 +18,8 @@ export function UserProfile() {
   const [countries, setCountries] = useState<Country[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [promoEmails, setPromoEmails] = useState(true);
+  const [legalDoc, setLegalDoc] = useState<LegalDoc | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [profileImageUrl, setProfileImageUrl] = useState<string>('');
@@ -72,6 +75,7 @@ export function UserProfile() {
         state_province: profile.state_province || '',
         postal_code: profile.postal_code || '',
       });
+      setPromoEmails(profile.promo_emails !== false);
       setProfileImageUrl(profile.profile_image_url || '');
     } catch (error) {
       console.error('Error loading profile:', error);
@@ -152,6 +156,7 @@ export function UserProfile() {
           city: formData.city,
           state_province: formData.state_province,
           postal_code: formData.postal_code,
+          promo_emails: promoEmails,
         })
         .eq('id', user?.id);
 
@@ -471,6 +476,19 @@ export function UserProfile() {
               </div>
             </div>
 
+            <label className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg cursor-pointer">
+              <input
+                type="checkbox"
+                checked={promoEmails}
+                onChange={(e) => setPromoEmails(e.target.checked)}
+                className="mt-1 w-4 h-4 accent-brand-600"
+              />
+              <span>
+                <span className="block text-sm font-medium text-gray-900">{t('profile.promoEmails')}</span>
+                <span className="block text-xs text-gray-500">{t('profile.promoEmailsHint')}</span>
+              </span>
+            </label>
+
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
               <div className="flex items-start gap-3">
                 <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
@@ -576,6 +594,12 @@ export function UserProfile() {
           </form>
         </div>
       </div>
+      <p className="text-center text-xs text-gray-500">
+        <button type="button" onClick={() => setLegalDoc('privacy')} className="underline hover:text-gray-700">{t('legal.privacy')}</button>
+        {' · '}
+        <button type="button" onClick={() => setLegalDoc('terms')} className="underline hover:text-gray-700">{t('legal.terms')}</button>
+      </p>
+      {legalDoc && <LegalModal doc={legalDoc} onClose={() => setLegalDoc(null)} onSwitch={setLegalDoc} />}
     </div>
   );
 }

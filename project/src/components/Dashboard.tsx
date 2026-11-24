@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { LayoutDashboard, Users, Award, TrendingUp, Bell, LogOut, Menu, ShoppingCart, Shield, CircleUser as UserCircle, Package, ShoppingBag, UsersRound, Tag, Globe, Settings, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Users, Award, TrendingUp, Bell, LogOut, Menu, ShoppingCart, Shield, CircleUser as UserCircle, Package, ShoppingBag, UsersRound, Globe, Settings, BarChart3 } from 'lucide-react';
 import { UserDashboard } from './user/UserDashboard';
 import { AdminDashboard } from './admin/AdminDashboard';
 import { NotificationBell } from './NotificationBell';
@@ -93,15 +93,14 @@ export function Dashboard() {
     { id: 'inventory', label: t('nav.inventory'), icon: TrendingUp, permission: 'manage_inventory' as const },
     { id: 'orders', label: t('nav.orderManagement'), icon: ShoppingBag, permission: 'manage_orders' as const },
     { id: 'analytics', label: 'Analytics', icon: BarChart3, permission: 'manage_inventory' as const },
-    { id: 'promotions', label: t('nav.promotions'), icon: Award, permission: 'manage_promotions' as const },
-    { id: 'deals', label: t('nav.deals'), icon: Tag, permission: 'manage_products' as const },
+    { id: 'promotions', label: t('nav.promotions'), icon: Award, permission: 'manage_promotions' as const, altPermission: 'manage_products' as const },
     { id: 'notifications', label: t('nav.notifications'), icon: Bell, badge: unreadCount, always: true },
   ];
 
   const adminTabs = allAdminTabs.filter(tab => {
     if (tab.always) return true;
     if (tab.masterOnly) return isMaster;
-    if (tab.permission) return hasPermission(tab.permission);
+    if (tab.permission) return hasPermission(tab.permission) || ('altPermission' in tab && !!tab.altPermission && hasPermission(tab.altPermission));
     return true;
   });
 

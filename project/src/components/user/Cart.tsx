@@ -8,6 +8,8 @@ import { getLocalizedProductName, getLocalizedProductType } from '../../utils/pr
 import { getPromoLabel } from '../../utils/promoLocale';
 import { ShoppingCart, Trash2, Plus, Minus, AlertCircle, Check, X, Tag } from 'lucide-react';
 import { sendOrderPlacedNotification } from '../../utils/notifications';
+import { removePaymentProof, uploadPaymentProof } from '../../lib/paymentProof';
+import { PaymentProofFields } from './PaymentProofFields';
 
 interface CartItem {
   id: string;
@@ -52,6 +54,8 @@ export default function Cart() {
   const [processing, setProcessing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofNotes, setProofNotes] = useState('');
 
   useEffect(() => {
     loadCartData();
@@ -190,10 +194,15 @@ export default function Cart() {
   }
 
   async function handleCheckout() {
-    if (!profile || cartItems.length === 0 || processing) return;
+    if (!profile || !user || cartItems.length === 0 || processing) return;
+    if (!proofFile) {
+      setMessage({ type: 'error', text: t('checkout.proofRequired') });
+      return;
+    }
 
     setProcessing(true);
     setMessage(null);
+    let proofPath: string | null = null;
 
     try {
       let totalFreeItems = 0;
@@ -213,6 +222,8 @@ export default function Cart() {
         orderTotal += price * item.quantity;
         totalFreeItems += freeItems;
       }
+
+      proofPath = await uploadPaymentProof(user.id, proofFile);
 
       const { data: orderNumberData } = await supabase.rpc('generate_order_number');
       const orderNumber = orderNumberData || `ORD-${Date.now()}`;
@@ -235,6 +246,9 @@ export default function Cart() {
           status: 'pending',
           items_count: cartItems.length,
           metadata: { items_count: cartItems.length },
+          payment_screenshot_url: proofPath,
+          payment_submitted_at: new Date().toISOString(),
+          payment_notes: proofNotes.trim() || null,
         })
         .select()
         .single();
@@ -300,16 +314,20 @@ export default function Cart() {
 
       if (clearCartError) console.error('Error clearing cart:', clearCartError);
 
+      proofPath = null; // saved with the order: keep it
       setCartItems([]);
       setShowCheckoutModal(false);
+      setProofFile(null);
+      setProofNotes('');
       setMessage({
         type: 'success',
-        text: t('cart.orderPlacedSuccessSimple', { orderNumber }) + (totalFreeItems > 0 ? t('shop.freeItemsIncludedSuffix', { n: totalFreeItems }) : '')
+        text: t('checkout.orderSent', { orderNumber }) + (totalFreeItems > 0 ? t('shop.freeItemsIncludedSuffix', { n: totalFreeItems }) : '')
       });
 
       setTimeout(() => setMessage(null), 5000);
     } catch (error: any) {
       console.error('Checkout error:', error);
+      if (proofPath) removePaymentProof(proofPath).catch(() => {});
       setMessage({ type: 'error', text: error.message || t('shop.failedPlaceOrder') });
     } finally {
       setProcessing(false);
@@ -579,13 +597,25 @@ export default function Cart() {
                 </div>
               </div>
 
+              <PaymentProofFields
+                amountLabel={formatCurrency(cartTotal)}
+                file={proofFile}
+                onFileChange={setProofFile}
+                notes={proofNotes}
+                onNotesChange={setProofNotes}
+              />
+
+              {message?.type === 'error' && (
+                <p className="text-sm text-red-600">{message.text}</p>
+              )}
+
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={handleCheckout}
-                  disabled={processing}
+                  disabled={processing || !proofFile}
                   className="flex-1 bg-brand-700 text-white py-3 rounded-lg hover:bg-brand-800 font-semibold disabled:bg-gray-400"
                 >
-                  {processing ? t('common.processing') : t('common.placeOrder')}
+                  {processing ? t('common.processing') : t('checkout.sendOrder')}
                 </button>
                 <button
                   onClick={() => setShowCheckoutModal(false)}

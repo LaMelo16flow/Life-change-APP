@@ -5,9 +5,8 @@ import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { getLocalizedProductName } from '../../utils/productLocale';
 import { loadCountryNames, getCountryName } from '../../utils/countries';
-import { ShoppingCart, Check, X, Search, Eye, CreditCard, RefreshCw, Package, Image as ImageIcon, History, ChevronDown, ChevronUp, Merge } from 'lucide-react';
+import { ShoppingCart, Check, X, Search, Eye, RefreshCw, Package, Image as ImageIcon, History, ChevronDown, ChevronUp } from 'lucide-react';
 import {
-  sendOrderApprovedNotification,
   sendOrderRejectedNotification,
   sendPaymentVerifiedNotification,
   maybeAlertLowStock,
@@ -87,7 +86,6 @@ export default function OrderManagement() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const paymentProofSignedUrl = usePaymentProofUrl(selectedOrder?.payment_screenshot_url);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [showApproveModal, setShowApproveModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showRejectPaymentModal, setShowRejectPaymentModal] = useState(false);
@@ -101,10 +99,6 @@ export default function OrderManagement() {
   const [userHistoryName, setUserHistoryName] = useState('');
   const [userHistoryLoading, setUserHistoryLoading] = useState(false);
   const [expandedHistoryOrder, setExpandedHistoryOrder] = useState<string | null>(null);
-  const [otherPendingOrders, setOtherPendingOrders] = useState<Order[]>([]);
-  const [selectedMergeOrderIds, setSelectedMergeOrderIds] = useState<Set<string>>(new Set());
-  const [mergeLoading, setMergeLoading] = useState(false);
-  const [approving, setApproving] = useState(false);
   const [verifyingPayment, setVerifyingPayment] = useState(false);
   const [changingStatus, setChangingStatus] = useState(false);
 
@@ -148,7 +142,8 @@ export default function OrderManagement() {
 
       const counts: Record<string, number> = {};
       (data || []).forEach(({ status }) => {
-        counts[status] = (counts[status] || 0) + 1;
+        const key = status === 'awaiting_payment' ? 'pending' : status;
+        counts[key] = (counts[key] || 0) + 1;
       });
       setStatusCounts(counts);
     } catch (error) {
@@ -157,6 +152,7 @@ export default function OrderManagement() {
   };
 
   const getCountryLabel = (code: string) => getCountryName(code, countryNames);
+  const isOpenOrder = (o: Order) => o.status === 'pending' || o.status === 'awaiting_payment';
 
   const loadOrders = async () => {
     try {
@@ -190,7 +186,10 @@ export default function OrderManagement() {
         `)
         .order('created_at', { ascending: false });
 
-      if (statusFilter !== 'all') {
+      if (statusFilter === 'pending') {
+        // Legacy orders from the old two-step flow are handled the same way.
+        query = query.in('status', ['pending', 'awaiting_payment']);
+      } else if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter);
       }
 
@@ -262,44 +261,6 @@ export default function OrderManagement() {
       toast.error(t('om.failedLoadUserHistory'));
     } finally {
       setUserHistoryLoading(false);
-    }
-  };
-
-  const openApproveModalForOrder = async (order: Order) => {
-    setSelectedOrder(order);
-    setSelectedMergeOrderIds(new Set());
-    setShowApproveModal(true);
-    const others = orders.filter(
-      o => o.user_id === order.user_id
-        && o.id !== order.id
-        && o.status === 'pending'
-        && o.region === order.region
-    );
-    if (others.length === 0) {
-      const { data } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          user:profiles!orders_user_id_profile_fkey(
-            full_name, email, phone,
-            address_line1, address_line2, city, state_province, postal_code,
-            country_code, profile_image_url
-          ),
-          product:products!product_id(name, name_en, pv_value, image_url),
-          order_items(
-            id, product_id, quantity, free_quantity,
-            unit_price, subtotal, pv_value,
-            product:products(name, name_en, image_url)
-          )
-        `)
-        .eq('user_id', order.user_id)
-        .eq('status', 'pending')
-        .eq('region', order.region)
-        .neq('id', order.id)
-        .order('created_at', { ascending: false });
-      setOtherPendingOrders(data || []);
-    } else {
-      setOtherPendingOrders(others);
     }
   };
 
@@ -509,244 +470,6 @@ export default function OrderManagement() {
     }
   };
 
-  const handleApproveOrder = async () => {
-    if (!selectedOrder || approving) return;
-    setApproving(true);
-
-    const insufficientProduct = await getInsufficientStockProduct(selectedOrder);
-    if (insufficientProduct) {
-      toast.error(t('om.cannotApproveStock', { product: insufficientProduct }));
-      setApproving(false);
-      return;
-    }
-
-    try {
-      const { data: userData } = await supabase.auth.getUser();
-      const currentUserEmail = userData.user?.email;
-
-      const { data: countryPaymentInfos } = await supabase
-        .from('country_payment_info')
-        .select('*')
-        .eq('country_code', selectedOrder.region)
-        .eq('is_active', true)
-        .order('display_order');
-
-      let adminEmail: string;
-      if (countryPaymentInfos && countryPaymentInfos.length > 0) {
-        adminEmail = countryPaymentInfos[0].recipient_contact;
-      } else {
-        const { data: adminSettings } = await supabase
-          .from('admin_settings')
-          .select('value')
-          .eq('key', 'admin_contact_email')
-          .maybeSingle();
-        adminEmail = adminSettings?.value?.email || currentUserEmail;
-      }
-
-      // Claim the order first (only if still pending) so a double click or
-      // two admins approving at once cannot reserve the stock twice.
-      const { data: claimed, error: orderError } = await supabase
-        .from('orders')
-        .update({
-          status: 'awaiting_payment',
-          approved_by: userData.user?.id,
-          approved_at: new Date().toISOString(),
-          admin_notes: adminNotes,
-          admin_email: adminEmail,
-        })
-        .eq('id', selectedOrder.id)
-        .eq('status', 'pending')
-        .select('id');
-
-      if (orderError) throw orderError;
-      if (!claimed || claimed.length === 0) {
-        toast.error(t('om.alreadyProcessed'));
-        setShowApproveModal(false);
-        setSelectedOrder(null);
-        await loadOrders();
-        await loadStatusCounts();
-        return;
-      }
-
-      await reserveStockForOrder(selectedOrder);
-      await applyCrossOrderPromotions(selectedOrder);
-
-      const { displayName } = getOrderDisplayInfo(selectedOrder);
-
-      await supabase.from('notifications').insert([{
-        user_id: selectedOrder.user_id,
-        type: 'approval',
-        title: t('om.orderApprovedTitle'),
-        message: t('om.orderApprovedMsg', { orderNumber: selectedOrder.order_number, email: adminEmail }),
-        title_key: 'om.orderApprovedTitle',
-        message_key: 'om.orderApprovedMsg',
-        message_params: { orderNumber: selectedOrder.order_number, email: adminEmail },
-        action_url: '/orders',
-      }]);
-
-      await sendOrderApprovedNotification(
-        {
-          orderNumber: selectedOrder.order_number,
-          productName: displayName,
-          quantity: selectedOrder.quantity,
-          totalAmount: `${selectedOrder.currency_code} ${selectedOrder.total_amount.toFixed(2)}`,
-          userName: selectedOrder.user.full_name,
-          adminEmail: adminEmail,
-        },
-        selectedOrder.user.email
-      );
-
-      toast.success(t('om.orderApprovedToast'));
-      setShowApproveModal(false);
-      setAdminNotes('');
-      setSelectedOrder(null);
-      setOtherPendingOrders([]);
-      setSelectedMergeOrderIds(new Set());
-      await loadOrders();
-      await loadStatusCounts();
-    } catch (error) {
-      console.error('Error approving order:', error);
-      toast.error(t('om.failedApproveOrder'));
-    } finally {
-      setApproving(false);
-    }
-  };
-
-  const handleMergeAndApprove = async () => {
-    if (!selectedOrder || selectedMergeOrderIds.size === 0) return;
-    setMergeLoading(true);
-
-    try {
-      const ordersToMerge = otherPendingOrders.filter(o => selectedMergeOrderIds.has(o.id));
-
-      let additionalAmount = 0;
-      let additionalQuantity = 0;
-      const allNewItems: Array<{
-        order_id: string;
-        product_id: string;
-        quantity: number;
-        free_quantity: number;
-        unit_price: number;
-        subtotal: number;
-        pv_value: number;
-        promotion_id?: string | null;
-      }> = [];
-      const mergedOrderNumbers: string[] = [];
-
-      for (const mergeOrder of ordersToMerge) {
-        additionalAmount += mergeOrder.total_amount;
-        mergedOrderNumbers.push(mergeOrder.order_number);
-
-        if (mergeOrder.order_items && mergeOrder.order_items.length > 0) {
-          for (const item of mergeOrder.order_items) {
-            additionalQuantity += item.quantity + item.free_quantity;
-            allNewItems.push({
-              order_id: selectedOrder.id,
-              product_id: item.product_id,
-              quantity: item.quantity,
-              free_quantity: item.free_quantity,
-              unit_price: item.unit_price,
-              subtotal: item.subtotal,
-              pv_value: item.pv_value,
-            });
-          }
-        } else {
-          additionalQuantity += mergeOrder.quantity;
-          if (mergeOrder.product_id) {
-            allNewItems.push({
-              order_id: selectedOrder.id,
-              product_id: mergeOrder.product_id,
-              quantity: mergeOrder.quantity,
-              free_quantity: 0,
-              unit_price: mergeOrder.unit_price,
-              subtotal: mergeOrder.total_amount,
-              pv_value: mergeOrder.product?.pv_value || 0,
-            });
-          }
-        }
-      }
-
-      for (const mergeOrder of ordersToMerge) {
-        if (mergeOrder.order_items && mergeOrder.order_items.length > 0) {
-          await supabase
-            .from('order_items')
-            .delete()
-            .eq('order_id', mergeOrder.id);
-        }
-      }
-
-      if (allNewItems.length > 0) {
-        const { error: insertError } = await supabase
-          .from('order_items')
-          .insert(allNewItems);
-        if (insertError) throw insertError;
-      }
-
-      const newTotalAmount = selectedOrder.total_amount + additionalAmount;
-      const newQuantity = selectedOrder.quantity + additionalQuantity;
-
-      const allItemsCount = (selectedOrder.order_items?.length || 1) + allNewItems.length;
-
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update({
-          total_amount: newTotalAmount,
-          quantity: newQuantity,
-          items_count: allItemsCount,
-          product_id: null,
-          unit_price: 0,
-          admin_notes: `Merged with orders: ${mergedOrderNumbers.join(', ')}${adminNotes ? `\n${adminNotes}` : ''}`,
-        })
-        .eq('id', selectedOrder.id);
-
-      if (updateError) throw updateError;
-
-      for (const mergeOrder of ordersToMerge) {
-        await supabase
-          .from('orders')
-          .update({
-            status: 'cancelled',
-            admin_notes: `Merged into order ${selectedOrder.order_number}`,
-          })
-          .eq('id', mergeOrder.id);
-      }
-
-      const updatedOrder: Order = {
-        ...selectedOrder,
-        total_amount: newTotalAmount,
-        quantity: newQuantity,
-        items_count: allItemsCount,
-        product_id: null,
-        unit_price: 0,
-      };
-
-      const { data: freshItems } = await supabase
-        .from('order_items')
-        .select('id, product_id, quantity, free_quantity, unit_price, subtotal, pv_value, product:products(name, name_en, image_url)')
-        .eq('order_id', selectedOrder.id);
-
-      if (freshItems) {
-        updatedOrder.order_items = freshItems.map((item) => ({
-          ...item,
-          product: Array.isArray(item.product) ? item.product[0] : item.product,
-        })) as OrderItem[];
-      }
-
-      setSelectedOrder(updatedOrder);
-      setOtherPendingOrders([]);
-      setSelectedMergeOrderIds(new Set());
-
-      toast.success(t('om.ordersMergedToast', { n: ordersToMerge.length, orderNumber: selectedOrder.order_number }));
-
-      setTimeout(() => handleApproveOrder(), 100);
-    } catch (error) {
-      console.error('Error merging orders:', error);
-      toast.error(t('om.failedMergeOrders'));
-    } finally {
-      setMergeLoading(false);
-    }
-  };
-
   const handleRejectOrder = async () => {
     if (!selectedOrder || !rejectionReason.trim()) return;
 
@@ -767,9 +490,10 @@ export default function OrderManagement() {
 
       if (orderError) throw orderError;
 
-      // No releaseInventoryReservation here: this only fires for 'pending'
-      // orders, which never reserved stock in the first place (reservation
-      // happens at approval, not at checkout).
+      // Only legacy 'awaiting_payment' orders hold reserved stock.
+      if (selectedOrder.status === 'awaiting_payment') {
+        await releaseInventoryReservation(selectedOrder);
+      }
 
       await supabase.from('notifications').insert([{
         user_id: selectedOrder.user_id,
@@ -807,13 +531,62 @@ export default function OrderManagement() {
     }
   };
 
+  // One-step validation: the customer sent the order together with the
+  // payment proof, so validating checks the stock, completes the order,
+  // deducts the stock and credits the PV at once.
   const handleVerifyPayment = async () => {
     if (!selectedOrder || verifyingPayment) return;
+    if (!selectedOrder.payment_screenshot_url) {
+      toast.error(t('om.noProofYet'));
+      return;
+    }
     setVerifyingPayment(true);
 
     try {
       const { data: userData } = await supabase.auth.getUser();
-      const { displayName, totalPV: orderPV } = getOrderDisplayInfo(selectedOrder);
+      let order: Order = selectedOrder;
+
+      if (order.status === 'pending') {
+        const insufficientProduct = await getInsufficientStockProduct(order);
+        if (insufficientProduct) {
+          toast.error(t('om.cannotApproveStock', { product: insufficientProduct }));
+          return;
+        }
+        // Claim it (only if still pending) so two admins cannot validate it twice.
+        const { data: claimedPending, error: claimError } = await supabase
+          .from('orders')
+          .update({
+            status: 'awaiting_payment',
+            approved_by: userData.user?.id,
+            approved_at: new Date().toISOString(),
+          })
+          .eq('id', order.id)
+          .eq('status', 'pending')
+          .select('id');
+        if (claimError) throw claimError;
+        if (!claimedPending || claimedPending.length === 0) {
+          toast.error(t('om.alreadyProcessed'));
+          setShowPaymentModal(false);
+          setSelectedOrder(null);
+          await loadOrders();
+          await loadStatusCounts();
+          return;
+        }
+        await reserveStockForOrder(order);
+        await applyCrossOrderPromotions(order);
+        // Promotions may have added free items: work on the fresh order.
+        const { data: fresh } = await supabase
+          .from('orders')
+          .select(`*,
+            user:profiles!orders_user_id_profile_fkey(full_name, email, phone, address_line1, address_line2, city, state_province, postal_code, country_code, profile_image_url),
+            product:products!product_id(name, name_en, pv_value, image_url),
+            order_items(id, product_id, quantity, free_quantity, unit_price, subtotal, pv_value, product:products(name, name_en, image_url))`)
+          .eq('id', order.id)
+          .single();
+        if (fresh) order = fresh as Order;
+      }
+
+      const { displayName, totalPV: orderPV } = getOrderDisplayInfo(order);
 
       // Claim the order FIRST with a conditional update: only an order that
       // is still awaiting payment can be completed. If two admins click
@@ -826,7 +599,7 @@ export default function OrderManagement() {
           status: 'completed',
           payment_verified_at: new Date().toISOString(),
         })
-        .eq('id', selectedOrder.id)
+        .eq('id', order.id)
         .eq('status', 'awaiting_payment')
         .select('id');
 
@@ -840,14 +613,14 @@ export default function OrderManagement() {
         return;
       }
 
-      if (selectedOrder.order_items && selectedOrder.order_items.length > 0) {
-        for (const item of selectedOrder.order_items) {
+      if (order.order_items && order.order_items.length > 0) {
+        for (const item of order.order_items) {
           const totalQuantity = item.quantity + item.free_quantity;
           const { data: inventoryData } = await supabase
             .from('product_inventory')
             .select('quantity, reserved_quantity')
             .eq('product_id', item.product_id)
-            .eq('region', selectedOrder.region)
+            .eq('region', order.region)
             .maybeSingle();
 
           if (inventoryData) {
@@ -858,74 +631,54 @@ export default function OrderManagement() {
                 reserved_quantity: Math.max(0, (inventoryData.reserved_quantity || 0) - totalQuantity),
               })
               .eq('product_id', item.product_id)
-              .eq('region', selectedOrder.region);
+              .eq('region', order.region);
           }
         }
-      } else if (selectedOrder.product_id) {
+      } else if (order.product_id) {
         const { data: inventoryData } = await supabase
           .from('product_inventory')
           .select('quantity, reserved_quantity')
-          .eq('product_id', selectedOrder.product_id)
-          .eq('region', selectedOrder.region)
+          .eq('product_id', order.product_id)
+          .eq('region', order.region)
           .maybeSingle();
 
         if (inventoryData) {
           await supabase
             .from('product_inventory')
             .update({
-              quantity: Math.max(0, (inventoryData.quantity || 0) - selectedOrder.quantity),
-              reserved_quantity: Math.max(0, (inventoryData.reserved_quantity || 0) - selectedOrder.quantity),
+              quantity: Math.max(0, (inventoryData.quantity || 0) - order.quantity),
+              reserved_quantity: Math.max(0, (inventoryData.reserved_quantity || 0) - order.quantity),
             })
-            .eq('product_id', selectedOrder.product_id)
-            .eq('region', selectedOrder.region);
+            .eq('product_id', order.product_id)
+            .eq('region', order.region);
         }
       }
 
-      const roundedPV = roundPVToMultiple(orderPV);
-
-      await supabase.from('pv_transactions').insert([{
-        user_id: selectedOrder.user_id,
-        amount: roundedPV,
-        transaction_type: 'purchase',
-        reference_id: selectedOrder.id,
-        reference_type: 'product',
-        description: `Product purchase: ${displayName} (Raw PV: ${orderPV}, Rounded: ${roundedPV})`,
-        created_by: userData.user?.id,
-      }]);
-
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('total_pv')
-        .eq('id', selectedOrder.user_id)
-        .maybeSingle();
-
-      if (profileData) {
-        await supabase
-          .from('profiles')
-          .update({ total_pv: (profileData.total_pv || 0) + roundedPV })
-          .eq('id', selectedOrder.user_id);
-      }
+      // PV are computed and credited once on the server (no double credit).
+      const { data: creditedPV, error: pvError } = await supabase.rpc('credit_order_pv', { p_order_id: order.id });
+      if (pvError) console.error('Error crediting PV:', pvError);
+      const roundedPV = typeof creditedPV === 'number' && creditedPV > 0 ? creditedPV : roundPVToMultiple(orderPV);
 
       await supabase.from('notifications').insert([{
-        user_id: selectedOrder.user_id,
+        user_id: order.user_id,
         type: 'payment',
         title: t('om.paymentVerifiedTitle'),
-        message: t('om.paymentVerifiedMsg', { orderNumber: selectedOrder.order_number, pv: roundedPV }),
+        message: t('om.paymentVerifiedMsg', { orderNumber: order.order_number, pv: roundedPV }),
         title_key: 'om.paymentVerifiedTitle',
         message_key: 'om.paymentVerifiedMsg',
-        message_params: { orderNumber: selectedOrder.order_number, pv: roundedPV },
+        message_params: { orderNumber: order.order_number, pv: roundedPV },
         action_url: '/orders',
       }]);
 
       await sendPaymentVerifiedNotification(
         {
-          orderNumber: selectedOrder.order_number,
+          orderNumber: order.order_number,
           productName: displayName,
-          quantity: selectedOrder.quantity,
-          totalAmount: `${selectedOrder.currency_code} ${selectedOrder.total_amount.toFixed(2)}`,
-          userName: selectedOrder.user.full_name,
+          quantity: order.quantity,
+          totalAmount: `${order.currency_code} ${order.total_amount.toFixed(2)}`,
+          userName: order.user.full_name,
         },
-        selectedOrder.user.email
+        order.user.email
       );
 
       toast.success(t('om.paymentVerifiedToast'));
@@ -948,7 +701,7 @@ export default function OrderManagement() {
       const { error: orderError } = await supabase
         .from('orders')
         .update({
-          status: 'awaiting_payment',
+          status: 'pending',
           payment_screenshot_url: null,
           payment_submitted_at: null,
           admin_notes: `Payment rejected: ${paymentRejectionReason}`,
@@ -956,6 +709,10 @@ export default function OrderManagement() {
         .eq('id', selectedOrder.id);
 
       if (orderError) throw orderError;
+
+      if (selectedOrder.status === 'awaiting_payment') {
+        await releaseInventoryReservation(selectedOrder);
+      }
 
       await supabase.from('notifications').insert([{
         user_id: selectedOrder.user_id,
@@ -1056,7 +813,7 @@ export default function OrderManagement() {
     const styles: Record<string, string> = {
       pending: 'bg-yellow-100 text-yellow-800',
       approved: 'bg-green-100 text-green-800',
-      awaiting_payment: 'bg-orange-100 text-orange-800',
+      awaiting_payment: 'bg-yellow-100 text-yellow-800',
       rejected: 'bg-red-100 text-red-800',
       completed: 'bg-brand-100 text-brand-800',
       cancelled: 'bg-gray-100 text-gray-800',
@@ -1068,7 +825,7 @@ export default function OrderManagement() {
     const labels: Record<string, string> = {
       pending: t('orders.pending'),
       approved: t('orders.statusApproved'),
-      awaiting_payment: t('orders.awaitingPayment'),
+      awaiting_payment: t('orders.pending'),
       rejected: t('orders.rejected'),
       completed: t('orders.completed'),
       cancelled: t('orders.cancelled'),
@@ -1087,42 +844,21 @@ export default function OrderManagement() {
         <p className="text-gray-600">{t('om.subtitle')}</p>
       </div>
 
-      {statusFilter !== 'awaiting_payment' && (statusCounts.awaiting_payment || 0) > 0 && (
-        <button
-          onClick={() => setStatusFilter('awaiting_payment')}
-          className="w-full flex items-center justify-between gap-3 bg-orange-50 border border-orange-300 rounded-xl p-4 text-left hover:bg-orange-100 transition"
-        >
-          <div className="flex items-center gap-3">
-            <ImageIcon className="text-orange-600 flex-shrink-0" size={20} />
-            <p className="text-sm text-orange-900">
-              <strong>{t('om.awaitingConfirmationBanner', { n: statusCounts.awaiting_payment })}</strong>
-              {statusFilter === 'pending' && t('om.notShownInPendingFilter')}.
-            </p>
-          </div>
-          <span className="text-sm font-semibold text-orange-700 flex-shrink-0">{t('om.viewArrow')} &rarr;</span>
-        </button>
-      )}
-
       <div className="bg-gradient-to-r from-brand-50 to-brand-100 border border-brand-200 rounded-xl p-6">
         <h3 className="font-bold text-brand-900 mb-3 text-lg">{t('om.workflowTitle')}</h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white rounded-lg p-4 shadow-sm">
             <div className="w-8 h-8 bg-yellow-500 text-white rounded-full flex items-center justify-center font-bold mb-2">1</div>
-            <h4 className="font-semibold text-gray-900 mb-1">{t('orders.pending')}</h4>
+            <h4 className="font-semibold text-gray-900 mb-1">{t('om.step1Title')}</h4>
             <p className="text-sm text-gray-600">{t('om.step1Desc')}</p>
           </div>
           <div className="bg-white rounded-lg p-4 shadow-sm">
-            <div className="w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center font-bold mb-2">2</div>
-            <h4 className="font-semibold text-gray-900 mb-1">{t('orders.awaitingPayment')}</h4>
+            <div className="w-8 h-8 bg-brand-600 text-white rounded-full flex items-center justify-center font-bold mb-2">2</div>
+            <h4 className="font-semibold text-gray-900 mb-1">{t('om.step2Title')}</h4>
             <p className="text-sm text-gray-600">{t('om.step2Desc')}</p>
           </div>
           <div className="bg-white rounded-lg p-4 shadow-sm">
-            <div className="w-8 h-8 bg-brand-600 text-white rounded-full flex items-center justify-center font-bold mb-2">3</div>
-            <h4 className="font-semibold text-gray-900 mb-1">{t('admin.paymentSubmitted')}</h4>
-            <p className="text-sm text-gray-600">{t('admin.verifyPayment')}</p>
-          </div>
-          <div className="bg-white rounded-lg p-4 shadow-sm">
-            <div className="w-8 h-8 bg-brand-800 text-white rounded-full flex items-center justify-center font-bold mb-2">4</div>
+            <div className="w-8 h-8 bg-brand-800 text-white rounded-full flex items-center justify-center font-bold mb-2">3</div>
             <h4 className="font-semibold text-gray-900 mb-1">{t('orders.completed')}</h4>
             <p className="text-sm text-gray-600">{t('om.step4Desc')}</p>
           </div>
@@ -1138,7 +874,6 @@ export default function OrderManagement() {
           <h3 className="font-semibold text-blue-900 mb-2">{t('om.noOrdersFoundTitle')}</h3>
           <p className="text-sm text-blue-700">
             {statusFilter === 'pending' ? t('om.noPendingOrders') :
-             statusFilter === 'awaiting_payment' ? t('om.noAwaitingPaymentOrders') :
              statusFilter === 'completed' ? t('om.noCompletedOrders') :
              t('om.noOrdersSystem')}
           </p>
@@ -1163,7 +898,6 @@ export default function OrderManagement() {
         >
           <option value="all">{t('om.allStatus', { n: Object.values(statusCounts).reduce((a, b) => a + b, 0) })}</option>
           <option value="pending">{t('orders.pending')} ({statusCounts.pending || 0})</option>
-          <option value="awaiting_payment">{t('orders.awaitingPayment')} ({statusCounts.awaiting_payment || 0})</option>
           <option value="rejected">{t('orders.rejected')} ({statusCounts.rejected || 0})</option>
           <option value="completed">{t('orders.completed')} ({statusCounts.completed || 0})</option>
         </select>
@@ -1264,12 +998,14 @@ export default function OrderManagement() {
                         <span className={`px-2 py-1 text-xs font-semibold rounded ${getStatusBadge(order.status)}`}>
                           {getStatusLabel(order.status)}
                         </span>
-                        {order.status === 'awaiting_payment' && order.payment_screenshot_url && (
+                        {isOpenOrder(order) && (order.payment_screenshot_url ? (
                           <span className="px-2 py-1 text-xs font-semibold rounded bg-green-100 text-green-700 flex items-center gap-1">
                             <ImageIcon size={12} />
                             {t('om.proof')}
                           </span>
-                        )}
+                        ) : (
+                          <span className="px-2 py-1 text-xs font-semibold rounded bg-orange-100 text-orange-700">{t('om.noProofYet')}</span>
+                        ))}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -1286,15 +1022,32 @@ export default function OrderManagement() {
                         <Eye size={16} />
                         {t('om.view')}
                       </button>
-                      {order.status === 'pending' && (
+                      {isOpenOrder(order) && (
                         <>
-                          <button
-                            onClick={() => openApproveModalForOrder(order)}
-                            className="text-green-600 hover:text-green-900 inline-flex items-center gap-1"
-                          >
-                            <Check size={16} />
-                            {t('accounts.approve')}
-                          </button>
+                          {order.payment_screenshot_url && (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setSelectedOrder(order);
+                                  setShowPaymentModal(true);
+                                }}
+                                className="text-green-600 hover:text-green-900 inline-flex items-center gap-1"
+                              >
+                                <Check size={16} />
+                                {t('om.validate')}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedOrder(order);
+                                  setShowRejectPaymentModal(true);
+                                }}
+                                className="text-orange-600 hover:text-orange-800 inline-flex items-center gap-1"
+                              >
+                                <ImageIcon size={16} />
+                                {t('om.rejectProof')}
+                              </button>
+                            </>
+                          )}
                           <button
                             onClick={() => {
                               setSelectedOrder(order);
@@ -1303,31 +1056,7 @@ export default function OrderManagement() {
                             className="text-red-600 hover:text-red-900 inline-flex items-center gap-1"
                           >
                             <X size={16} />
-                            {t('accounts.reject')}
-                          </button>
-                        </>
-                      )}
-                      {order.status === 'awaiting_payment' && order.payment_screenshot_url && (
-                        <>
-                          <button
-                            onClick={() => {
-                              setSelectedOrder(order);
-                              setShowPaymentModal(true);
-                            }}
-                            className="text-green-600 hover:text-green-900 inline-flex items-center gap-1"
-                          >
-                            <CreditCard size={16} />
-                            {t('om.verify')}
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedOrder(order);
-                              setShowRejectPaymentModal(true);
-                            }}
-                            className="text-red-600 hover:text-red-900 inline-flex items-center gap-1"
-                          >
-                            <X size={16} />
-                            {t('accounts.reject')}
+                            {t('om.rejectOrder')}
                           </button>
                         </>
                       )}
@@ -1382,12 +1111,14 @@ export default function OrderManagement() {
                     <span className={`px-2 py-1 text-xs font-semibold rounded ${getStatusBadge(order.status)}`}>
                       {getStatusLabel(order.status)}
                     </span>
-                    {order.status === 'awaiting_payment' && order.payment_screenshot_url && (
+                    {isOpenOrder(order) && (order.payment_screenshot_url ? (
                       <span className="px-2 py-1 text-xs font-semibold rounded bg-green-100 text-green-700 flex items-center gap-1">
                         <ImageIcon size={12} />
                         {t('om.proof')}
                       </span>
-                    )}
+                    ) : (
+                      <span className="px-2 py-1 text-xs font-semibold rounded bg-orange-100 text-orange-700">{t('om.noProofYet')}</span>
+                    ))}
                   </div>
                 </div>
 
@@ -1423,15 +1154,32 @@ export default function OrderManagement() {
                     <Eye size={16} />
                     {t('om.view')}
                   </button>
-                  {order.status === 'pending' && (
+                  {isOpenOrder(order) && (
                     <>
-                      <button
-                        onClick={() => openApproveModalForOrder(order)}
-                        className="text-green-600 hover:text-green-900 inline-flex items-center gap-1"
-                      >
-                        <Check size={16} />
-                        {t('accounts.approve')}
-                      </button>
+                      {order.payment_screenshot_url && (
+                        <>
+                          <button
+                            onClick={() => {
+                              setSelectedOrder(order);
+                              setShowPaymentModal(true);
+                            }}
+                            className="text-green-600 hover:text-green-900 inline-flex items-center gap-1"
+                          >
+                            <Check size={16} />
+                            {t('om.validate')}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedOrder(order);
+                              setShowRejectPaymentModal(true);
+                            }}
+                            className="text-orange-600 hover:text-orange-800 inline-flex items-center gap-1"
+                          >
+                            <ImageIcon size={16} />
+                            {t('om.rejectProof')}
+                          </button>
+                        </>
+                      )}
                       <button
                         onClick={() => {
                           setSelectedOrder(order);
@@ -1440,31 +1188,7 @@ export default function OrderManagement() {
                         className="text-red-600 hover:text-red-900 inline-flex items-center gap-1"
                       >
                         <X size={16} />
-                        {t('accounts.reject')}
-                      </button>
-                    </>
-                  )}
-                  {order.status === 'awaiting_payment' && order.payment_screenshot_url && (
-                    <>
-                      <button
-                        onClick={() => {
-                          setSelectedOrder(order);
-                          setShowPaymentModal(true);
-                        }}
-                        className="text-green-600 hover:text-green-900 inline-flex items-center gap-1"
-                      >
-                        <CreditCard size={16} />
-                        {t('om.verify')}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSelectedOrder(order);
-                          setShowRejectPaymentModal(true);
-                        }}
-                        className="text-red-600 hover:text-red-900 inline-flex items-center gap-1"
-                      >
-                        <X size={16} />
-                        {t('accounts.reject')}
+                        {t('om.rejectOrder')}
                       </button>
                     </>
                   )}
@@ -1706,151 +1430,6 @@ export default function OrderManagement() {
         </div>
       )}
 
-      {showApproveModal && selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-1">{t('om.approveOrderTitle')}</h3>
-            <p className="text-gray-600 mb-4">
-              {t('om.orderWord')} <strong>{selectedOrder.order_number}</strong> {t('om.fromWord')} <strong>{selectedOrder.user.full_name}</strong>
-              {' '}({selectedOrder.currency_code} {selectedOrder.total_amount.toFixed(2)})
-            </p>
-
-            {otherPendingOrders.length > 0 && (
-              <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Merge className="w-5 h-5 text-amber-700" />
-                  <h4 className="font-semibold text-amber-900">
-                    {t('om.otherPendingOrdersHeading', { n: otherPendingOrders.length })}
-                  </h4>
-                </div>
-                <p className="text-sm text-amber-800 mb-3">
-                  {t('om.selectOrdersToMerge')}
-                </p>
-
-                <div className="space-y-2">
-                  {otherPendingOrders.map((o) => {
-                    const { displayName, totalPV, itemCount } = getOrderDisplayInfo(o);
-                    const isSelected = selectedMergeOrderIds.has(o.id);
-                    return (
-                      <label
-                        key={o.id}
-                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${
-                          isSelected
-                            ? 'bg-amber-100 border-amber-400'
-                            : 'bg-white border-gray-200 hover:border-amber-300'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => {
-                            const next = new Set(selectedMergeOrderIds);
-                            if (isSelected) next.delete(o.id);
-                            else next.add(o.id);
-                            setSelectedMergeOrderIds(next);
-                          }}
-                          className="w-4 h-4 text-amber-600 rounded border-gray-300 focus:ring-amber-500"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-gray-900">{o.order_number}</span>
-                            {itemCount > 1 && (
-                              <span className="text-xs text-brand-600 font-medium flex items-center gap-0.5">
-                                <Package size={10} /> {t('orders.itemsCountLabel', { n: itemCount })}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-gray-500 truncate">{displayName}</p>
-                        </div>
-                        <div className="text-right flex-shrink-0">
-                          <p className="text-sm font-bold text-gray-900">{o.currency_code} {o.total_amount.toFixed(2)}</p>
-                          <p className="text-xs text-orange-600">{totalPV} PV</p>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-
-                {selectedMergeOrderIds.size > 0 && (
-                  <div className="mt-3 pt-3 border-t border-amber-200">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-amber-900 font-medium">{t('om.combinedTotalAfterMerge')}</span>
-                      <span className="font-bold text-gray-900">
-                        {selectedOrder.currency_code}{' '}
-                        {(
-                          selectedOrder.total_amount +
-                          otherPendingOrders
-                            .filter(o => selectedMergeOrderIds.has(o.id))
-                            .reduce((sum, o) => sum + o.total_amount, 0)
-                        ).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                <button
-                  onClick={() => {
-                    const all = new Set(otherPendingOrders.map(o => o.id));
-                    setSelectedMergeOrderIds(
-                      selectedMergeOrderIds.size === otherPendingOrders.length ? new Set() : all
-                    );
-                  }}
-                  className="mt-2 text-xs text-amber-700 hover:text-amber-900 font-medium underline"
-                >
-                  {selectedMergeOrderIds.size === otherPendingOrders.length ? t('om.deselectAll') : t('om.selectAll')}
-                </button>
-              </div>
-            )}
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">{t('om.adminNotesOptional')}</label>
-              <textarea
-                value={adminNotes}
-                onChange={(e) => setAdminNotes(e.target.value)}
-                rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                placeholder={t('om.addNotesApprovalPlaceholder')}
-              />
-            </div>
-            <div className="flex gap-3">
-              {selectedMergeOrderIds.size > 0 ? (
-                <button
-                  onClick={handleMergeAndApprove}
-                  disabled={mergeLoading}
-                  className="flex-1 bg-amber-600 text-white py-2.5 rounded-lg hover:bg-amber-700 font-medium flex items-center justify-center gap-2 disabled:opacity-60"
-                >
-                  {mergeLoading ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                  ) : (
-                    <Merge size={18} />
-                  )}
-                  {t('om.mergeAndApprove', { n: selectedMergeOrderIds.size + 1 })}
-                </button>
-              ) : (
-                <button
-                  onClick={handleApproveOrder}
-                  disabled={approving}
-                  className="flex-1 bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 font-medium disabled:opacity-60"
-                >
-                  {approving ? t('common.processing') : t('om.approveThisOrderOnly')}
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  setShowApproveModal(false);
-                  setAdminNotes('');
-                  setOtherPendingOrders([]);
-                  setSelectedMergeOrderIds(new Set());
-                }}
-                className="flex-1 bg-gray-200 text-gray-800 py-2.5 rounded-lg hover:bg-gray-300 font-medium"
-              >
-                {t('common.cancel')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {showRejectModal && selectedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
@@ -2045,7 +1624,7 @@ export default function OrderManagement() {
                 onChange={(e) => setNewStatus(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
               >
-                {['pending', 'awaiting_payment', 'rejected', 'completed', 'cancelled'].map(status => (
+                {['pending', 'rejected', 'completed', 'cancelled'].map(status => (
                   <option
                     key={status}
                     value={status}

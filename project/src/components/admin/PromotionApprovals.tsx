@@ -6,7 +6,7 @@ import { getLocalizedProductName, getLocalizedProductType } from '../../utils/pr
 import { getPromoBuyGetFreeText, getPromoLabel } from '../../utils/promoLocale';
 import { sendPromotionNotification } from '../../utils/notifications';
 import { toLocalInput } from '../../utils/datetime';
-import { Tag, Plus, Calendar, Trash2, Ban, Package, X, Power, CheckCircle2 } from 'lucide-react';
+import { Tag, Plus, Calendar, Trash2, Ban, Package, X, Power, CheckCircle2, Pencil } from 'lucide-react';
 import { getCountryName, loadCountryNames } from '../../utils/countries';
 
 interface ProductPromotion {
@@ -46,6 +46,7 @@ export function PromotionApprovals() {
   const [countryMap, setCountryMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     product_id: '',
     title: '',
@@ -107,6 +108,30 @@ export function PromotionApprovals() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    if (editingId) {
+      const { error: updateError } = await supabase
+        .from('product_promotions')
+        .update({
+          product_id: formData.product_id,
+          title: formData.title.trim(),
+          buy_quantity: formData.buy_quantity,
+          free_quantity: formData.free_quantity,
+          country_code: formData.country_code || null,
+          starts_at: new Date(formData.starts_at).toISOString(),
+          ends_at: new Date(formData.ends_at).toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', editingId);
+      if (updateError) {
+        toast.error(t('promo.failedUpdate'));
+        return;
+      }
+      toast.success(t('promo.updated'));
+      closeForm();
+      fetchProductPromotions();
+      return;
+    }
+
     const { error } = await supabase.from('product_promotions').insert({
       product_id: formData.product_id,
       title: formData.title.trim(),
@@ -134,17 +159,38 @@ export function PromotionApprovals() {
     });
 
     toast.success(t('promo.created'));
-    setShowAddModal(false);
-    setFormData({
-      product_id: '',
-      title: '',
-      buy_quantity: 3,
-      free_quantity: 1,
-      country_code: '',
-      starts_at: toLocalInput(new Date()),
-      ends_at: toLocalInput(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
-    });
+    closeForm();
     fetchProductPromotions();
+  };
+
+  const emptyForm = () => ({
+    product_id: '',
+    title: '',
+    buy_quantity: 3,
+    free_quantity: 1,
+    country_code: '',
+    starts_at: toLocalInput(new Date()),
+    ends_at: toLocalInput(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
+  });
+
+  const closeForm = () => {
+    setShowAddModal(false);
+    setEditingId(null);
+    setFormData(emptyForm());
+  };
+
+  const openEdit = (promo: ProductPromotion) => {
+    setEditingId(promo.id);
+    setFormData({
+      product_id: promo.product_id,
+      title: promo.title || '',
+      buy_quantity: promo.buy_quantity,
+      free_quantity: promo.free_quantity,
+      country_code: promo.country_code || '',
+      starts_at: toLocalInput(new Date(promo.starts_at)),
+      ends_at: toLocalInput(new Date(promo.ends_at)),
+    });
+    setShowAddModal(true);
   };
 
   const notifyPromotion = (p: { product_id: string; title: string; buy_quantity: number; free_quantity: number; starts_at: string; ends_at: string }) => {
@@ -235,7 +281,8 @@ export function PromotionApprovals() {
       <ProductPromotionsSection
         promotions={productPromotions}
         countryMap={countryMap}
-        onAdd={() => setShowAddModal(true)}
+        onAdd={() => { setEditingId(null); setFormData(emptyForm()); setShowAddModal(true); }}
+        onEdit={openEdit}
         onToggle={toggleProductPromotion}
         onCancel={cancelProductPromotion}
         onDelete={deleteProductPromotion}
@@ -246,8 +293,8 @@ export function PromotionApprovals() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-5">
-              <h3 className="text-xl font-bold text-gray-900">{t('promo.newProductPromotionTitle')}</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600">
+              <h3 className="text-xl font-bold text-gray-900">{editingId ? t('admin.editPromotion') : t('promo.newProductPromotionTitle')}</h3>
+              <button onClick={closeForm} className="text-gray-400 hover:text-gray-600">
                 <X size={24} />
               </button>
             </div>
@@ -356,11 +403,11 @@ export function PromotionApprovals() {
                   type="submit"
                   className="flex-1 bg-brand-700 text-white py-2.5 rounded-lg hover:bg-brand-800 font-medium"
                 >
-                  {t('admin.createPromotion')}
+                  {editingId ? t('profile.save') : t('admin.createPromotion')}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={closeForm}
                   className="flex-1 bg-gray-200 text-gray-800 py-2.5 rounded-lg hover:bg-gray-300 font-medium"
                 >
                   {t('common.cancel')}
@@ -378,6 +425,7 @@ function ProductPromotionsSection({
   promotions,
   countryMap,
   onAdd,
+  onEdit,
   onToggle,
   onCancel,
   onDelete,
@@ -386,6 +434,7 @@ function ProductPromotionsSection({
   promotions: ProductPromotion[];
   countryMap: Record<string, string>;
   onAdd: () => void;
+  onEdit: (promo: ProductPromotion) => void;
   onToggle: (id: string, currentActive: boolean) => void;
   onCancel: (id: string) => void;
   onDelete: (id: string) => void;
@@ -417,7 +466,7 @@ function ProductPromotionsSection({
           </div>
           <div className="divide-y divide-gray-100">
             {activePromos.map(promo => (
-              <PromoRow key={promo.id} promo={promo} countryMap={countryMap} onToggle={onToggle} onCancel={onCancel} onDelete={onDelete} active />
+              <PromoRow key={promo.id} promo={promo} countryMap={countryMap} onEdit={onEdit} onToggle={onToggle} onCancel={onCancel} onDelete={onDelete} active />
             ))}
           </div>
         </div>
@@ -438,7 +487,7 @@ function ProductPromotionsSection({
           </div>
           <div className="divide-y divide-gray-100">
             {inactivePromos.slice(0, 20).map(promo => (
-              <PromoRow key={promo.id} promo={promo} countryMap={countryMap} onToggle={onToggle} onCancel={onCancel} onDelete={onDelete} active={false} />
+              <PromoRow key={promo.id} promo={promo} countryMap={countryMap} onEdit={onEdit} onToggle={onToggle} onCancel={onCancel} onDelete={onDelete} active={false} />
             ))}
           </div>
         </div>
@@ -450,6 +499,7 @@ function ProductPromotionsSection({
 function PromoRow({
   promo,
   countryMap,
+  onEdit,
   onToggle,
   onCancel,
   onDelete,
@@ -457,6 +507,7 @@ function PromoRow({
 }: {
   promo: ProductPromotion;
   countryMap: Record<string, string>;
+  onEdit: (promo: ProductPromotion) => void;
   onToggle: (id: string, currentActive: boolean) => void;
   onCancel: (id: string) => void;
   onDelete: (id: string) => void;
@@ -571,7 +622,17 @@ function PromoRow({
           </button>
         )}
         <button
+          onClick={() => onEdit(promo)}
+          className="p-1.5 text-gray-400 hover:text-brand-700 hover:bg-brand-50 rounded-lg transition"
+          title={t('admin.edit')}
+          aria-label={t('admin.edit')}
+        >
+          <Pencil className="w-4 h-4" />
+        </button>
+        <button
           onClick={() => onDelete(promo.id)}
+          title={t('admin.delete')}
+          aria-label={t('admin.delete')}
           className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
         >
           <Trash2 className="w-4 h-4" />

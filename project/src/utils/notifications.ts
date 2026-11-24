@@ -93,7 +93,7 @@ export async function sendPromotionNotification(data: {
   // Only approved accounts can see the shop - don't notify pending/rejected ones.
   const { data: recipients } = await supabase
     .from('profiles')
-    .select('id, email, full_name')
+    .select('id, email, full_name, promo_emails')
     .eq('account_status', 'approved');
 
   if (!recipients || recipients.length === 0) return;
@@ -117,7 +117,8 @@ export async function sendPromotionNotification(data: {
   );
   if (notifError) console.error('Error creating promotion notifications:', notifError);
 
-  const validRecipients = recipients.filter((recipient) => recipient.email);
+  // Emails only to people who did not opt out of promotions (CASL).
+  const validRecipients = recipients.filter((recipient) => recipient.email && recipient.promo_emails !== false);
   if (validRecipients.length === 0) return;
 
   const html = `
@@ -136,6 +137,11 @@ export async function sendPromotionNotification(data: {
           ${data.endsAt ? `<p style="margin: 4px 0; color: #7c2d12;">Ends: ${new Date(data.endsAt).toLocaleString()}</p>` : ''}
         </div>
         <p style="color: #374151; font-size: 14px;">Visit the shop today and take advantage of this special offer.</p>
+        <p style="color: #9ca3af; font-size: 12px; margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 12px;">
+          LC Shop &middot; lcshop.app@gmail.com<br/>
+          You receive this email because you have an LC Shop account. To stop promotion emails, open the app &rarr; Profile &rarr; uncheck "Promotion emails", or reply "STOP" to this email.<br/>
+          Vous recevez ce courriel car vous avez un compte LC Shop. Pour ne plus recevoir les promotions : application &rarr; Profil &rarr; decochez « Courriels de promotions », ou repondez « STOP ».
+        </p>
       </div>
     </div>
   `;
