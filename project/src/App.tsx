@@ -6,16 +6,13 @@ import { ResetPasswordForm } from './components/ResetPasswordForm';
 import { Dashboard } from './components/Dashboard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppUpdater } from './components/AppUpdater';
+import { LoadingScreen } from './components/LoadingScreen';
 
 function AppContent() {
   const { user, profile, loading, isPasswordRecovery } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-app bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (isPasswordRecovery) {

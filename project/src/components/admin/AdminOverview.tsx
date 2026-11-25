@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Users, TrendingUp, DollarSign, CheckCircle, ShoppingBag } from 'lucide-react';
 import { AnimatedCounter } from '../AnimatedCounter';
+import { SectionSkeleton } from '../SectionSkeleton';
 
 const REFRESH_INTERVAL = 10_000;
 
@@ -64,11 +65,7 @@ export function AdminOverview() {
   }, [loading, fetchStats]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
-      </div>
-    );
+    return <SectionSkeleton variant="cards" />;
   }
 
   return (

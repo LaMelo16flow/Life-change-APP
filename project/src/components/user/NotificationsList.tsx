@@ -4,6 +4,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { supabase, Notification } from '../../lib/supabase';
 import { resolveNotificationText } from '../../utils/notificationText';
 import { Bell, Calendar, Award, DollarSign, Users, Settings, Check, CheckCheck } from 'lucide-react';
+import { SectionSkeleton } from '../SectionSkeleton';
 
 interface NotificationsListProps {
   onNavigate?: (actionUrl: string | null | undefined) => void;
@@ -71,11 +72,7 @@ export function NotificationsList({ onNavigate }: NotificationsListProps) {
   );
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
-      </div>
-    );
+    return <SectionSkeleton variant="list" />;
   }
 
   const getIcon = (type: string) => {

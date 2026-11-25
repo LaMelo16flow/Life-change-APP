@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { getLocalizedProductName } from '../../utils/productLocale';
 import { TrendingUp, Package, Users, Lightbulb, Lock, ShoppingBag } from 'lucide-react';
+import { SectionSkeleton } from '../SectionSkeleton';
 
 const BRAND_GREEN = '#16a34a';
 const ACCENT_ORANGE = '#eb6834';
@@ -250,7 +251,7 @@ export default function ProductAnalytics() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading analytics...</div>;
+    return <SectionSkeleton variant="cards" />;
   }
 
   const maxTotalUnits = topByTotalUnits[0]?.totalUnits || 0;

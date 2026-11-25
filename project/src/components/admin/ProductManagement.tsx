@@ -1,12 +1,13 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase, Product } from '../../lib/supabase';
 import { onAppResume } from '../../lib/appLifecycle';
+import { debounce } from '../../lib/debounce';
+import { SectionSkeleton } from '../SectionSkeleton';
 import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { formatCurrency } from '../../utils/currency';
 import { getLocalizedProductType } from '../../utils/productLocale';
 import { Upload, Plus, CreditCard as Edit2, Save, X, Image, Eye, EyeOff } from 'lucide-react';
-import * as XLSX from 'xlsx';
 
 const normalizedProductName = (value: string) => {
   if (!value) return '';
@@ -216,28 +217,28 @@ export function ProductManagement() {
   }, []);
 
   useEffect(() => {
+    const refresh = debounce(() => fetchProducts(), 400);
     const channel = supabase
       .channel('product-management-live-updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, async () => {
-        await fetchProducts();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_prices' }, async () => {
-        await fetchProducts();
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_prices' }, refresh)
       .subscribe();
-    const offResume = onAppResume(() => fetchProducts());
+    const offResume = onAppResume(refresh);
 
     return () => {
+      refresh.cancel();
       offResume();
       supabase.removeChannel(channel);
     };
   }, []);
 
+  // Products and all their prices in two parallel requests (it used to be one
+  // request per product, one after the other).
   const fetchProducts = async () => {
-    const { data } = await supabase
-      .from('products')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const [{ data }, pricesRes] = await Promise.all([
+      supabase.from('products').select('*').order('created_at', { ascending: false }),
+      supabase.from('product_prices').select('product_id, price').eq('country_code', 'CA'),
+    ]);
 
     if (data) {
       const dedupedProducts = mergeDuplicateProducts(data as Product[]);
@@ -250,15 +251,9 @@ export function ProductManagement() {
       setProducts(cleanedProducts);
 
       const pricesMap: Record<string, number> = {};
-      for (const product of cleanedProducts) {
-        const { data: price } = await supabase
-          .from('product_prices')
-          .select('price')
-          .eq('product_id', product.id)
-          .eq('country_code', 'CA')
-          .maybeSingle();
-
-        pricesMap[product.id] = price?.price ?? 0;
+      for (const product of cleanedProducts) pricesMap[product.id] = 0;
+      for (const p of (pricesRes.data || []) as { product_id: string; price: number }[]) {
+        if (p.product_id in pricesMap) pricesMap[p.product_id] = p.price;
       }
       setProductPrices(pricesMap);
     }
@@ -578,6 +573,7 @@ export function ProductManagement() {
     setImporting(true);
 
     try {
+      const XLSX = await import('xlsx');
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
       const sheetName = workbook.SheetNames[0];
@@ -706,11 +702,7 @@ export function ProductManagement() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
-      </div>
-    );
+    return <SectionSkeleton variant="table" />;
   }
 
   return (
@@ -870,7 +862,7 @@ export function ProductManagement() {
           {newProduct.image_url && (
             <div className="mt-4">
               <p className="text-sm text-slate-600 mb-2">{t('admin.imagePreview')}</p>
-              <img
+              <img loading="lazy" decoding="async"
                 src={newProduct.image_url}
                 alt="Preview"
                 className="w-32 h-32 object-cover rounded-lg border border-slate-200"
@@ -968,7 +960,7 @@ export function ProductManagement() {
                       />
                     </div>
                     {editForm.image_url && (
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={editForm.image_url}
                         alt="Preview"
                         className="mt-2 w-24 h-24 object-cover rounded-lg border border-slate-200"
@@ -1079,7 +1071,7 @@ export function ProductManagement() {
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div className="flex gap-4 flex-1">
                 {product.image_url ? (
-                  <img
+                  <img loading="lazy" decoding="async"
                     src={product.image_url}
                     alt={product.name}
                     className="w-20 h-20 object-cover rounded-lg border border-slate-200"

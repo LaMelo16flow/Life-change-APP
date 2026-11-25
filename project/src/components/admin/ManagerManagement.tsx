@@ -5,6 +5,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { PermissionType } from '../../lib/supabase';
 import { UserPlus, Shield, Trash2, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { SectionSkeleton } from '../SectionSkeleton';
 
 interface ManagerProfile {
   id: string;
@@ -304,7 +305,7 @@ export default function ManagerManagement() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">{t('admin.loadingTeam')}</div>;
+    return <SectionSkeleton variant="list" />;
   }
 
   return (

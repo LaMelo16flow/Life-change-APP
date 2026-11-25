@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase, Profile } from '../../lib/supabase';
 import { onAppResume } from '../../lib/appLifecycle';
+import { debounce } from '../../lib/debounce';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { formatCurrency } from '../../utils/currency';
@@ -119,16 +120,20 @@ export default function Shop() {
   }, []);
 
   useEffect(() => {
+    // Many changes can arrive at once (e.g. an order updates several stocks):
+    // reload once after the burst instead of once per change.
+    const refresh = debounce(() => loadData(), 400);
     const channel = supabase
       .channel('shop-live-updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => loadData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_prices' }, () => loadData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_inventory' }, () => loadData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_promotions' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_prices' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_inventory' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_promotions' }, refresh)
       .subscribe();
-    const offResume = onAppResume(() => loadData());
+    const offResume = onAppResume(refresh);
 
     return () => {
+      refresh.cancel();
       offResume();
       supabase.removeChannel(channel);
     };
@@ -136,7 +141,9 @@ export default function Shop() {
 
   async function loadData() {
     try {
-      const [productsRes, profileRes] = await Promise.all([
+      // Everything the shop needs, in parallel (was two rounds of requests).
+      const now = new Date().toISOString();
+      const [productsRes, profileRes, pricesRes, promosRes, inventoryRes] = await Promise.all([
         supabase
           .from('products')
           .select(`
@@ -145,7 +152,21 @@ export default function Shop() {
           `)
           .eq('is_active', true)
           .order('product_type', { ascending: true }),
-        supabase.from('profiles').select('*').eq('id', user?.id).single()
+        supabase.from('profiles').select('*').eq('id', user?.id).single(),
+        supabase
+          .from('product_prices')
+          .select('product_id, price')
+          .eq('country_code', 'CA'),
+        supabase
+          .from('product_promotions')
+          .select('id, product_id, title, buy_quantity, free_quantity, country_code')
+          .eq('is_active', true)
+          .lte('starts_at', now)
+          .gt('ends_at', now),
+        supabase
+          .from('product_inventory')
+          .select('product_id, quantity, reserved_quantity, low_stock_threshold')
+          .eq('region', 'CA'),
       ]);
 
       if (productsRes.data) {
@@ -161,23 +182,6 @@ export default function Shop() {
 
       if (profileRes.data) {
         setProfile(profileRes.data);
-
-        const [pricesRes, promosRes, inventoryRes] = await Promise.all([
-          supabase
-            .from('product_prices')
-            .select('product_id, price')
-            .eq('country_code', 'CA'),
-          supabase
-            .from('product_promotions')
-            .select('id, product_id, title, buy_quantity, free_quantity, country_code')
-            .eq('is_active', true)
-            .lte('starts_at', new Date().toISOString())
-            .gt('ends_at', new Date().toISOString()),
-          supabase
-            .from('product_inventory')
-            .select('product_id, quantity, reserved_quantity, low_stock_threshold')
-            .eq('region', 'CA'),
-        ]);
 
         if (pricesRes.data) {
           const priceMap: Record<string, number> = {};
@@ -705,7 +709,7 @@ export default function Shop() {
 
               {product.image_url && (
                 <div className="relative w-full bg-gray-50">
-                  <img
+                  <img loading="lazy" decoding="async"
                     src={product.image_url}
                     alt={getLocalizedProductName(product, language)}
                     className="w-full h-auto block"
@@ -929,7 +933,7 @@ function OrderModal({
         <div className="space-y-4">
           <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
             {product.image_url && (
-              <img
+              <img loading="lazy" decoding="async"
                 src={product.image_url}
                 alt={getLocalizedProductName(product, language)}
                 className="w-20 h-20 object-contain rounded-lg bg-white flex-shrink-0"

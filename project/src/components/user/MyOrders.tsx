@@ -8,6 +8,7 @@ import { formatCurrency } from '../../utils/currency';
 import { getLocalizedProductName, getLocalizedProductDescription } from '../../utils/productLocale';
 import { ShoppingBag, Clock, Check, X, Package, Upload, CreditCard, ChevronDown, ChevronUp } from 'lucide-react';
 import { sendPaymentSubmittedNotification } from '../../utils/notifications';
+import { SectionSkeleton } from '../SectionSkeleton';
 
 interface OrderItem {
   id: string;
@@ -258,7 +259,7 @@ export default function MyOrders() {
   const pendingCount = orders.filter(isOpen).length;
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">{t('admin.loadingOrders')}</div>;
+    return <SectionSkeleton variant="list" />;
   }
 
   return (
@@ -336,7 +337,7 @@ export default function MyOrders() {
                 <div className="flex flex-col sm:flex-row gap-4">
                   {image && (
                     <div className="w-full sm:w-24 h-32 sm:h-24 flex-shrink-0">
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={image}
                         alt={displayName}
                         className="w-full h-full object-cover rounded-lg"
@@ -376,7 +377,7 @@ export default function MyOrders() {
                         {order.order_items.map((item) => (
                           <div key={item.id} className="flex items-start gap-3">
                             {item.product.image_url && (
-                              <img
+                              <img loading="lazy" decoding="async"
                                 src={item.product.image_url}
                                 alt={getLocalizedProductName(item.product, language)}
                                 className="w-12 h-12 object-cover rounded flex-shrink-0"

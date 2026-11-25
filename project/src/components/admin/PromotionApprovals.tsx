@@ -8,6 +8,7 @@ import { sendPromotionNotification } from '../../utils/notifications';
 import { toLocalInput } from '../../utils/datetime';
 import { Tag, Plus, Calendar, Trash2, Ban, Package, X, Power, CheckCircle2, Pencil } from 'lucide-react';
 import { getCountryName, loadCountryNames } from '../../utils/countries';
+import { SectionSkeleton } from '../SectionSkeleton';
 
 interface ProductPromotion {
   id: string;
@@ -264,11 +265,7 @@ export function PromotionApprovals() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
-      </div>
-    );
+    return <SectionSkeleton variant="list" />;
   }
 
   return (
@@ -525,7 +522,7 @@ function PromoRow({
   return (
     <div className="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-4">
       {promo.product?.image_url && (
-        <img
+        <img loading="lazy" decoding="async"
           src={promo.product.image_url}
           alt={productName}
           className="w-12 h-12 rounded-lg object-cover flex-shrink-0"

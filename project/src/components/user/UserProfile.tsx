@@ -4,6 +4,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { supabase } from '../../lib/supabase';
 import { User, Mail, Globe, Phone, MapPin, Calendar, Save, AlertCircle, Camera, Loader2, Lock, Check } from 'lucide-react';
 import { LegalModal, type LegalDoc } from '../LegalModal';
+import { SectionSkeleton } from '../SectionSkeleton';
 
 interface Country {
   code: string;
@@ -225,11 +226,7 @@ export function UserProfile() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
-      </div>
-    );
+    return <SectionSkeleton variant="profile" />;
   }
 
   return (
@@ -267,7 +264,7 @@ export function UserProfile() {
             <div className="flex flex-col items-center">
               <div className="relative">
                 {profileImageUrl ? (
-                  <img
+                  <img loading="lazy" decoding="async"
                     src={profileImageUrl}
                     alt={formData.full_name}
                     className="w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-brand-100 bg-brand-50 overflow-hidden text-[0px]"

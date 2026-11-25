@@ -21,9 +21,37 @@
     <meta name="application-name" content="LC Shop" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <meta name="format-detection" content="telephone=no" />
+    <link rel="preload" as="image" href="/logo-lockup.png" />
+    <style>
+      /* Shown instantly while the app loads (also reused by the app itself). */
+      html, body { margin: 0; background: #111827; }
+      .lc-splash {
+        position: fixed; inset: 0; z-index: 50;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px;
+        background: radial-gradient(circle at 50% 35%, #14532d 0%, #111827 55%, #0b0f19 100%);
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        animation: lc-fade-in .25s ease-out both;
+      }
+      .lc-splash__logo { height: 84px; width: auto; filter: drop-shadow(0 12px 28px rgba(34,197,94,.35)); animation: lc-float 2.4s ease-in-out infinite; }
+      .lc-splash__bar { width: 140px; height: 4px; border-radius: 999px; background: rgba(255,255,255,.12); overflow: hidden; }
+      .lc-splash__bar::after { content: ''; display: block; width: 40%; height: 100%; border-radius: inherit;
+        background: linear-gradient(90deg, #4ade80, #22c55e); animation: lc-slide 1.1s ease-in-out infinite; }
+      .lc-splash__tag { color: rgba(255,255,255,.55); font-size: 13px; letter-spacing: .12em; text-transform: uppercase; }
+      @keyframes lc-slide { 0% { transform: translateX(-110%); } 100% { transform: translateX(260%); } }
+      @keyframes lc-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+      @keyframes lc-fade-in { from { opacity: 0; } to { opacity: 1; } }
+      @media (prefers-reduced-motion: reduce) { .lc-splash, .lc-splash__logo, .lc-splash__bar::after { animation: none; } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="lc-splash" role="status" aria-label="LC Shop">
+        <img class="lc-splash__logo" src="/logo-lockup.png" alt="LC Shop" />
+        <div class="lc-splash__bar"></div>
+        <div class="lc-splash__tag">Buy • Shop • Enjoy</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

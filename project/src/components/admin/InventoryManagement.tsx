@@ -5,6 +5,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { getLocalizedProductName, getLocalizedProductType } from '../../utils/productLocale';
 import { Package, Plus, CreditCard as Edit2, AlertTriangle, Search, RefreshCw } from 'lucide-react';
 import { maybeAlertLowStock } from '../../utils/notifications';
+import { SectionSkeleton } from '../SectionSkeleton';
 
 interface Product {
   id: string;
@@ -298,7 +299,7 @@ export default function InventoryManagement() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">{t('admin.loadingInventory')}</div>;
+    return <SectionSkeleton variant="table" />;
   }
 
   return (
@@ -373,7 +374,7 @@ export default function InventoryManagement() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         {item.product.image_url && (
-                          <img
+                          <img loading="lazy" decoding="async"
                             src={item.product.image_url}
                             alt={getLocalizedProductName(item.product, language)}
                             className="w-10 h-10 rounded object-cover mr-3"
@@ -425,7 +426,7 @@ export default function InventoryManagement() {
               <div key={item.id} className="bg-white rounded-lg shadow p-4 space-y-3">
                 <div className="flex items-center gap-3">
                   {item.product.image_url && (
-                    <img
+                    <img loading="lazy" decoding="async"
                       src={item.product.image_url}
                       alt={getLocalizedProductName(item.product, language)}
                       className="w-10 h-10 rounded object-cover flex-shrink-0"

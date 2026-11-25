@@ -13,6 +13,7 @@ import {
 } from '../../utils/notifications';
 import { roundPVToMultiple } from '../../utils/pv';
 import { usePaymentProofUrl } from '../../utils/paymentProofUrl';
+import { SectionSkeleton } from '../SectionSkeleton';
 
 interface OrderItem {
   id: string;
@@ -834,7 +835,7 @@ export default function OrderManagement() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">{t('admin.loadingOrders')}</div>;
+    return <SectionSkeleton variant="table" />;
   }
 
   return (
@@ -951,7 +952,7 @@ export default function OrderManagement() {
                         title={t('om.viewAllOrdersFromUser')}
                       >
                         {order.user.profile_image_url ? (
-                          <img
+                          <img loading="lazy" decoding="async"
                             src={order.user.profile_image_url}
                             alt={order.user.full_name}
                             className="w-9 h-9 rounded-full object-cover border border-gray-200 group-hover:ring-2 group-hover:ring-brand-400 transition"
@@ -973,7 +974,7 @@ export default function OrderManagement() {
                     <td className="px-6 py-4">
                       <div className="flex items-center">
                         {image && (
-                          <img
+                          <img loading="lazy" decoding="async"
                             src={image}
                             alt={displayName}
                             className="w-10 h-10 rounded object-cover mr-3"
@@ -1092,7 +1093,7 @@ export default function OrderManagement() {
                     className="flex items-center gap-3 min-w-0 text-left"
                   >
                     {order.user.profile_image_url ? (
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={order.user.profile_image_url}
                         alt={order.user.full_name}
                         className="w-9 h-9 rounded-full object-cover border border-gray-200 flex-shrink-0"
@@ -1124,7 +1125,7 @@ export default function OrderManagement() {
 
                 <div className="flex items-center gap-3">
                   {image && (
-                    <img src={image} alt={displayName} className="w-10 h-10 rounded object-cover flex-shrink-0" />
+                    <img loading="lazy" decoding="async" src={image} alt={displayName} className="w-10 h-10 rounded object-cover flex-shrink-0" />
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="text-sm text-gray-900 truncate">{displayName}</div>
@@ -1232,7 +1233,7 @@ export default function OrderManagement() {
                   <label className="text-sm font-medium text-gray-700">{t('om.customer')}</label>
                   <div className="flex items-center gap-3 mt-1">
                     {selectedOrder.user.profile_image_url ? (
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={selectedOrder.user.profile_image_url}
                         alt={selectedOrder.user.full_name}
                         className="w-10 h-10 rounded-full object-cover border border-gray-200"
@@ -1261,7 +1262,7 @@ export default function OrderManagement() {
                     {selectedOrder.order_items.map((item) => (
                       <div key={item.id} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
                         {item.product.image_url && (
-                          <img
+                          <img loading="lazy" decoding="async"
                             src={item.product.image_url}
                             alt={getLocalizedProductName(item.product, language)}
                             className="w-16 h-16 object-cover rounded"
@@ -1284,7 +1285,7 @@ export default function OrderManagement() {
                 ) : selectedOrder.product ? (
                   <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
                     {selectedOrder.product.image_url && (
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={selectedOrder.product.image_url}
                         alt={getLocalizedProductName(selectedOrder.product, language)}
                         className="w-16 h-16 object-cover rounded"
@@ -1358,7 +1359,7 @@ export default function OrderManagement() {
                             rel="noopener noreferrer"
                             className="block"
                           >
-                            <img
+                            <img loading="lazy" decoding="async"
                               src={paymentProofSignedUrl}
                               alt="Payment proof"
                               className="max-w-full h-auto max-h-[50vh] sm:max-h-[300px] rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition mx-auto"
@@ -1518,7 +1519,7 @@ export default function OrderManagement() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">{t('om.paymentScreenshotPlain')}</label>
                   <div className="border-2 border-gray-300 rounded-lg p-2 bg-gray-50">
                     {paymentProofSignedUrl ? (
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={paymentProofSignedUrl}
                         alt="Payment Proof"
                         className="max-w-full h-auto max-h-[60vh] mx-auto rounded cursor-pointer hover:opacity-90 transition"
@@ -1788,7 +1789,7 @@ function UserOrderHistoryModal({
                       className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-gray-50 transition"
                     >
                       {image && (
-                        <img src={image} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                        <img loading="lazy" decoding="async" src={image} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
@@ -1836,7 +1837,7 @@ function UserOrderHistoryModal({
                             order.order_items.map((item) => (
                               <div key={item.id} className="flex items-center gap-3 bg-white rounded-lg p-3 border border-gray-100">
                                 {item.product.image_url && (
-                                  <img src={item.product.image_url} alt={getLocalizedProductName(item.product, language)} className="w-10 h-10 rounded object-cover" />
+                                  <img loading="lazy" decoding="async" src={item.product.image_url} alt={getLocalizedProductName(item.product, language)} className="w-10 h-10 rounded object-cover" />
                                 )}
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-medium text-gray-900 truncate">{getLocalizedProductName(item.product, language)}</p>
@@ -1854,7 +1855,7 @@ function UserOrderHistoryModal({
                           ) : order.product ? (
                             <div className="flex items-center gap-3 bg-white rounded-lg p-3 border border-gray-100">
                               {order.product.image_url && (
-                                <img src={order.product.image_url} alt={getLocalizedProductName(order.product, language)} className="w-10 h-10 rounded object-cover" />
+                                <img loading="lazy" decoding="async" src={order.product.image_url} alt={getLocalizedProductName(order.product, language)} className="w-10 h-10 rounded object-cover" />
                               )}
                               <div className="flex-1">
                                 <p className="text-sm font-medium text-gray-900">{getLocalizedProductName(order.product, language)}</p>

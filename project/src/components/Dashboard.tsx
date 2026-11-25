@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { LayoutDashboard, Users, Award, TrendingUp, Bell, LogOut, Menu, ShoppingCart, Shield, CircleUser as UserCircle, Package, ShoppingBag, UsersRound, Globe, Settings, BarChart3 } from 'lucide-react';
 import { UserDashboard } from './user/UserDashboard';
-import { AdminDashboard } from './admin/AdminDashboard';
+import { AdminDashboard, prefetchAdminPages } from './admin/AdminDashboard';
 import { NotificationBell } from './NotificationBell';
 import { supabase } from '../lib/supabase';
 import { onAppResume } from '../lib/appLifecycle';
@@ -61,6 +61,10 @@ export function Dashboard() {
       window.removeEventListener('orientationchange', onResize);
     };
   }, []);
+
+  useEffect(() => {
+    if (isAdmin) prefetchAdminPages();
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!profile) return;

@@ -10,6 +10,7 @@ import { ShoppingCart, Trash2, Plus, Minus, AlertCircle, Check, X, Tag } from 'l
 import { sendOrderPlacedNotification } from '../../utils/notifications';
 import { removePaymentProof, uploadPaymentProof } from '../../lib/paymentProof';
 import { PaymentProofFields } from './PaymentProofFields';
+import { SectionSkeleton } from '../SectionSkeleton';
 
 interface CartItem {
   id: string;
@@ -353,7 +354,7 @@ export default function Cart() {
   }, 0);
 
   if (loading) {
-    return <div className="text-center py-8">{t('cart.loading')}</div>;
+    return <SectionSkeleton variant="list" />;
   }
 
   return (
@@ -404,7 +405,7 @@ export default function Cart() {
                     <div className="flex flex-col sm:flex-row gap-4">
                       <div className="relative flex-shrink-0">
                         {item.products.image_url && (
-                          <img
+                          <img loading="lazy" decoding="async"
                             src={item.products.image_url}
                             alt={getLocalizedProductName(item.products, language)}
                             className="w-full sm:w-24 h-32 sm:h-24 object-cover rounded-lg"

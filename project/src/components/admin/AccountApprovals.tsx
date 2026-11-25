@@ -5,6 +5,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { loadCountryNames, getCountryName } from '../../utils/countries';
 import { UserCheck, UserX, CheckCircle, ToggleLeft, ToggleRight } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { SectionSkeleton } from '../SectionSkeleton';
 
 interface PendingProfile {
   id: string;
@@ -175,7 +176,7 @@ export default function AccountApprovals() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">{t('admin.loadingPending')}</div>;
+    return <SectionSkeleton variant="list" />;
   }
 
   return (
@@ -244,7 +245,7 @@ export default function AccountApprovals() {
                   <td className="px-6 py-4">
                     <div className="flex items-center">
                       {user.profile_image_url ? (
-                        <img
+                        <img loading="lazy" decoding="async"
                           src={user.profile_image_url}
                           alt={user.full_name}
                           className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 mr-3"
@@ -303,7 +304,7 @@ export default function AccountApprovals() {
             <div key={user.id} className="bg-white rounded-lg shadow p-4 space-y-3">
               <div className="flex items-center gap-3">
                 {user.profile_image_url ? (
-                  <img
+                  <img loading="lazy" decoding="async"
                     src={user.profile_image_url}
                     alt={user.full_name}
                     className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 flex-shrink-0"
