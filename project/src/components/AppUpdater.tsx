@@ -5,7 +5,7 @@ const CHECK_EVERY_MS = 60_000;
 const RELOAD_KEY = 'lc_reload_attempt';
 
 /**
- * Detects when a new version of LC Shop has been deployed and reloads the
+ * Detects when a new version of LC Store has been deployed and reloads the
  * page by itself. If the user is typing, it waits silently until they leave
  * the field (or the tab) so nothing they entered is lost. No banner is shown.
  */

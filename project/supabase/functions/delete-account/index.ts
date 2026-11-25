@@ -41,7 +41,7 @@ function buildDeletionEmailHtml(
           <p style="margin: 4px 0; color: #7f1d1d;">Date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
         </div>
         <p style="color: #6b7280; font-size: 13px;">
-          This is an automated notification from the LC Shop app.
+          This is an automated notification from the LC Store app.
         </p>
       </div>
     </div>

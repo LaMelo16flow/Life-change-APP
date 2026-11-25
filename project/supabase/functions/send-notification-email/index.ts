@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { isGmailConfigured, sendGmailEmail } from "../_shared/sendGmailEmail.ts";
 import { cleanupGmailIfNeeded } from "../_shared/gmailCleanup.ts";
 
-// At most once a day, after an email goes out, check how full the LC Shop
+// At most once a day, after an email goes out, check how full the LC Store
 // Gmail account is and free space if it is close to 50% (see gmailCleanup.ts).
 // Runs in the background so the email reply is not delayed. The last result
 // is kept in admin_settings under 'gmail_cleanup'.
@@ -126,7 +126,7 @@ Deno.serve(async (req: Request) => {
 
     // A customer may only email themselves or the shop staff (order/payment
     // alerts). Only staff can email other customers - otherwise any member
-    // could send messages to everyone from the official LC Shop address.
+    // could send messages to everyone from the official LC Store address.
     const { data: callerProfile } = await adminClient
       .from("profiles")
       .select("email, role, is_master")

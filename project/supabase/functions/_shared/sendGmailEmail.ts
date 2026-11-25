@@ -23,7 +23,7 @@ export async function sendGmailEmail(params: {
 
   try {
     await client.send({
-      from: `LC Shop <${username}>`,
+      from: `LC Store <${username}>`,
       to: params.to,
       subject: params.subject,
       content: "auto",

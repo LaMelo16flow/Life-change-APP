@@ -144,14 +144,16 @@ export function AuthForm() {
       <div className="w-full max-w-md relative z-10">
         <div className="text-center mb-8 animate-fade-in">
           <div className="relative inline-block mb-3">
-            <div className="absolute inset-0 bg-brand-500/20 rounded-full blur-2xl scale-125" />
-            <img
-              src={`${import.meta.env.BASE_URL}logo-lockup.png`}
-              alt="LC Shop"
-              className="relative h-20 w-auto mx-auto"
-            />
+            <div className="absolute inset-0 bg-brand-500/20 rounded-3xl blur-2xl scale-110" />
+            <div className="relative bg-white rounded-2xl px-5 py-3 shadow-2xl shadow-black/30">
+              <img
+                src={`${import.meta.env.BASE_URL}logo-wordmark.webp`}
+                alt="LC Store"
+                className="h-16 sm:h-20 w-auto mx-auto"
+              />
+            </div>
           </div>
-          <h1 className="sr-only">LC Shop</h1>
+          <h1 className="sr-only">LC Store</h1>
           <p className="text-gray-400 text-sm">
             Buy • Shop • Enjoy
           </p>
@@ -281,7 +283,7 @@ export function AuthForm() {
                 <p className="text-gray-400 text-sm mt-1">
                   {isLogin
                     ? 'Connectez-vous pour acceder a votre espace'
-                    : 'Rejoignez la communaute LC Shop'}
+                    : 'Rejoignez la communaute LC Store'}
                 </p>
               </div>
 

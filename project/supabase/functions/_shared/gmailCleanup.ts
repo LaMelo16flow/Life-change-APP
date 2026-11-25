@@ -1,4 +1,4 @@
-// Frees space in the LC Shop Gmail account (lcshop.app@gmail.com) from the app
+// Frees space in the LC Store Gmail account (lcshop.app@gmail.com) from the app
 // itself, over IMAP with the same GMAIL_USER / GMAIL_APP_PASSWORD secrets used
 // for sending.
 //

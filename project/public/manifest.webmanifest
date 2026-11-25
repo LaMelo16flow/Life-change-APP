@@ -1,7 +1,7 @@
 {
   "id": "/Life-change-APP/",
-  "name": "LC Shop",
-  "short_name": "LC Shop",
+  "name": "LC Store",
+  "short_name": "LC Store",
   "description": "Buy • Shop • Enjoy",
   "lang": "fr",
   "dir": "auto",
@@ -13,8 +13,8 @@
     "minimal-ui"
   ],
   "orientation": "any",
-  "background_color": "#111827",
-  "theme_color": "#052e16",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "categories": [
     "shopping"
   ],

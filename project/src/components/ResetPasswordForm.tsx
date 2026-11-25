@@ -42,12 +42,14 @@ export function ResetPasswordForm() {
       <div className="w-full max-w-md relative z-10">
         <div className="text-center mb-8">
           <div className="relative inline-block mb-6">
-            <div className="absolute inset-0 bg-brand-500/20 rounded-full blur-2xl scale-125" />
-            <img
-              src={`${import.meta.env.BASE_URL}logo-lockup.png`}
-              alt="LC Shop"
-              className="relative h-20 w-auto mx-auto"
-            />
+            <div className="absolute inset-0 bg-brand-500/20 rounded-3xl blur-2xl scale-110" />
+            <div className="relative bg-white rounded-2xl px-5 py-3 shadow-2xl shadow-black/30">
+              <img
+                src={`${import.meta.env.BASE_URL}logo-wordmark.webp`}
+                alt="LC Store"
+                className="h-16 sm:h-20 w-auto mx-auto"
+              />
+            </div>
           </div>
           <h1 className="text-3xl font-bold text-white tracking-tight mb-2">
             Nouveau mot de passe

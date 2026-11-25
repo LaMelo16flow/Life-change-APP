@@ -45,7 +45,7 @@ export async function sendAccountApprovalRequestNotification(userData: {
           Please log in to the admin dashboard to review and approve or reject this account.
         </p>
         <p style="color: #6b7280; font-size: 13px; margin-top: 16px;">
-          This is an automated notification from the LC Shop app.
+          This is an automated notification from the LC Store app.
         </p>
       </div>
     </div>
@@ -138,9 +138,9 @@ export async function sendPromotionNotification(data: {
         </div>
         <p style="color: #374151; font-size: 14px;">Visit the shop today and take advantage of this special offer.</p>
         <p style="color: #9ca3af; font-size: 12px; margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 12px;">
-          LC Shop &middot; lcshop.app@gmail.com<br/>
-          You receive this email because you have an LC Shop account. To stop promotion emails, open the app &rarr; Profile &rarr; uncheck "Promotion emails", or reply "STOP" to this email.<br/>
-          Vous recevez ce courriel car vous avez un compte LC Shop. Pour ne plus recevoir les promotions : application &rarr; Profil &rarr; decochez « Courriels de promotions », ou repondez « STOP ».
+          LC Store &middot; lcshop.app@gmail.com<br/>
+          You receive this email because you have an LC Store account. To stop promotion emails, open the app &rarr; Profile &rarr; uncheck "Promotion emails", or reply "STOP" to this email.<br/>
+          Vous recevez ce courriel car vous avez un compte LC Store. Pour ne plus recevoir les promotions : application &rarr; Profil &rarr; decochez « Courriels de promotions », ou repondez « STOP ».
         </p>
       </div>
     </div>
@@ -244,7 +244,7 @@ export async function sendOrderPlacedNotification(orderData: OrderNotificationDa
           </a>
 
           <p style="color: #6b7280; font-size: 13px; margin-top: 24px;">
-            This is an automated notification from the LC Shop app.
+            This is an automated notification from the LC Store app.
           </p>
         </div>
       </div>
@@ -319,7 +319,7 @@ export async function sendOrderApprovedNotification(orderData: OrderNotification
         </a>
 
         <p style="color: #6b7280; font-size: 13px; margin-top: 24px;">
-          This is an automated notification from the LC Shop app.
+          This is an automated notification from the LC Store app.
         </p>
       </div>
     </div>
@@ -409,7 +409,7 @@ export async function sendPaymentVerifiedNotification(orderData: OrderNotificati
         </a>
 
         <p style="color: #6b7280; font-size: 13px; margin-top: 24px;">
-          This is an automated notification from the LC Shop app.
+          This is an automated notification from the LC Store app.
         </p>
       </div>
     </div>
@@ -460,7 +460,7 @@ export async function sendOrderRejectedNotification(
         </a>
 
         <p style="color: #6b7280; font-size: 13px; margin-top: 24px;">
-          This is an automated notification from the LC Shop app.
+          This is an automated notification from the LC Store app.
         </p>
       </div>
     </div>
@@ -523,7 +523,7 @@ export async function sendLowStockAlert(data: LowStockAlertData) {
           Manage Inventory
         </a>
         <p style="color: #6b7280; font-size: 13px; margin-top: 24px;">
-          This is an automated notification from the LC Shop app.
+          This is an automated notification from the LC Store app.
         </p>
       </div>
     </div>
