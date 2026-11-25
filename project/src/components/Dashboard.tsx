@@ -199,16 +199,24 @@ export function Dashboard() {
         >
           <div className={`${isMobile ? 'w-64' : sidebarWidth} flex flex-col h-full transition-all duration-300`}>
             <div className={`${sidebarCollapsed && !isMobile ? 'p-2' : 'p-4 pb-3'}`}>
-              <div className={`flex items-center ${sidebarCollapsed && !isMobile ? 'justify-center' : 'gap-3'} mb-4`}>
-                <img
-                  src={`${import.meta.env.BASE_URL}logo-mark.png`}
-                  alt="LC Store logo"
-                  className={`${sidebarCollapsed && !isMobile ? 'w-10 h-10' : 'w-11 h-11'} object-contain drop-shadow-md transition-all duration-300`}
-                />
-                {(!sidebarCollapsed || isMobile) && (
-                  <h1 className="text-base font-bold tracking-tight text-white whitespace-nowrap">LC Store</h1>
-                )}
-              </div>
+              {sidebarCollapsed && !isMobile ? (
+                <div className="flex items-center justify-center mb-4">
+                  <img
+                    src={`${import.meta.env.BASE_URL}logo-mark.png`}
+                    alt="LC Store"
+                    className="w-10 h-10 object-contain drop-shadow-md"
+                  />
+                </div>
+              ) : (
+                <div className="mb-4 bg-white rounded-xl px-3 py-2 shadow-md">
+                  <h1 className="sr-only">LC Store</h1>
+                  <img
+                    src={`${import.meta.env.BASE_URL}logo-wordmark.webp`}
+                    alt="LC Store"
+                    className="h-11 w-auto mx-auto object-contain"
+                  />
+                </div>
+              )}
               {(!sidebarCollapsed || isMobile) ? (
                 <div className="flex items-center gap-2.5 bg-white/5 rounded-xl p-2.5 ring-1 ring-white/5">
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ring-2 ring-white/10">
